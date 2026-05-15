@@ -1,0 +1,149 @@
+salary:
+  net_monthly: 146709
+  sources:
+    - name: "Infosys Salary"
+      amount: 146709
+
+# Fixed monthly expenses (auto-loaded each month)
+fixed_expenses:
+  - category: "Housing"
+    name: "Rent"
+    amount: 16500
+  - category: "Savings"
+    name: "RD1"
+    amount: 2000
+  - category: "Savings"
+    name: "RD2"
+    amount: 5000
+  - category: "Savings"
+    name: "RD3"
+    amount: 5000
+  - category: "Savings"
+    name: "RD3 (New)"
+    amount: 5000
+  - category: "EMI"
+    name: "Car EMI"
+    amount: 16392
+  - category: "EMI"
+    name: "Credit EMI"
+    amount: 5267
+  - category: "Household"
+    name: "Cook"
+    amount: 4000
+  - category: "Household"
+    name: "Milk"
+    amount: 945
+  - category: "Insurance"
+    name: "Term Insurance"
+    amount: 2062
+  - category: "Investments"
+    name: "Groww MF1"
+    amount: 3000
+  - category: "Investments"
+    name: "Groww MF2"
+    amount: 5000
+  - category: "Investments"
+    name: "Groww MF3 (New)"
+    amount: 5000
+  - category: "Investments"
+    name: "SBI MF1"
+    amount: 2000
+  - category: "Investments"
+    name: "SBI MF2"
+    amount: 2000
+  - category: "Utilities"
+    name: "Fibre + Mobile Recharge"
+    amount: 2318
+  - category: "Utilities"
+    name: "D2H"
+    amount: 372
+  - category: "Savings"
+    name: "iWish"
+    amount: 2100
+  - category: "Insurance"
+    name: "Insurance (Platinum)"
+    amount: 7000
+
+# Variable expense category budget limits (monthly)
+budget_limits:
+  Food: 2000
+  Travel: 4000
+  Groceries: 5000
+  Shopping: 3000
+  Medical: 5000
+  Entertainment: 2000
+  Gifts: 2000
+  Miscellaneous: 5000
+  Course: 3000
+
+# Vendor → Category mapping (Claude AI will also infer dynamically)
+vendor_categories:
+  food:
+    - zomato
+    - swiggy
+    - blinkit
+    - pizza
+    - restaurant
+    - cafe
+    - dominos
+    - mcdonalds
+    - kfc
+    - hotel
+    - dhaba
+  travel:
+    - ola
+    - uber
+    - rapido
+    - petrol
+    - fuel
+    - irctc
+    - makemytrip
+    - bus
+    - auto
+    - taxi
+  groceries:
+    - bigbasket
+    - grofers
+    - dmart
+    - reliance fresh
+    - more
+    - zepto
+    - instamart
+    - vegetables
+    - fruits
+  shopping:
+    - amazon
+    - flipkart
+    - myntra
+    - ajio
+    - meesho
+    - nykaa
+  medical:
+    - medical
+    - pharmacy
+    - doctor
+    - hospital
+    - apollo
+    - netmeds
+    - 1mg
+    - clinic
+  entertainment:
+    - netflix
+    - hotstar
+    - prime
+    - spotify
+    - youtube
+    - movie
+    - pvr
+    - inox
+  gifts:
+    - gift
+    - present
+    - flowers
+    - birthday
+  course:
+    - udemy
+    - coursera
+    - course
+    - class
+    - training
