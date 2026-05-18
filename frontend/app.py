@@ -174,34 +174,41 @@ if summary:
     paid_count = fp.get("paid", 0)
     total_count = fp.get("total", 0)
     pct_done = int(paid_count / total_count * 100) if total_count else 0
-    income_display = f"₹{bal['total_income']:,.0f}" if bal['total_income'] > 0 else "Not set"
-    rem_color = "#34d399" if rem >= 0 else "#f87171"
+    rem_color      = "#34d399" if rem >= 0 else "#f87171"
+    total_income   = bal.get("total_income", 0)
+    income_display = f"\u20b9{total_income:,.0f}" if total_income > 0 else "Not set"
 
     st.markdown(f'<div style="margin-bottom:12px;"><span class="{badge_class}">{badge_text}</span></div>',
                 unsafe_allow_html=True)
 
-    st.markdown(f"""
-    <div class="balance-grid">
-        <div class="bal-card main">
-            <div class="bal-label">Remaining Balance</div>
-            <div class="bal-amount" style="color:{rem_color};">₹{rem:,.0f}</div>
-            <div class="bal-sub">Income − paid fixed − variable</div>
-        </div>
-        <div class="bal-card">
-            <div class="bal-label">Monthly Income</div>
-            <div class="bal-amount">{income_display}</div>
-            <div class="bal-sub">Variable budget: ₹{bal['total_income'] - bal.get('fixed_paid_total',0) - bal.get('fixed_unpaid_total',0):,.0f}</div>
-        </div>
-        <div class="bal-card">
-            <div class="bal-label">Fixed Paid / Pending</div>
-            <div class="bal-amount">{paid_count} / {total_count}</div>
-            <div class="bal-sub">₹{bal.get('fixed_paid_total',0):,.0f} paid · ₹{bal.get('fixed_unpaid_total',0):,.0f} pending</div>
-        </div>
-    </div>
-    <div class="fixed-progress-bar">
-        <div class="fixed-progress-fill" style="width:{pct_done}%"></div>
-    </div>
-    """, unsafe_allow_html=True)
+    cards_html = (
+        '<div class="balance-grid">'
+
+        # Card 1: Remaining Balance
+        f'<div class="bal-card main">'
+        '<div class="bal-label">Remaining Balance</div>'
+        f'<div class="bal-amount" style="color:{rem_color};">\u20b9{rem:,.0f}</div>'
+        '<div class="bal-sub">After all paid expenses</div>'
+        '</div>'
+
+        # Card 2: Monthly Income
+        f'<div class="bal-card">'
+        '<div class="bal-label">Monthly Income</div>'
+        f'<div class="bal-amount">{income_display}</div>'
+        f'<div class="bal-sub">\u20b9{bal.get("variable_total",0):,.0f} variable spent</div>'
+        '</div>'
+
+        # Card 3: Fixed Paid / Pending
+        f'<div class="bal-card">'
+        '<div class="bal-label">Fixed Paid / Pending</div>'
+        f'<div class="bal-amount">{paid_count} / {total_count}</div>'
+        f'<div class="bal-sub">\u20b9{bal.get("fixed_paid_total",0):,.0f} paid \xb7 \u20b9{bal.get("fixed_unpaid_total",0):,.0f} pending</div>'
+        '</div>'
+
+        '</div>'
+        f'<div class="fixed-progress-bar"><div class="fixed-progress-fill" style="width:{pct_done}%"></div></div>'
+    )
+    st.markdown(cards_html, unsafe_allow_html=True)
 
     if is_current and summary.get("warnings"):
         for w in summary["warnings"]:
@@ -415,7 +422,7 @@ with tab3:
             'border:1px solid rgba(255,255,255,0.07);margin-bottom:20px;">'
             '<div style="display:flex;justify-content:space-between;margin-bottom:10px;">'
             '<span style="color:rgba(255,255,255,0.5);font-size:0.78rem;text-transform:uppercase;letter-spacing:1px;">Monthly Budget Gauge</span>'
-            f'<span style="color:rgba(255,255,255,0.4);font-size:0.78rem;">\u20b9{income:,.0f} income</span>'
+            '<span style="color:rgba(255,255,255,0.4);font-size:0.78rem;">Monthly Breakdown</span>'
             '</div>'
             '<div style="display:flex;border-radius:8px;overflow:hidden;height:28px;gap:2px;">'
             f'<div style="width:{pp}%;background:#6366f1;display:flex;align-items:center;justify-content:center;font-size:0.7rem;color:white;font-weight:600;min-width:0;">{lbl_p}</div>'
@@ -758,9 +765,9 @@ with tab5:
                 st.success("✅ Budget limits updated!")
                 st.rerun()
 
-    # ── Monthly Income ────────────────────────────────────
-    st.markdown('<div class="section-title">Monthly Income</div>', unsafe_allow_html=True)
-    st.markdown(f'<div style="color:rgba(255,255,255,0.4); font-size:0.82rem; margin-bottom:14px;">Currently editing: <b style="color:white">{month_label}</b>. Change the month selector at the top to update a different month.</div>', unsafe_allow_html=True)
+    # ── Monthly Credit ────────────────────────────────────
+    st.markdown('<div class="section-title">Monthly Credit</div>', unsafe_allow_html=True)
+    st.markdown(f'<div style="color:rgba(255,255,255,0.4); font-size:0.82rem; margin-bottom:14px;">Used for budget calculations only — not displayed on dashboard. Currently editing: <b style="color:white">{month_label}</b>.</div>', unsafe_allow_html=True)
 
     current_income = api("GET", f"/income/{sel_month}") or {}
     saved_source = current_income.get("source", "Infosys Salary")

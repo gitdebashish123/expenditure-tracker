@@ -35,6 +35,7 @@ Rules:
 4. If vendor is unclear, use "Miscellaneous" category
 5. Vendor name should be clean and title-cased (e.g., "Zomato", "Ola")
 6. Extract note if user provides context like "zomato 500 lunch with team" → note: "lunch with team"
+7. IMPORTANT: Blinkit, Swiggy Instamart, BigBasket, JioMart, Zepto, DMart → always Groceries. Swiggy (food delivery) → Food.
 
 Return ONLY a valid JSON array, no explanation, no markdown. Example:
 [{{"vendor": "Zomato", "amount": 500, "category": "Food", "note": null}}, {{"vendor": "Ola", "amount": 200, "category": "Travel", "note": null}}]"""
