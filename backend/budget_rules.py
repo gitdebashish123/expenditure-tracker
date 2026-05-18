@@ -61,30 +61,34 @@ def check_budget_warnings(session: Session, month_key: str) -> list[dict]:
 
 
 def get_balance_summary(session: Session, month_key: str) -> dict:
+    # Income: only count explicitly saved entries — 0 if none saved yet (no salary fallback)
     incomes = session.exec(
         select(IncomeEntry).where(IncomeEntry.month_key == month_key)
     ).all()
     total_income = sum(i.amount for i in incomes)
-    if total_income == 0:
-        total_income = config["salary"]["net_monthly"]
 
-    fixed = session.exec(
+    # Fixed: only count PAID (ticked) rows — unpaid rows don't reduce balance yet
+    fixed_all = session.exec(
         select(Expense).where(Expense.month_key == month_key, Expense.is_fixed == True)
     ).all()
-    fixed_total = sum(e.amount for e in fixed)
+    fixed_paid_total = sum(e.amount for e in fixed_all if e.paid)
+    fixed_unpaid_total = sum(e.amount for e in fixed_all if not e.paid)
 
+    # Variable expenses are always counted (they're already spent)
     variable = session.exec(
         select(Expense).where(Expense.month_key == month_key, Expense.is_fixed == False)
     ).all()
     variable_total = sum(e.amount for e in variable)
 
-    total_spent = fixed_total + variable_total
+    total_spent = fixed_paid_total + variable_total
     remaining = total_income - total_spent
 
     return {
         "month_key": month_key,
         "total_income": total_income,
-        "fixed_total": fixed_total,
+        "fixed_paid_total": fixed_paid_total,
+        "fixed_unpaid_total": fixed_unpaid_total,
+        "fixed_total": fixed_paid_total + fixed_unpaid_total,  # for display reference
         "variable_total": variable_total,
         "total_spent": total_spent,
         "remaining": remaining,
