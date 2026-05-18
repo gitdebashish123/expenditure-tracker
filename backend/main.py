@@ -361,3 +361,139 @@ def list_months(session: Session = Depends(get_session)):
 def seed_month(month_key: str, session: Session = Depends(get_session)):
     seed_fixed_expenses(session, month_key)
     return {"seeded": month_key}
+
+
+@app.get("/insights/mom/{month_key}")
+def month_over_month(month_key: str, session: Session = Depends(get_session)):
+    """
+    Return variable spend per category for the given month + 2 preceding months.
+    Used for the month-over-month comparison table on the dashboard.
+    """
+    from datetime import date as dt
+    import calendar
+
+    # Build list of [month_key-2, month_key-1, month_key]
+    year, month = map(int, month_key.split("-"))
+    months = []
+    for offset in range(2, -1, -1):
+        m = month - offset
+        y = year
+        while m <= 0:
+            m += 12
+            y -= 1
+        months.append(f"{y:04d}-{m:02d}")
+
+    # All variable expenses across those 3 months
+    expenses = session.exec(
+        select(Expense).where(
+            Expense.month_key.in_(months),
+            Expense.is_fixed == False,
+        )
+    ).all()
+
+    # Build category → {month_key: total}
+    data: dict[str, dict[str, float]] = {}
+    for e in expenses:
+        data.setdefault(e.category, {})
+        data[e.category][e.month_key] = data[e.category].get(e.month_key, 0) + e.amount
+
+    # Also pull income for each month (for savings rate)
+    incomes = session.exec(
+        select(IncomeEntry).where(IncomeEntry.month_key.in_(months))
+    ).all()
+    income_map = {i.month_key: i.amount for i in incomes}
+
+    return {
+        "months": months,
+        "categories": data,
+        "income": income_map,
+    }
+
+
+@app.get("/insights/top-spends/{month_key}")
+def top_spends(month_key: str, limit: int = 5, session: Session = Depends(get_session)):
+    """
+    Return top N individual variable expense transactions for the month.
+    """
+    expenses = session.exec(
+        select(Expense).where(
+            Expense.month_key == month_key,
+            Expense.is_fixed == False,
+        ).order_by(Expense.amount.desc())
+    ).all()
+
+    results = []
+    for e in expenses[:limit]:
+        results.append({
+            "id": e.id,
+            "vendor": e.vendor,
+            "amount": e.amount,
+            "category": e.category,
+            "date": e.date.isoformat(),
+            "note": e.note,
+        })
+    return results
+
+
+@app.get("/insights/projection/{month_key}")
+def budget_projection(month_key: str, session: Session = Depends(get_session)):
+    """
+    For each variable category, project end-of-month spend based on daily burn rate.
+    """
+    from datetime import date as dt
+    import calendar
+
+    year, month = map(int, month_key.split("-"))
+    days_in_month = calendar.monthrange(year, month)[1]
+    today = dt.today()
+
+    # Days elapsed: if viewing a past month use full month, else use today
+    if month_key < today.strftime("%Y-%m"):
+        days_elapsed = days_in_month
+    elif month_key == today.strftime("%Y-%m"):
+        days_elapsed = max(today.day, 1)
+    else:
+        days_elapsed = 1
+
+    expenses = session.exec(
+        select(Expense).where(
+            Expense.month_key == month_key,
+            Expense.is_fixed == False,
+        )
+    ).all()
+
+    limits_rows = session.exec(select(BudgetLimit)).all()
+    limits = {bl.category: bl.limit_amount for bl in limits_rows}
+
+    cat_spent: dict[str, float] = {}
+    for e in expenses:
+        cat_spent[e.category] = cat_spent.get(e.category, 0) + e.amount
+
+    projections = []
+    for cat, limit in limits.items():
+        spent = cat_spent.get(cat, 0)
+        daily_rate = spent / days_elapsed
+        projected = daily_rate * days_in_month
+        days_left = days_in_month - days_elapsed
+        budget_left = max(limit - spent, 0)
+
+        if limit > 0:
+            projections.append({
+                "category": cat,
+                "spent": spent,
+                "limit": limit,
+                "projected": round(projected),
+                "daily_rate": round(daily_rate, 1),
+                "days_left": days_left,
+                "budget_left": budget_left,
+                "pct_spent": round(spent / limit * 100, 1),
+                "pct_projected": round(projected / limit * 100, 1),
+                "status": (
+                    "over" if spent > limit else
+                    "danger" if projected > limit else
+                    "warning" if projected > limit * 0.85 else
+                    "safe"
+                ),
+            })
+
+    return sorted(projections, key=lambda x: x["pct_projected"], reverse=True)

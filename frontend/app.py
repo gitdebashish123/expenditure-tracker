@@ -384,57 +384,199 @@ with tab2:
 # TAB 3: DASHBOARD — follows global month selector
 # ═══════════════════════════════════════════════════════
 with tab3:
-    st.markdown(f'<div class="section-title">Dashboard · <span style="color:#6366f1">{month_label}</span></div>',
-                unsafe_allow_html=True)
+    st.markdown(f'<div class="section-title">Dashboard \xb7 <span style="color:#6366f1">{month_label}</span></div>', unsafe_allow_html=True)
 
-    if summary:
+    if not summary:
+        st.info("No data for this month yet.")
+    else:
         bal = summary["balance"]
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            paid_f = bal.get('fixed_paid_total', 0)
-            unpaid_f = bal.get('fixed_unpaid_total', 0)
-            st.metric("Fixed Paid", f"₹{paid_f:,.0f}",
-                      delta=f"₹{unpaid_f:,.0f} pending", delta_color="inverse")
-        with col2:
-            st.metric("Variable Expenses", f"₹{bal['variable_total']:,.0f}")
-        with col3:
-            st.metric("Savings Rate", f"{bal.get('savings_rate', 0):.1f}%")
+        income      = bal.get("total_income", 0)
+        fixed_paid  = bal.get("fixed_paid_total", 0)
+        fixed_unpd  = bal.get("fixed_unpaid_total", 0)
+        variable    = bal.get("variable_total", 0)
+        remaining   = bal.get("remaining", 0)
 
-        # Budget tracker — only meaningful for current month
-        cats = [c for c in summary.get("categories", []) if c["limit"] > 0]
-        if cats:
-            st.markdown('<div class="section-title">Budget vs Actual</div>', unsafe_allow_html=True)
-            for cat in sorted(cats, key=lambda x: x["pct"], reverse=True):
-                icon = CATEGORY_ICONS.get(cat["category"], "📦")
-                color = bar_color(cat["pct"])
-                pct_display = min(cat["pct"], 100)
-                st.markdown(f"""
-                <div class="cat-row">
-                    <div class="cat-name">{icon} {cat['category']}</div>
-                    <div class="cat-bar-bg"><div class="cat-bar-fill" style="width:{pct_display}%; background:{color};"></div></div>
-                    <div class="cat-amounts">₹{cat['spent']:,.0f} / ₹{cat['limit']:,.0f}</div>
-                </div>
-                """, unsafe_allow_html=True)
+        # ── 1. Month Fuel Gauge ────────────────────────────
+        if income > 0:
+            pp = round(fixed_paid / income * 100, 1)
+            pu = round(fixed_unpd / income * 100, 1)
+            pv = round(variable   / income * 100, 1)
+            pr = max(round(remaining / income * 100, 1), 0)
+        else:
+            pp = pu = pv = pr = 0
 
-        # Spending chart — variable only
-        st.markdown('<div class="section-title">Spending by Category</div>', unsafe_allow_html=True)
-        all_exp = api("GET", f"/expenses/{sel_month}")
-        if all_exp:
-            df = pd.DataFrame(all_exp)
-            var_df = df[df["is_fixed"] == False]
-            if not var_df.empty:
-                cat_totals = var_df.groupby("category")["amount"].sum().sort_values(ascending=False)
-                st.bar_chart(pd.DataFrame({"Amount (₹)": cat_totals}))
+        lbl_p  = f"{pp:.0f}%"  if pp > 6  else ""
+        lbl_u  = f"{pu:.0f}%"  if pu > 6  else ""
+        lbl_v  = f"{pv:.0f}%"  if pv > 6  else ""
+        lbl_r  = f"\u20b9{remaining:,.0f}" if pr > 8 else ""
 
-            # Fixed vs Variable split
-            st.markdown('<div class="section-title">Fixed vs Variable Split</div>', unsafe_allow_html=True)
-            split_data = {
-                "Fixed (Paid)": bal.get("fixed_paid_total", 0),
-                "Fixed (Pending)": bal.get("fixed_unpaid_total", 0),
-                "Variable": bal.get("variable_total", 0),
+        gauge_html = (
+            '<div style="background:#111118;border-radius:16px;padding:18px 20px;'
+            'border:1px solid rgba(255,255,255,0.07);margin-bottom:20px;">'
+            '<div style="display:flex;justify-content:space-between;margin-bottom:10px;">'
+            '<span style="color:rgba(255,255,255,0.5);font-size:0.78rem;text-transform:uppercase;letter-spacing:1px;">Monthly Budget Gauge</span>'
+            f'<span style="color:rgba(255,255,255,0.4);font-size:0.78rem;">\u20b9{income:,.0f} income</span>'
+            '</div>'
+            '<div style="display:flex;border-radius:8px;overflow:hidden;height:28px;gap:2px;">'
+            f'<div style="width:{pp}%;background:#6366f1;display:flex;align-items:center;justify-content:center;font-size:0.7rem;color:white;font-weight:600;min-width:0;">{lbl_p}</div>'
+            f'<div style="width:{pu}%;background:rgba(99,102,241,0.3);display:flex;align-items:center;justify-content:center;font-size:0.7rem;color:rgba(255,255,255,0.6);min-width:0;">{lbl_u}</div>'
+            f'<div style="width:{pv}%;background:#f87171;display:flex;align-items:center;justify-content:center;font-size:0.7rem;color:white;font-weight:600;min-width:0;">{lbl_v}</div>'
+            f'<div style="flex:1;background:rgba(52,211,153,0.25);display:flex;align-items:center;justify-content:center;font-size:0.7rem;color:#34d399;font-weight:600;">{lbl_r}</div>'
+            '</div>'
+            '<div style="display:flex;gap:16px;margin-top:10px;flex-wrap:wrap;">'
+            f'<span style="font-size:0.75rem;color:rgba(255,255,255,0.5);"><span style="display:inline-block;width:10px;height:10px;background:#6366f1;border-radius:2px;margin-right:4px;"></span>Fixed Paid \u20b9{fixed_paid:,.0f}</span>'
+            f'<span style="font-size:0.75rem;color:rgba(255,255,255,0.5);"><span style="display:inline-block;width:10px;height:10px;background:rgba(99,102,241,0.4);border-radius:2px;margin-right:4px;"></span>Pending \u20b9{fixed_unpd:,.0f}</span>'
+            f'<span style="font-size:0.75rem;color:rgba(255,255,255,0.5);"><span style="display:inline-block;width:10px;height:10px;background:#f87171;border-radius:2px;margin-right:4px;"></span>Variable \u20b9{variable:,.0f}</span>'
+            f'<span style="font-size:0.75rem;color:#34d399;"><span style="display:inline-block;width:10px;height:10px;background:rgba(52,211,153,0.4);border-radius:2px;margin-right:4px;"></span>Remaining \u20b9{remaining:,.0f}</span>'
+            '</div></div>'
+        )
+        st.markdown(gauge_html, unsafe_allow_html=True)
+
+        # ── 2. Budget Health Scorecard ──────────────────────
+        st.markdown('<div class="section-title">Budget Health</div>', unsafe_allow_html=True)
+
+        projections = api("GET", f"/insights/projection/{sel_month}") or []
+        if projections:
+            cards_html = ""
+            STATUS = {
+                "over":    ("\U0001f534", "#ef4444", "rgba(239,68,68,0.08)",  "Over budget"),
+                "danger":  ("\U0001f7e0", "#f59e0b", "rgba(245,158,11,0.07)", ""),
+                "warning": ("\U0001f7e1", "#eab308", "rgba(234,179,8,0.06)",  ""),
+                "safe":    ("\U0001f7e2", "#34d399", "rgba(52,211,153,0.05)", "On track"),
             }
-            split_df = pd.DataFrame({"Amount (₹)": split_data})
-            st.bar_chart(split_df)
+            for p in projections:
+                icon    = CATEGORY_ICONS.get(p["category"], "\U0001f4e6")
+                dot, accent, bg, base_label = STATUS.get(p["status"], STATUS["safe"])
+                label   = base_label or f"Projected \u20b9{p['projected']:,.0f}"
+                bar_w   = round(min(p["pct_spent"], 100), 1)
+                proj_w  = round(min(p["pct_projected"], 100), 1)
+                days_info = (f"{p['days_left']}d left \xb7 \u20b9{p['daily_rate']:,.0f}/day"
+                             if p["days_left"] > 0 else "Month complete")
+
+                proj_marker = ""
+                if p["status"] in ("danger", "warning") and proj_w > bar_w:
+                    left = min(proj_w, 99)
+                    proj_marker = (
+                        f'<div style="position:absolute;top:-2px;left:{left}%;'
+                        'width:2px;height:10px;background:rgba(255,255,255,0.4);border-radius:1px;"></div>'
+                    )
+
+                cards_html += (
+                    f'<div style="background:{bg};border:1px solid {accent}22;border-left:3px solid {accent};'
+                    'border-radius:12px;padding:14px 16px;margin-bottom:10px;">'
+                    '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">'
+                    f'<span style="color:white;font-size:0.88rem;font-weight:600;">{dot} {icon} {p["category"]}</span>'
+                    f'<span style="color:{accent};font-size:0.78rem;font-weight:600;">{label}</span>'
+                    '</div>'
+                    '<div style="background:rgba(255,255,255,0.06);border-radius:99px;height:6px;margin-bottom:8px;position:relative;">'
+                    f'<div style="width:{bar_w}%;background:{accent};height:6px;border-radius:99px;"></div>'
+                    f'{proj_marker}'
+                    '</div>'
+                    '<div style="display:flex;justify-content:space-between;color:rgba(255,255,255,0.4);font-size:0.75rem;">'
+                    f'<span>\u20b9{p["spent"]:,.0f} spent of \u20b9{p["limit"]:,.0f}</span>'
+                    f'<span>{days_info}</span>'
+                    '</div></div>'
+                )
+            st.markdown(cards_html, unsafe_allow_html=True)
+
+        # ── 3. Top 5 Variable Spends ────────────────────────
+        st.markdown('<div class="section-title">Top Spends This Month</div>', unsafe_allow_html=True)
+
+        top_spends_data = api("GET", f"/insights/top-spends/{sel_month}?limit=5") or []
+        if top_spends_data:
+            RANK_COLORS = ["#f59e0b", "#94a3b8", "#b45309", "#6366f1", "#6366f1"]
+            top_html = ""
+            for i, t in enumerate(top_spends_data):
+                t_icon     = CATEGORY_ICONS.get(t["category"], "\U0001f4e6")
+                date_str   = datetime.strptime(t["date"], "%Y-%m-%d").strftime("%d %b")
+                note_part  = ""
+                if t.get("note") and "Imported" not in str(t.get("note", "")):
+                    note_part = f'<span style="color:rgba(255,255,255,0.3);font-size:0.75rem;"> \xb7 {t["note"]}</span>'
+                rc = RANK_COLORS[i]
+                top_html += (
+                    '<div style="display:flex;align-items:center;gap:12px;padding:12px 0;'
+                    'border-bottom:1px solid rgba(255,255,255,0.05);">'
+                    f'<div style="font-family:\'Syne\',sans-serif;font-size:1.1rem;font-weight:800;'
+                    f'color:{rc};width:24px;text-align:center;flex-shrink:0;">#{i+1}</div>'
+                    f'<div style="width:36px;height:36px;border-radius:10px;background:rgba(255,255,255,0.06);'
+                    f'display:flex;align-items:center;justify-content:center;font-size:1.1rem;flex-shrink:0;">{t_icon}</div>'
+                    '<div style="flex:1;">'
+                    f'<div style="color:white;font-size:0.88rem;font-weight:500;">{t["vendor"]}{note_part}</div>'
+                    f'<div style="color:rgba(255,255,255,0.4);font-size:0.75rem;">{t["category"]} \xb7 {date_str}</div>'
+                    '</div>'
+                    f'<div style="font-family:\'Syne\',sans-serif;font-size:1rem;font-weight:700;color:#f87171;">'
+                    f'\u20b9{t["amount"]:,.0f}</div>'
+                    '</div>'
+                )
+            st.markdown(top_html, unsafe_allow_html=True)
+        else:
+            st.markdown('<p style="color:rgba(255,255,255,0.3);font-size:0.85rem;padding:16px 0;">No variable expenses logged yet.</p>', unsafe_allow_html=True)
+
+        # ── 4. Month-over-Month Comparison ─────────────────
+        st.markdown('<div class="section-title">Month-over-Month</div>', unsafe_allow_html=True)
+
+        mom = api("GET", f"/insights/mom/{sel_month}")
+        if mom and mom.get("months") and mom.get("categories"):
+            m_list   = mom["months"]
+            cat_data = mom["categories"]
+
+            # Header row
+            th_cells = "".join(
+                f'<th style="color:rgba(255,255,255,0.5);font-size:0.75rem;font-weight:600;'
+                f'text-align:right;padding:6px 12px;white-space:nowrap;">'
+                f'{datetime.strptime(m, "%Y-%m").strftime("%b %Y")}</th>'
+                for m in m_list
+            )
+            table_html = (
+                '<div style="background:#111118;border-radius:14px;border:1px solid rgba(255,255,255,0.07);overflow:hidden;margin-top:4px;">'
+                '<div style="overflow-x:auto;">'
+                '<table style="width:100%;border-collapse:collapse;font-size:0.85rem;">'
+                '<thead><tr>'
+                '<th style="color:rgba(255,255,255,0.5);font-size:0.75rem;font-weight:600;padding:6px 12px;text-align:left;">Category</th>'
+                + th_cells +
+                '<th style="color:rgba(255,255,255,0.5);font-size:0.75rem;font-weight:600;text-align:center;padding:6px 12px;">Trend</th>'
+                '</tr></thead><tbody>'
+            )
+
+            for cat in sorted(cat_data.keys()):
+                c_icon = CATEGORY_ICONS.get(cat, "\U0001f4e6")
+                vals   = [cat_data[cat].get(m, 0) for m in m_list]
+
+                if len(vals) >= 2 and vals[-2] > 0:
+                    chg = (vals[-1] - vals[-2]) / vals[-2] * 100
+                    if chg > 10:
+                        trend_html = f'<span style="color:#f87171;">\u2191 {chg:.0f}%</span>'
+                    elif chg < -10:
+                        trend_html = f'<span style="color:#34d399;">\u2193 {abs(chg):.0f}%</span>'
+                    else:
+                        trend_html = '<span style="color:rgba(255,255,255,0.3);">\u2192</span>'
+                else:
+                    trend_html = '<span style="color:rgba(255,255,255,0.2);">\u2014</span>'
+
+                td_cells = ""
+                max_val  = max(vals) if any(vals) else 0
+                for j, v in enumerate(vals):
+                    is_latest  = (j == len(vals) - 1)
+                    is_peak    = (v == max_val and v > 0 and is_latest)
+                    col        = "white" if is_latest else "rgba(255,255,255,0.45)"
+                    fw         = "700"   if is_latest else "400"
+                    cell_bg    = "rgba(239,68,68,0.12)" if is_peak else "transparent"
+                    val_str    = f"\u20b9{v:,.0f}" if v > 0 else "\u2014"
+                    td_cells  += (
+                        f'<td style="text-align:right;padding:8px 12px;color:{col};font-weight:{fw};'
+                        f'font-family:\'Syne\',sans-serif;background:{cell_bg};">{val_str}</td>'
+                    )
+
+                table_html += (
+                    '<tr style="border-bottom:1px solid rgba(255,255,255,0.05);">'
+                    f'<td style="padding:8px 12px;color:rgba(255,255,255,0.8);font-size:0.85rem;">{c_icon} {cat}</td>'
+                    + td_cells +
+                    f'<td style="text-align:center;padding:8px 12px;font-size:0.82rem;">{trend_html}</td>'
+                    '</tr>'
+                )
+
+            table_html += '</tbody></table></div></div>'
+            st.markdown(table_html, unsafe_allow_html=True)
 
 
 # ═══════════════════════════════════════════════════════
