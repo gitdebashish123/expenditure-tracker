@@ -7,6 +7,17 @@ DATABASE_URL = "sqlite:///./data/expenses.db"
 engine = create_engine(DATABASE_URL, echo=False)
 
 
+class FixedExpenseTemplate(SQLModel, table=True):
+    """Master list of fixed expenses — managed by the user, persists across months."""
+    id: Optional[int] = Field(default=None, primary_key=True)
+    name: str                        # e.g. "Rent", "Car EMI", "Groww MF1"
+    category: str                    # e.g. "Housing", "EMI", "Investments"
+    amount: float
+    is_active: bool = Field(default=True)   # soft delete / disable
+    sort_order: int = Field(default=0)      # for display ordering
+    created_at: datetime = Field(default_factory=datetime.now)
+
+
 class Expense(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     date: DateT = Field(default_factory=DateT.today)
@@ -15,7 +26,9 @@ class Expense(SQLModel, table=True):
     category: str
     note: Optional[str] = None
     is_fixed: bool = Field(default=False)
-    month_key: str  # "2026-05" format
+    paid: bool = Field(default=False)       # tick = paid/done for the month
+    month_key: str                          # "2026-05" format
+    fixed_template_id: Optional[int] = Field(default=None, foreign_key="fixedexpensetemplate.id")
     created_at: datetime = Field(default_factory=datetime.now)
 
 
