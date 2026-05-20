@@ -7,7 +7,7 @@ from datetime import date
 import yaml
 
 from backend.models import (
-    Expense, BudgetLimit, IncomeEntry, FixedExpenseTemplate,
+    Expense, BudgetLimit, IncomeEntry, FixedExpenseTemplate, ExpenseTemplate,
     create_db, get_session, engine
 )
 from backend.ai_parser import parse_expense_input
@@ -78,6 +78,34 @@ class FixedTemplateUpdate(BaseModel):
     amount: Optional[float] = None
     is_active: Optional[bool] = None
     sort_order: Optional[int] = None
+    due_day: Optional[int] = None
+
+
+class ExpenseUpdate(BaseModel):
+    vendor: Optional[str] = None
+    amount: Optional[float] = None
+    category: Optional[str] = None
+    note: Optional[str] = None
+    expense_date: Optional[str] = None
+
+
+class BulkDeleteRequest(BaseModel):
+    ids: list[int]
+
+
+class ExpenseTemplateCreate(BaseModel):
+    name: str
+    vendor: str
+    category: str
+    amount: float
+
+
+class ExpenseTemplateUpdate(BaseModel):
+    name: Optional[str] = None
+    vendor: Optional[str] = None
+    category: Optional[str] = None
+    amount: Optional[float] = None
+    is_active: Optional[bool] = None
 
 
 # ── Variable Expense Endpoints ───────────────────────────────────────────────
@@ -147,6 +175,38 @@ def get_expenses(month_key: str, session: Session = Depends(get_session)):
     return expenses
 
 
+@app.patch("/expenses/{expense_id}")
+def edit_expense(expense_id: int, update: ExpenseUpdate, session: Session = Depends(get_session)):
+    """Edit vendor, amount, category or note of a variable expense."""
+    exp = session.get(Expense, expense_id)
+    if not exp or exp.is_fixed:
+        raise HTTPException(status_code=404, detail="Expense not found")
+    if update.vendor is not None: exp.vendor = update.vendor
+    if update.amount is not None: exp.amount = update.amount
+    if update.category is not None: exp.category = update.category
+    if update.note is not None: exp.note = update.note
+    if update.expense_date is not None:
+        exp.date = date.fromisoformat(update.expense_date)
+        exp.month_key = get_month_key(exp.date)
+    session.add(exp)
+    session.commit()
+    session.refresh(exp)
+    return exp
+
+
+@app.post("/expenses/bulk-delete")
+def bulk_delete_expenses(req: BulkDeleteRequest, session: Session = Depends(get_session)):
+    """Delete multiple variable expenses at once."""
+    deleted = []
+    for expense_id in req.ids:
+        exp = session.get(Expense, expense_id)
+        if exp and not exp.is_fixed:
+            session.delete(exp)
+            deleted.append(expense_id)
+    session.commit()
+    return {"deleted": deleted, "count": len(deleted)}
+
+
 @app.delete("/expenses/{expense_id}")
 def delete_expense(expense_id: int, session: Session = Depends(get_session)):
     exp = session.get(Expense, expense_id)
@@ -194,6 +254,119 @@ def update_fixed_amount(expense_id: int, amount: float, session: Session = Depen
     session.commit()
     session.refresh(exp)
     return exp
+
+
+# ── Expense Templates (Favourites) ──────────────────────────────────────────
+
+@app.get("/expense-templates")
+def list_expense_templates(session: Session = Depends(get_session)):
+    return session.exec(
+        select(ExpenseTemplate).where(ExpenseTemplate.is_active == True)
+        .order_by(ExpenseTemplate.use_count.desc())
+    ).all()
+
+
+@app.post("/expense-templates")
+def create_expense_template(tmpl: ExpenseTemplateCreate, session: Session = Depends(get_session)):
+    new = ExpenseTemplate(
+        name=tmpl.name, vendor=tmpl.vendor,
+        category=tmpl.category, amount=tmpl.amount
+    )
+    session.add(new)
+    session.commit()
+    session.refresh(new)
+    return new
+
+
+@app.put("/expense-templates/{tmpl_id}")
+def update_expense_template(tmpl_id: int, update: ExpenseTemplateUpdate,
+                            session: Session = Depends(get_session)):
+    tmpl = session.get(ExpenseTemplate, tmpl_id)
+    if not tmpl:
+        raise HTTPException(status_code=404, detail="Template not found")
+    for field, value in update.model_dump(exclude_unset=True).items():
+        setattr(tmpl, field, value)
+    session.add(tmpl)
+    session.commit()
+    session.refresh(tmpl)
+    return tmpl
+
+
+@app.delete("/expense-templates/{tmpl_id}")
+def delete_expense_template(tmpl_id: int, session: Session = Depends(get_session)):
+    tmpl = session.get(ExpenseTemplate, tmpl_id)
+    if not tmpl:
+        raise HTTPException(status_code=404, detail="Template not found")
+    tmpl.is_active = False
+    session.add(tmpl)
+    session.commit()
+    return {"deleted": tmpl_id}
+
+
+@app.post("/expense-templates/{tmpl_id}/log")
+def log_from_template(tmpl_id: int, expense_date: Optional[str] = None,
+                      session: Session = Depends(get_session)):
+    """One-tap log: create an expense from a favourite template."""
+    tmpl = session.get(ExpenseTemplate, tmpl_id)
+    if not tmpl:
+        raise HTTPException(status_code=404, detail="Template not found")
+    exp_date = date.fromisoformat(expense_date) if expense_date else date.today()
+    month_key = get_month_key(exp_date)
+    exp = Expense(
+        date=exp_date, vendor=tmpl.vendor, amount=tmpl.amount,
+        category=tmpl.category, note=f"Quick-add: {tmpl.name}",
+        is_fixed=False, paid=True, month_key=month_key
+    )
+    session.add(exp)
+    tmpl.use_count += 1
+    session.add(tmpl)
+    session.commit()
+    session.refresh(exp)
+    warnings = check_budget_warnings(session, month_key)
+    balance = get_balance_summary(session, month_key)
+    return {"expense": exp, "warnings": warnings, "balance": balance}
+
+
+# ── Income Check ─────────────────────────────────────────────────────────────
+
+@app.get("/income/check/{month_key}")
+def check_income_set(month_key: str, session: Session = Depends(get_session)):
+    """Check if income has been explicitly set for a month."""
+    entry = session.exec(
+        select(IncomeEntry).where(IncomeEntry.month_key == month_key)
+    ).first()
+    return {"is_set": entry is not None, "month_key": month_key}
+
+
+# ── Fixed Due Day ─────────────────────────────────────────────────────────────
+
+@app.get("/fixed/due-reminders/{month_key}")
+def get_due_reminders(month_key: str, session: Session = Depends(get_session)):
+    """Return unpaid fixed expenses whose due_day is today or has passed."""
+    from datetime import date as dt
+    today = dt.today()
+    expenses = session.exec(
+        select(Expense).where(
+            Expense.month_key == month_key,
+            Expense.is_fixed == True,
+            Expense.paid == False,
+        )
+    ).all()
+    reminders = []
+    for exp in expenses:
+        tmpl = session.get(FixedExpenseTemplate, exp.fixed_template_id) if exp.fixed_template_id else None
+        if tmpl and tmpl.due_day:
+            days_overdue = today.day - tmpl.due_day
+            if days_overdue >= 0:
+                reminders.append({
+                    "expense_id": exp.id,
+                    "vendor": exp.vendor,
+                    "amount": exp.amount,
+                    "category": exp.category,
+                    "due_day": tmpl.due_day,
+                    "days_overdue": days_overdue,
+                })
+    return sorted(reminders, key=lambda x: x["days_overdue"], reverse=True)
 
 
 # ── Fixed Expense Templates (CRUD) ───────────────────────────────────────────

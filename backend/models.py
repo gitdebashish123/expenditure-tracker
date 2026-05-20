@@ -15,6 +15,19 @@ class FixedExpenseTemplate(SQLModel, table=True):
     amount: float
     is_active: bool = Field(default=True)   # soft delete / disable
     sort_order: int = Field(default=0)      # for display ordering
+    due_day: Optional[int] = Field(default=None)  # day of month payment is due (e.g. 5 for EMI)
+    created_at: datetime = Field(default_factory=datetime.now)
+
+
+class ExpenseTemplate(SQLModel, table=True):
+    """User-defined quick-add favourites for recurring variable expenses."""
+    id: Optional[int] = Field(default=None, primary_key=True)
+    name: str                        # display label e.g. "Petrol"
+    vendor: str                      # e.g. "Petrol"
+    category: str                    # e.g. "Travel"
+    amount: float                    # default amount
+    is_active: bool = Field(default=True)
+    use_count: int = Field(default=0)  # track popularity
     created_at: datetime = Field(default_factory=datetime.now)
 
 
