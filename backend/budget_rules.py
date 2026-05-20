@@ -1,5 +1,5 @@
 from sqlmodel import Session, select
-from backend.models import Expense, BudgetLimit, IncomeEntry, FixedExpenseTemplate
+from backend.models import Expense, BudgetLimit, IncomeEntry, FixedExpenseTemplate, PoolEntry
 from datetime import date
 import yaml
 
@@ -74,21 +74,30 @@ def get_balance_summary(session: Session, month_key: str) -> dict:
     fixed_paid_total = sum(e.amount for e in fixed_all if e.paid)
     fixed_unpaid_total = sum(e.amount for e in fixed_all if not e.paid)
 
+    # Pool entries: paid pool entries also reduce balance
+    pool_all = session.exec(
+        select(PoolEntry).where(PoolEntry.month_key == month_key)
+    ).all()
+    pool_paid_total = sum(p.amount for p in pool_all if p.paid)
+    pool_unpaid_total = sum(p.amount for p in pool_all if not p.paid)
+
     # Variable expenses are always counted (they're already spent)
     variable = session.exec(
         select(Expense).where(Expense.month_key == month_key, Expense.is_fixed == False)
     ).all()
     variable_total = sum(e.amount for e in variable)
 
-    total_spent = fixed_paid_total + variable_total
+    total_spent = fixed_paid_total + pool_paid_total + variable_total
     remaining = total_income - total_spent
 
     return {
         "month_key": month_key,
         "total_income": total_income,
-        "fixed_paid_total": fixed_paid_total,
-        "fixed_unpaid_total": fixed_unpaid_total,
-        "fixed_total": fixed_paid_total + fixed_unpaid_total,  # for display reference
+        "fixed_paid_total": fixed_paid_total + pool_paid_total,
+        "fixed_unpaid_total": fixed_unpaid_total + pool_unpaid_total,
+        "fixed_total": fixed_paid_total + fixed_unpaid_total + pool_paid_total + pool_unpaid_total,
+        "pool_paid_total": pool_paid_total,
+        "pool_unpaid_total": pool_unpaid_total,
         "variable_total": variable_total,
         "total_spent": total_spent,
         "remaining": remaining,
@@ -116,6 +125,9 @@ def seed_fixed_expenses(session: Session, month_key: str):
         return
 
     for tmpl in templates:
+        # Skip pool templates — they are not auto-seeded; entries are added manually each month
+        if tmpl.template_type == "pool":
+            continue
         # Check if this template already has an expense row for this month
         existing = session.exec(
             select(Expense).where(

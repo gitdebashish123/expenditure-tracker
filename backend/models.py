@@ -16,6 +16,20 @@ class FixedExpenseTemplate(SQLModel, table=True):
     is_active: bool = Field(default=True)   # soft delete / disable
     sort_order: int = Field(default=0)      # for display ordering
     due_day: Optional[int] = Field(default=None)  # day of month payment is due (e.g. 5 for EMI)
+    template_type: str = Field(default="fixed")  # "fixed" = known amount | "pool" = ad-hoc entries
+    created_at: datetime = Field(default_factory=datetime.now)
+
+
+class PoolEntry(SQLModel, table=True):
+    """Individual payment under an Essential Pool template (e.g. Electric - Home, Recharge - Wife)."""
+    id: Optional[int] = Field(default=None, primary_key=True)
+    pool_template_id: int = Field(foreign_key="fixedexpensetemplate.id")
+    month_key: str                   # "2026-05"
+    label: str                       # e.g. "Home", "Rented House", "Self", "Wife"
+    amount: float
+    paid: bool = Field(default=False)
+    paid_date: Optional[DateT] = Field(default=None)
+    note: Optional[str] = None
     created_at: datetime = Field(default_factory=datetime.now)
 
 

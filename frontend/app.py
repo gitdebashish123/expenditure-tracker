@@ -421,23 +421,23 @@ with tab1:
 
 
 # ═══════════════════════════════════════════════════════
-# TAB 2: FIXED EXPENSES with due reminders
+# TAB 2: FIXED EXPENSES with due reminders + Essential Pools
 # ═══════════════════════════════════════════════════════
 with tab2:
     st.markdown(f'<div class="section-title">Fixed Expenses \xb7 <span style="color:#6366f1">{month_label}</span></div>', unsafe_allow_html=True)
 
-    # Due reminders (only for current month)
+    # Due reminders (current month only)
     if is_current:
         reminders = api("GET", f"/fixed/due-reminders/{sel_month}") or []
-        if reminders:
-            for r in reminders:
-                overdue_txt = "due today" if r["days_overdue"] == 0 else f"{r['days_overdue']}d overdue"
-                st.markdown(
-                    f'<div class="due-banner">\U0001f514 <b>{r["vendor"]}</b> \u20b9{r["amount"]:,.0f} '
-                    f'\u2014 was due on the {r["due_day"]}th ({overdue_txt})</div>',
-                    unsafe_allow_html=True
-                )
+        for r in reminders:
+            overdue_txt = "due today" if r["days_overdue"] == 0 else f"{r['days_overdue']}d overdue"
+            st.markdown(
+                f'<div class="due-banner">\U0001f514 <b>{r["vendor"]}</b> \u20b9{r["amount"]:,.0f} '
+                f'\u2014 was due on the {r["due_day"]}th ({overdue_txt})</div>',
+                unsafe_allow_html=True
+            )
 
+    # ── True Fixed Expenses ─────────────────────────────────────────────
     fixed_exps = api("GET", f"/fixed/{sel_month}") or []
     if fixed_exps:
         by_cat = defaultdict(list)
@@ -461,7 +461,6 @@ with tab2:
             icon      = CATEGORY_ICONS.get(category, "\U0001f4e6")
             cat_total = sum(i["amount"] for i in items)
             st.markdown(f'<div class="fixed-group-header">{icon} {category} \xb7 \u20b9{cat_total:,.0f}</div>', unsafe_allow_html=True)
-
             for item in items:
                 paid = item["paid"]
                 tick = "\u2705" if paid else "\u2b1c"
@@ -480,8 +479,92 @@ with tab2:
                 with c3:
                     amt_color = "#34d399" if paid else T["sub"]
                     st.markdown(f'<div style="padding:8px 0;text-align:right;font-family:\'Syne\',sans-serif;font-size:0.88rem;color:{amt_color};">\u20b9{item["amount"]:,.0f}</div>', unsafe_allow_html=True)
-    else:
-        st.markdown(f'<div style="color:{T["sub"]};text-align:center;padding:40px 0;">No fixed expenses for this month</div>', unsafe_allow_html=True)
+
+    # ── Essential Pools ─────────────────────────────────────────────────
+    pools = api("GET", f"/pools/{sel_month}") or []
+    if pools:
+        st.markdown('<div class="section-title">Essential Pools</div>', unsafe_allow_html=True)
+        st.markdown(f'<div style="color:{T["sub"]};font-size:0.8rem;margin-bottom:14px;">Bills with variable amount and count \u2014 add each payment as it happens.</div>', unsafe_allow_html=True)
+
+        for pool in pools:
+            icon      = CATEGORY_ICONS.get(pool["category"], "\U0001f4e6")
+            paid_t    = pool["paid_total"]
+            unpaid_t  = pool["unpaid_total"]
+            total_t   = paid_t + unpaid_t
+            pool_pct  = int(paid_t / total_t * 100) if total_t > 0 else 0
+            entry_cnt = pool["entry_count"]
+
+            # Pool header
+            pool_status = (
+                "\u26a0\ufe0f No entries yet" if entry_cnt == 0
+                else f"\u2705 \u20b9{paid_t:,.0f} paid" if unpaid_t == 0
+                else f"\u20b9{paid_t:,.0f} paid \xb7 \u20b9{unpaid_t:,.0f} unpaid"
+            )
+            st.markdown(f"""
+            <div style="background:{T['card']};border-radius:14px;border:1px solid {T['border']};
+                padding:16px 18px;margin-bottom:12px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+                    <span style="color:{T['text']};font-size:0.92rem;font-weight:700;">{icon} {pool['name']}</span>
+                    <span style="color:{'#34d399' if unpaid_t == 0 and entry_cnt > 0 else '#f59e0b' if unpaid_t > 0 else T['sub']};font-size:0.8rem;">{pool_status}</span>
+                </div>
+            """, unsafe_allow_html=True)
+
+            # Existing entries
+            for entry in pool["entries"]:
+                paid = entry["paid"]
+                tick = "\u2705" if paid else "\u2b1c"
+                e1, e2, e3, e4 = st.columns([0.07, 0.5, 0.22, 0.21])
+                with e1:
+                    if st.button(tick, key=f"ptick_{entry['id']}", help="Tap to undo / mark unpaid"):
+                        api("PATCH", f"/pools/entries/{entry['id']}/toggle")
+                        st.rerun()
+                with e2:
+                    st.markdown(f"""
+                    <div style="padding:6px 0;color:{'rgba(255,255,255,0.35)' if paid else T['text']};
+                        font-size:0.85rem;{'text-decoration:line-through;' if paid else ''}">
+                        {entry['label']}
+                        {f'<span style="color:{T["muted"]};font-size:0.73rem;"> \xb7 {entry["note"]}</span>' if entry.get("note") else ""}
+                    </div>
+                    """, unsafe_allow_html=True)
+                with e3:
+                    amt_color = "#34d399" if paid else T["sub"]
+                    st.markdown(f'<div style="padding:6px 0;text-align:right;font-family:\'Syne\',sans-serif;font-size:0.88rem;color:{amt_color};">\u20b9{entry["amount"]:,.0f}</div>', unsafe_allow_html=True)
+                with e4:
+                    if st.button("\U0001f5d1\ufe0f", key=f"pdel_{entry['id']}", help="Remove entry"):
+                        api("DELETE", f"/pools/entries/{entry['id']}")
+                        st.rerun()
+
+            # Add new entry form for this pool
+            with st.form(f"add_pool_{pool['id']}", clear_on_submit=True):
+                pa, pb, pc = st.columns([0.4, 0.3, 0.3])
+                with pa:
+                    new_label = st.text_input("Label", placeholder="e.g. Home, Rented House, Self", key=f"pl_{pool['id']}", label_visibility="collapsed",
+                    help="Enter label and amount, then click Add — logged as paid immediately")
+                with pb:
+                    new_amount = st.number_input("Amount (\u20b9)", min_value=0, step=10, key=f"pa_{pool['id']}", label_visibility="collapsed")
+                with pc:
+                    add_clicked = st.form_submit_button("\u2795 Add Payment")
+                if add_clicked and new_label and new_amount > 0:
+                    api("POST", f"/pools/{pool['id']}/entries/{sel_month}",
+                        json={"label": new_label, "amount": new_amount})
+                    st.rerun()
+
+            # Pool total
+            if total_t > 0:
+                st.markdown(f"""
+                <div style="display:flex;justify-content:space-between;padding:8px 0 4px;
+                    border-top:1px solid {T['border']};margin-top:4px;">
+                    <span style="color:{T['muted']};font-size:0.78rem;">{entry_cnt} payment(s)</span>
+                    <span style="font-family:'Syne',sans-serif;font-size:0.88rem;font-weight:700;color:{T['text']};">
+                        \u20b9{total_t:,.0f} total \xb7 <span style="color:#34d399;">\u20b9{paid_t:,.0f} paid</span>
+                    </span>
+                </div>
+                """, unsafe_allow_html=True)
+
+            st.markdown('</div>', unsafe_allow_html=True)
+
+    if not fixed_exps and not pools:
+        st.markdown(f'<div style="color:{T["sub"]};text-align:center;padding:40px 0;">No fixed expenses or pools for this month</div>', unsafe_allow_html=True)
 
 
 # ═══════════════════════════════════════════════════════
@@ -883,21 +966,33 @@ with tab5:
         """, unsafe_allow_html=True)
 
     with st.form("add_template", clear_on_submit=True):
-        st.markdown(f'<div style="color:{T["text"]};font-size:0.85rem;font-weight:600;margin-bottom:12px;">\u2795 Add New Fixed Expense</div>', unsafe_allow_html=True)
-        col1, col2, col3 = st.columns([0.38, 0.27, 0.35])
+        st.markdown(f'<div style="color:{T["text"]};font-size:0.85rem;font-weight:600;margin-bottom:12px;">➕ Add New Fixed Expense / Pool</div>', unsafe_allow_html=True)
+        col1, col2, col3, col4 = st.columns([0.3, 0.2, 0.22, 0.28])
         with col1:
-            new_tname = st.text_input("Name", placeholder="e.g. Groww MF4")
+            new_tname = st.text_input("Name", placeholder="e.g. Groww MF4 or Electric Bill")
         with col2:
-            new_tamt  = st.number_input("Amount (\u20b9)", min_value=0, step=100)
+            new_tamt  = st.number_input("Amount (₹)", min_value=0, step=100,
+                help="Set 0 for pools — amount is entered per payment")
         with col3:
             new_tcat  = st.selectbox("Category", FIXED_CATEGORIES)
-        if st.form_submit_button("\u2795 Add Fixed Expense"):
-            if new_tname and new_tamt > 0:
-                api("POST", "/fixed-templates", json={"name": new_tname, "category": new_tcat, "amount": new_tamt})
-                st.success(f"\u2705 Added {new_tname} (\u20b9{new_tamt:,.0f}) to {new_tcat}")
-                st.rerun()
+        with col4:
+            new_ttype = st.selectbox("Type", ["fixed", "pool"],
+                format_func=lambda x: "🔒 Fixed Amount" if x == "fixed" else "📦 Essential Pool")
+        if st.form_submit_button("➕ Add"):
+            if new_tname:
+                if new_ttype == "fixed" and new_tamt == 0:
+                    st.warning("Fixed expenses need an amount > 0. Use Pool type for variable bills like Electric Bill.")
+                else:
+                    api("POST", "/fixed-templates", json={
+                        "name": new_tname, "category": new_tcat,
+                        "amount": new_tamt, "template_type": new_ttype
+                    })
+                    type_label = "Pool" if new_ttype == "pool" else f"₹{new_tamt:,.0f}"
+                    st.success(f"✅ Added {new_tname} ({type_label}) under {new_tcat}")
+                    st.rerun()
             else:
-                st.warning("Please enter a name and amount greater than 0.")
+                st.warning("Please enter a name.")
+
 
     # ── Variable Budget Limits ────────────────────────────────────────────
     st.markdown('<div class="section-title">Variable Budget Limits</div>', unsafe_allow_html=True)

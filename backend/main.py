@@ -7,7 +7,7 @@ from datetime import date
 import yaml
 
 from backend.models import (
-    Expense, BudgetLimit, IncomeEntry, FixedExpenseTemplate, ExpenseTemplate,
+    Expense, BudgetLimit, IncomeEntry, FixedExpenseTemplate, ExpenseTemplate, PoolEntry,
     create_db, get_session, engine
 )
 from backend.ai_parser import parse_expense_input
@@ -71,6 +71,7 @@ class FixedTemplateCreate(BaseModel):
     category: str
     amount: float
     sort_order: Optional[int] = 0
+    template_type: Optional[str] = "fixed"
 
 class FixedTemplateUpdate(BaseModel):
     name: Optional[str] = None
@@ -78,6 +79,21 @@ class FixedTemplateUpdate(BaseModel):
     amount: Optional[float] = None
     is_active: Optional[bool] = None
     sort_order: Optional[int] = None
+    due_day: Optional[int] = None
+    template_type: Optional[str] = None
+
+
+class PoolEntryCreate(BaseModel):
+    label: str
+    amount: float
+    note: Optional[str] = None
+
+
+class PoolEntryUpdate(BaseModel):
+    label: Optional[str] = None
+    amount: Optional[float] = None
+    paid: Optional[bool] = None
+    note: Optional[str] = None
     due_day: Optional[int] = None
 
 
@@ -386,6 +402,7 @@ def create_template(tmpl: FixedTemplateCreate, session: Session = Depends(get_se
         category=tmpl.category,
         amount=tmpl.amount,
         sort_order=tmpl.sort_order or 0,
+        template_type=tmpl.template_type or "fixed",
     )
     session.add(new)
     session.commit()
@@ -670,3 +687,124 @@ def budget_projection(month_key: str, session: Session = Depends(get_session)):
             })
 
     return sorted(projections, key=lambda x: x["pct_projected"], reverse=True)
+
+
+# ── Pool Entries (Essential Pools) ───────────────────────────────────────────
+
+@app.get("/pools/{month_key}")
+def get_pools_for_month(month_key: str, session: Session = Depends(get_session)):
+    """
+    Return all active pool templates with their entries for the given month.
+    Used to render the Essential Pools section in the Fixed tab.
+    """
+    pool_templates = session.exec(
+        select(FixedExpenseTemplate).where(
+            FixedExpenseTemplate.is_active == True,
+            FixedExpenseTemplate.template_type == "pool",
+        ).order_by(FixedExpenseTemplate.sort_order, FixedExpenseTemplate.id)
+    ).all()
+
+    result = []
+    for tmpl in pool_templates:
+        entries = session.exec(
+            select(PoolEntry).where(
+                PoolEntry.pool_template_id == tmpl.id,
+                PoolEntry.month_key == month_key,
+            ).order_by(PoolEntry.created_at)
+        ).all()
+        paid_total   = sum(e.amount for e in entries if e.paid)
+        unpaid_total = sum(e.amount for e in entries if not e.paid)
+        result.append({
+            "id": tmpl.id,
+            "name": tmpl.name,
+            "category": tmpl.category,
+            "entries": [
+                {
+                    "id": e.id,
+                    "label": e.label,
+                    "amount": e.amount,
+                    "paid": e.paid,
+                    "paid_date": e.paid_date.isoformat() if e.paid_date else None,
+                    "note": e.note,
+                }
+                for e in entries
+            ],
+            "paid_total": paid_total,
+            "unpaid_total": unpaid_total,
+            "entry_count": len(entries),
+        })
+    return result
+
+
+@app.post("/pools/{pool_template_id}/entries/{month_key}")
+def add_pool_entry(
+    pool_template_id: int,
+    month_key: str,
+    entry: PoolEntryCreate,
+    session: Session = Depends(get_session)
+):
+    """Add a new payment entry to an essential pool for a month."""
+    tmpl = session.get(FixedExpenseTemplate, pool_template_id)
+    if not tmpl or tmpl.template_type != "pool":
+        raise HTTPException(status_code=404, detail="Pool template not found")
+
+    new_entry = PoolEntry(
+        pool_template_id=pool_template_id,
+        month_key=month_key,
+        label=entry.label,
+        amount=entry.amount,
+        paid=True,                    # entering an amount = already paid
+        paid_date=date.today(),
+        note=entry.note,
+    )
+    session.add(new_entry)
+    session.commit()
+    session.refresh(new_entry)
+    return new_entry
+
+
+@app.patch("/pools/entries/{entry_id}")
+def update_pool_entry(
+    entry_id: int,
+    update: PoolEntryUpdate,
+    session: Session = Depends(get_session)
+):
+    """Update label, amount, paid status or note of a pool entry."""
+    entry = session.get(PoolEntry, entry_id)
+    if not entry:
+        raise HTTPException(status_code=404, detail="Pool entry not found")
+    if update.label is not None:  entry.label  = update.label
+    if update.amount is not None: entry.amount = update.amount
+    if update.note is not None:   entry.note   = update.note
+    if update.paid is not None:
+        entry.paid = update.paid
+        entry.paid_date = date.today() if update.paid else None
+    session.add(entry)
+    session.commit()
+    session.refresh(entry)
+    return entry
+
+
+@app.patch("/pools/entries/{entry_id}/toggle")
+def toggle_pool_entry_paid(entry_id: int, session: Session = Depends(get_session)):
+    """Toggle paid status of a pool entry."""
+    entry = session.get(PoolEntry, entry_id)
+    if not entry:
+        raise HTTPException(status_code=404, detail="Pool entry not found")
+    entry.paid = not entry.paid
+    entry.paid_date = date.today() if entry.paid else None
+    session.add(entry)
+    session.commit()
+    session.refresh(entry)
+    return entry
+
+
+@app.delete("/pools/entries/{entry_id}")
+def delete_pool_entry(entry_id: int, session: Session = Depends(get_session)):
+    """Delete a pool entry."""
+    entry = session.get(PoolEntry, entry_id)
+    if not entry:
+        raise HTTPException(status_code=404, detail="Pool entry not found")
+    session.delete(entry)
+    session.commit()
+    return {"deleted": entry_id}
