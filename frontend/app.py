@@ -861,176 +861,264 @@ with tab4:
 
 
 # ═══════════════════════════════════════════════════════
-# TAB 5: SETTINGS
+# TAB 5: SETTINGS — friendly, goal-oriented layout
 # ═══════════════════════════════════════════════════════
 with tab5:
 
-    # ── Expense Favourites Management ────────────────────────────────────
-    st.markdown('<div class="section-title">Quick Add Favourites</div>', unsafe_allow_html=True)
-    st.markdown(f'<div style="color:{T["sub"]};font-size:0.82rem;margin-bottom:16px;">These appear as one-tap chips in Quick Add.</div>', unsafe_allow_html=True)
+    # ── Section helper ────────────────────────────────────────────────────
+    def settings_section(icon, title, subtitle):
+        st.markdown(f"""
+        <div style="margin-top:28px;margin-bottom:4px;">
+            <div style="font-family:'Syne',sans-serif;font-size:1rem;font-weight:700;color:{T['text']};">
+                {icon} {title}
+            </div>
+            <div style="color:{T['sub']};font-size:0.82rem;margin-top:3px;">{subtitle}</div>
+        </div>
+        <div style="border-bottom:1px solid {T['border']};margin-bottom:16px;"></div>
+        """, unsafe_allow_html=True)
 
-    fav_tmpls = api("GET", "/expense-templates") or []
-    if fav_tmpls:
-        fh1, fh2, fh3, fh4, fh5 = st.columns([0.28, 0.2, 0.18, 0.18, 0.16])
-        for h, lbl in zip([fh1,fh2,fh3,fh4,fh5], ["Name","Category","Amount","Save","Del"]):
-            h.markdown(f'<div style="color:{T["muted"]};font-size:0.75rem;font-weight:600;text-transform:uppercase;letter-spacing:1px;padding-bottom:6px;">{lbl}</div>', unsafe_allow_html=True)
-        st.markdown(f'<div style="border-top:1px solid {T["border"]};margin-bottom:8px;"></div>', unsafe_allow_html=True)
-        for t in fav_tmpls:
-            fc1, fc2, fc3, fc4, fc5 = st.columns([0.28, 0.2, 0.18, 0.18, 0.16])
-            with fc1:
-                fn = st.text_input("Name", value=t["name"], key=f"fn_{t['id']}", label_visibility="collapsed")
-            with fc2:
-                fc = st.selectbox("Cat", VAR_CATEGORIES,
-                    index=VAR_CATEGORIES.index(t["category"]) if t["category"] in VAR_CATEGORIES else 0,
-                    key=f"fc_{t['id']}", label_visibility="collapsed")
-            with fc3:
-                fa = st.number_input("Amt", value=int(t["amount"]), step=50, key=f"fa_{t['id']}", label_visibility="collapsed")
-            with fc4:
-                if st.button("\U0001f4be Save", key=f"fsave_{t['id']}"):
-                    api("PUT", f"/expense-templates/{t['id']}", json={"name": fn, "category": fc, "amount": fa})
-                    st.success(f"\u2705 Saved {fn}")
-                    st.rerun()
-            with fc5:
-                if st.button("\U0001f5d1\ufe0f", key=f"fdel_{t['id']}"):
-                    api("DELETE", f"/expense-templates/{t['id']}")
-                    st.rerun()
+    # ════════════════════════════════════════
+    # 1. MY INCOME
+    # ════════════════════════════════════════
+    settings_section("💰", "My Take-home", f"Your salary or income credited this month. Currently editing {month_label}.")
 
-    with st.form("add_fav", clear_on_submit=True):
-        st.markdown(f'<div style="color:{T["text"]};font-size:0.85rem;font-weight:600;margin-bottom:10px;">\u2795 Add Favourite</div>', unsafe_allow_html=True)
-        af1, af2, af3 = st.columns([0.38, 0.27, 0.35])
-        with af1:
-            fav_name = st.text_input("Name", placeholder="e.g. Petrol")
-        with af2:
-            fav_amt  = st.number_input("Amount (\u20b9)", min_value=0, step=50)
-        with af3:
-            fav_cat  = st.selectbox("Category", VAR_CATEGORIES)
-        if st.form_submit_button("\u2795 Add Favourite"):
-            if fav_name and fav_amt > 0:
-                api("POST", "/expense-templates", json={"name": fav_name, "vendor": fav_name, "category": fav_cat, "amount": fav_amt})
-                st.success(f"\u2705 Added {fav_name}")
+    current_income = api("GET", f"/income/{sel_month}") or {{}}
+    saved_source   = current_income.get("source", "Infosys Salary")
+    saved_amount   = int(current_income.get("amount", 0))
+    saved_note     = current_income.get("note") or ""
+
+    with st.form("income_form"):
+        ic1, ic2 = st.columns([0.55, 0.45])
+        with ic1:
+            income_source = st.text_input("Where does it come from?", value=saved_source,
+                placeholder="e.g. Infosys Salary, Freelance")
+        with ic2:
+            income_amount = st.number_input("How much was credited? (₹)", value=saved_amount, step=1000)
+        income_note = st.text_input("Any note? (optional)", value=saved_note,
+            placeholder="e.g. Includes bonus")
+        if st.form_submit_button("💾 Save"):
+            result = api("POST", "/income", json={"source": income_source, "amount": income_amount,
+                                                   "note": income_note, "month_key": sel_month})
+            if result:
+                st.success(f"✅ Saved ₹{income_amount:,.0f} for {month_label}")
                 st.rerun()
 
-    # ── Fixed Expense Templates ───────────────────────────────────────────
-    st.markdown('<div class="section-title">Fixed Expense Templates</div>', unsafe_allow_html=True)
-    st.markdown(f'<div style="color:{T["sub"]};font-size:0.82rem;margin-bottom:16px;">Auto-seeded every month. Set due day to get overdue reminders.</div>', unsafe_allow_html=True)
+    # ════════════════════════════════════════
+    # 2. MONTHLY BILLS
+    # ════════════════════════════════════════
+    settings_section("📋", "Monthly Bills",
+        "Everything you pay every month. Fixed = same amount always. Variable Recurring = amount changes (like electric bill).")
 
-    templates = api("GET", "/fixed-templates") or []
-    active_templates = [t for t in templates if t["is_active"]]
-    if active_templates:
-        gh1, gh2, gh3, gh4, gh5, gh6 = st.columns([0.24, 0.18, 0.15, 0.1, 0.16, 0.17])
-        for h, lbl in zip([gh1,gh2,gh3,gh4,gh5,gh6], ["Name","Category","Amount","Due Day","Save","Delete"]):
-            h.markdown(f'<div style="color:{T["muted"]};font-size:0.75rem;font-weight:600;text-transform:uppercase;letter-spacing:1px;padding-bottom:6px;">{lbl}</div>', unsafe_allow_html=True)
-        st.markdown(f'<div style="border-top:1px solid {T["border"]};margin-bottom:8px;"></div>', unsafe_allow_html=True)
+    templates     = api("GET", "/fixed-templates") or []
+    active_tmpls  = [t for t in templates if t["is_active"]]
+    fixed_tmpls   = [t for t in active_tmpls if t.get("template_type", "fixed") == "fixed"]
+    pool_tmpls    = [t for t in active_tmpls if t.get("template_type", "fixed") == "pool"]
 
-        tmpl_by_cat = defaultdict(list)
-        for t in active_templates:
-            tmpl_by_cat[t["category"]].append(t)
-
-        for cat, items in sorted(tmpl_by_cat.items()):
-            icon = CATEGORY_ICONS.get(cat, "\U0001f4e6")
-            st.markdown(f'<div class="fixed-group-header">{icon} {cat}</div>', unsafe_allow_html=True)
-            for t in items:
-                c1, c2, c3, c4, c5, c6 = st.columns([0.24, 0.18, 0.15, 0.1, 0.16, 0.17])
-                with c1:
-                    new_name = st.text_input("Name", value=t["name"], key=f"tname_{t['id']}", label_visibility="collapsed")
-                with c2:
-                    new_cat = st.selectbox("Category", FIXED_CATEGORIES,
-                        index=FIXED_CATEGORIES.index(t["category"]) if t["category"] in FIXED_CATEGORIES else 0,
-                        key=f"tcat_{t['id']}", label_visibility="collapsed")
-                with c3:
-                    new_amt = st.number_input("Amount", value=int(t["amount"]), step=100, key=f"tamt_{t['id']}", label_visibility="collapsed")
-                with c4:
-                    new_due = st.number_input("Day", value=int(t.get("due_day") or 0), min_value=0, max_value=31, step=1, key=f"tdue_{t['id']}", label_visibility="collapsed", help="Day of month (0=none)")
-                with c5:
-                    if st.button("\U0001f4be Save", key=f"tsave_{t['id']}"):
-                        api("PUT", f"/fixed-templates/{t['id']}", json={
-                            "name": new_name, "category": new_cat, "amount": new_amt,
-                            "due_day": new_due if new_due > 0 else None
-                        })
-                        st.success(f"\u2705 Saved {new_name}")
-                        st.rerun()
-                with c6:
-                    if st.button("\U0001f5d1\ufe0f Delete", key=f"tdel_{t['id']}"):
-                        api("DELETE", f"/fixed-templates/{t['id']}")
-                        st.rerun()
-
-        total_fixed_tmpl = sum(t["amount"] for t in active_templates)
+    # ── Fixed bills (same every month) ────────────────────────────────────
+    if fixed_tmpls:
+        total_fixed = sum(t["amount"] for t in fixed_tmpls)
         st.markdown(f"""
-        <div style="display:flex;justify-content:flex-end;padding:10px 0;border-top:1px solid {T['border']};margin-top:8px;">
-            <span style="color:{T['sub']};font-size:0.82rem;">
-                {len(active_templates)} items &nbsp;\xb7&nbsp;
-                <span style="color:{T['text']};font-family:'Syne',sans-serif;font-weight:700;">
-                Total \u20b9{total_fixed_tmpl:,.0f}/month</span>
-            </span>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+            <span style="color:{T['text']};font-size:0.88rem;font-weight:600;">Same amount every month</span>
+            <span style="color:{T['sub']};font-size:0.8rem;">₹{total_fixed:,.0f}/month total</span>
         </div>
         """, unsafe_allow_html=True)
 
-    with st.form("add_template", clear_on_submit=True):
-        st.markdown(f'<div style="color:{T["text"]};font-size:0.85rem;font-weight:600;margin-bottom:12px;">➕ Add New Fixed Expense / Pool</div>', unsafe_allow_html=True)
-        col1, col2, col3, col4 = st.columns([0.3, 0.2, 0.22, 0.28])
-        with col1:
-            new_tname = st.text_input("Name", placeholder="e.g. Groww MF4 or Electric Bill")
-        with col2:
-            new_tamt  = st.number_input("Amount (₹)", min_value=0, step=100,
-                help="Set 0 for pools — amount is entered per payment")
-        with col3:
-            new_tcat  = st.selectbox("Category", FIXED_CATEGORIES)
-        with col4:
-            new_ttype = st.selectbox("Type", ["fixed", "pool"],
-                format_func=lambda x: "🔒 Fixed Amount" if x == "fixed" else "📦 Essential Pool")
-        if st.form_submit_button("➕ Add"):
-            if new_tname:
-                if new_ttype == "fixed" and new_tamt == 0:
-                    st.warning("Fixed expenses need an amount > 0. Use Pool type for variable bills like Electric Bill.")
-                else:
-                    api("POST", "/fixed-templates", json={
-                        "name": new_tname, "category": new_tcat,
-                        "amount": new_tamt, "template_type": new_ttype
-                    })
-                    type_label = "Pool" if new_ttype == "pool" else f"₹{new_tamt:,.0f}"
-                    st.success(f"✅ Added {new_tname} ({type_label}) under {new_tcat}")
+        tmpl_by_cat = defaultdict(list)
+        for t in fixed_tmpls:
+            tmpl_by_cat[t["category"]].append(t)
+
+        for cat, items in sorted(tmpl_by_cat.items()):
+            icon = CATEGORY_ICONS.get(cat, "📦")
+            with st.expander(f"{icon} {cat} ({len(items)} bills)", expanded=False):
+                for t in items:
+                    row1, row2, row3, row4 = st.columns([0.38, 0.22, 0.2, 0.2])
+                    with row1:
+                        new_name = st.text_input("Bill name", value=t["name"],
+                            key=f"tname_{t['id']}", label_visibility="collapsed")
+                    with row2:
+                        new_amt = st.number_input("Monthly amount (₹)", value=int(t["amount"]),
+                            step=100, key=f"tamt_{t['id']}", label_visibility="collapsed")
+                    with row3:
+                        # Due day as a friendly dropdown
+                        due_options = [0] + list(range(1, 32))
+                        due_val = int(t.get("due_day") or 0)
+                        new_due = st.selectbox(
+                            "Remind me on",
+                            due_options,
+                            index=due_options.index(due_val) if due_val in due_options else 0,
+                            format_func=lambda x: "No reminder" if x == 0 else f"{x}th of month",
+                            key=f"tdue_{t['id']}", label_visibility="collapsed"
+                        )
+                    with row4:
+                        bcol1, bcol2 = st.columns(2)
+                        with bcol1:
+                            if st.button("💾", key=f"tsave_{t['id']}", help="Save changes"):
+                                api("PUT", f"/fixed-templates/{t['id']}", json={
+                                    "name": new_name, "amount": new_amt,
+                                    "due_day": new_due if new_due > 0 else None
+                                })
+                                st.toast(f"✅ Saved {new_name}")
+                                st.rerun()
+                        with bcol2:
+                            if st.button("🗑️", key=f"tdel_{t['id']}", help="Remove this bill"):
+                                api("DELETE", f"/fixed-templates/{t['id']}")
+                                st.rerun()
+
+    # ── Variable recurring bills (amount changes each month) ──────────────
+    if pool_tmpls:
+        st.markdown(f'<div style="color:{T["text"]};font-size:0.88rem;font-weight:600;margin:14px 0 8px;">Amount changes each month (Electric Bill, Recharge etc.)</div>', unsafe_allow_html=True)
+        for t in pool_tmpls:
+            icon = CATEGORY_ICONS.get(t["category"], "📦")
+            pc1, pc2 = st.columns([0.75, 0.25])
+            with pc1:
+                st.markdown(f"""
+                <div style="background:{T['card2']};border-radius:10px;padding:12px 14px;
+                    border:1px solid {T['border']};">
+                    <span style="color:{T['text']};font-size:0.88rem;font-weight:600;">{icon} {t['name']}</span>
+                    <span style="color:{T['sub']};font-size:0.78rem;margin-left:8px;">{t['category']} · Add payments in Fixed tab each month</span>
+                </div>
+                """, unsafe_allow_html=True)
+            with pc2:
+                if st.button("🗑️ Remove", key=f"ptdel_{t['id']}"):
+                    api("DELETE", f"/fixed-templates/{t['id']}")
                     st.rerun()
-            else:
-                st.warning("Please enter a name.")
 
+    # ── Add new bill ───────────────────────────────────────────────────────
+    with st.expander("➕ Add a new bill", expanded=False):
+        with st.form("add_bill_form", clear_on_submit=True):
+            st.markdown(f'<div style="color:{T["sub"]};font-size:0.82rem;margin-bottom:12px;">Tell us about a bill you pay every month.</div>', unsafe_allow_html=True)
 
-    # ── Variable Budget Limits ────────────────────────────────────────────
-    st.markdown('<div class="section-title">Variable Budget Limits</div>', unsafe_allow_html=True)
+            b1, b2 = st.columns(2)
+            with b1:
+                new_tname = st.text_input("What do you call it?",
+                    placeholder="e.g. Rent, Car Loan, Netflix")
+            with b2:
+                new_tcat = st.selectbox("What type of expense is it?", FIXED_CATEGORIES,
+                    format_func=lambda x: f"{CATEGORY_ICONS.get(x, '📦')} {x}")
+
+            b3, b4 = st.columns(2)
+            with b3:
+                bill_kind = st.radio(
+                    "Is the amount the same every month?",
+                    ["Yes, always the same", "No, it varies"],
+                    help="Choose 'varies' for bills like electricity, mobile recharge"
+                )
+            with b4:
+                new_tamt = st.number_input(
+                    "How much? (₹)" if bill_kind == "Yes, always the same" else "Typical amount (₹, or 0 if unknown)",
+                    min_value=0, step=100
+                )
+
+            if st.form_submit_button("➕ Add Bill"):
+                if new_tname:
+                    ttype = "fixed" if bill_kind == "Yes, always the same" else "pool"
+                    if ttype == "fixed" and new_tamt == 0:
+                        st.warning("Please enter the monthly amount for fixed bills.")
+                    else:
+                        api("POST", "/fixed-templates", json={
+                            "name": new_tname, "category": new_tcat,
+                            "amount": new_tamt, "template_type": ttype
+                        })
+                        kind_label = "bill" if ttype == "fixed" else "variable recurring bill"
+                        st.success(f"✅ Added {new_tname} as a {kind_label}")
+                        st.rerun()
+                else:
+                    st.warning("Please enter a name for the bill.")
+
+    # ════════════════════════════════════════
+    # 3. SPENDING CAPS
+    # ════════════════════════════════════════
+    settings_section("🎯", "Spending Caps",
+        "Set a monthly limit for each type of discretionary expense. You'll get a warning when you're close.")
+
     budgets = api("GET", "/budgets") or []
+    # Get current month spend for context
+    cat_spent = {}
+    if summary:
+        for c in summary.get("categories", []):
+            cat_spent[c["category"]] = c["spent"]
+
     if budgets:
         with st.form("update_budgets"):
             updated = {}
             cols = st.columns(2)
             for i, bl in enumerate(budgets):
                 with cols[i % 2]:
-                    icon    = CATEGORY_ICONS.get(bl["category"], "\U0001f4e6")
-                    new_val = st.number_input(f"{icon} {bl['category']}", value=int(bl["limit_amount"]), step=500, key=f"budget_{bl['category']}")
+                    icon    = CATEGORY_ICONS.get(bl["category"], "📦")
+                    spent   = cat_spent.get(bl["category"], 0)
+                    limit   = int(bl["limit_amount"])
+                    pct     = round(spent / limit * 100) if limit > 0 else 0
+                    bar_col = "#ef4444" if pct >= 100 else "#f59e0b" if pct >= 80 else "#34d399"
+                    # Show context: spent vs current limit
+                    st.markdown(f"""
+                    <div style="margin-bottom:4px;display:flex;justify-content:space-between;">
+                        <span style="color:{T['text']};font-size:0.85rem;">{icon} {bl['category']}</span>
+                        <span style="color:{bar_col};font-size:0.78rem;">₹{spent:,.0f} spent this month</span>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    new_val = st.number_input(
+                        f"Monthly cap for {bl['category']} (₹)",
+                        value=limit, step=500,
+                        key=f"budget_{bl['category']}",
+                        label_visibility="collapsed"
+                    )
                     updated[bl["category"]] = new_val
-            if st.form_submit_button("\U0001f4be Save Budget Limits"):
-                for cat, limit in updated.items():
-                    api("PUT", "/budget", json={"category": cat, "limit_amount": limit})
-                st.success("\u2705 Budget limits updated!")
+
+            if st.form_submit_button("💾 Save Spending Caps"):
+                for cat, lim in updated.items():
+                    api("PUT", "/budget", json={"category": cat, "limit_amount": lim})
+                st.success("✅ Spending caps updated!")
                 st.rerun()
 
-    # ── Monthly Credit ────────────────────────────────────────────────────
-    st.markdown('<div class="section-title">Monthly Credit</div>', unsafe_allow_html=True)
-    st.markdown(f'<div style="color:{T["sub"]};font-size:0.82rem;margin-bottom:14px;">Used for budget calculations only. Currently editing: <b style="color:{T["text"]}">{month_label}</b>.</div>', unsafe_allow_html=True)
+    # ════════════════════════════════════════
+    # 4. SAVED SHORTCUTS
+    # ════════════════════════════════════════
+    settings_section("⚡", "Saved Shortcuts",
+        "Expenses you log frequently. These appear as one-tap buttons in Quick Add.")
 
-    current_income = api("GET", f"/income/{sel_month}") or {}
-    saved_source   = current_income.get("source", "Infosys Salary")
-    saved_amount   = int(current_income.get("amount", 0))
-    saved_note     = current_income.get("note") or ""
+    fav_tmpls = api("GET", "/expense-templates") or []
+    if fav_tmpls:
+        for t in fav_tmpls:
+            icon = CATEGORY_ICONS.get(t["category"], "📦")
+            fc1, fc2, fc3, fc4, fc5 = st.columns([0.3, 0.2, 0.18, 0.17, 0.15])
+            with fc1:
+                fn = st.text_input("Name", value=t["name"], key=f"fn_{t['id']}", label_visibility="collapsed")
+            with fc2:
+                fc = st.selectbox("Category", VAR_CATEGORIES,
+                    index=VAR_CATEGORIES.index(t["category"]) if t["category"] in VAR_CATEGORIES else 0,
+                    key=f"fc_{t['id']}", label_visibility="collapsed",
+                    format_func=lambda x: f"{CATEGORY_ICONS.get(x,'📦')} {x}")
+            with fc3:
+                fa = st.number_input("₹", value=int(t["amount"]), step=50, key=f"fa_{t['id']}", label_visibility="collapsed")
+            with fc4:
+                if st.button("💾 Save", key=f"fsave_{t['id']}"):
+                    api("PUT", f"/expense-templates/{t['id']}", json={"name": fn, "category": fc, "amount": fa, "vendor": fn})
+                    st.toast(f"✅ Saved {fn}")
+                    st.rerun()
+            with fc5:
+                if st.button("🗑️", key=f"fdel_{t['id']}"):
+                    api("DELETE", f"/expense-templates/{t['id']}")
+                    st.rerun()
 
-    with st.form("add_income"):
-        col1, col2 = st.columns(2)
-        with col1:
-            income_source = st.text_input("Source", value=saved_source)
-        with col2:
-            income_amount = st.number_input("Amount (\u20b9)", value=saved_amount, step=1000)
-        income_note = st.text_input("Note (optional)", value=saved_note, placeholder="May salary credit")
-        if st.form_submit_button("\U0001f4be Save Income"):
-            result = api("POST", "/income", json={"source": income_source, "amount": income_amount,
-                                                   "note": income_note, "month_key": sel_month})
-            if result:
-                st.success(f"\u2705 Income updated to \u20b9{income_amount:,.0f} for {month_label}")
+        st.markdown(f'<div style="color:{T["sub"]};font-size:0.78rem;margin-top:4px;margin-bottom:16px;">{len(fav_tmpls)} shortcut(s) · sorted by most used</div>', unsafe_allow_html=True)
+    else:
+        st.markdown(f'<div style="color:{T["muted"]};font-size:0.85rem;padding:12px 0;">No shortcuts yet. Add one below.</div>', unsafe_allow_html=True)
+
+    with st.form("add_shortcut_form", clear_on_submit=True):
+        sf1, sf2, sf3 = st.columns([0.38, 0.27, 0.35])
+        with sf1:
+            fav_name = st.text_input("What do you usually buy?", placeholder="e.g. Petrol, Cook extra")
+        with sf2:
+            fav_amt  = st.number_input("Usual amount (₹)", min_value=0, step=50)
+        with sf3:
+            fav_cat  = st.selectbox("Category", VAR_CATEGORIES,
+                format_func=lambda x: f"{CATEGORY_ICONS.get(x,'📦')} {x}")
+        if st.form_submit_button("➕ Add Shortcut"):
+            if fav_name and fav_amt > 0:
+                api("POST", "/expense-templates", json={"name": fav_name, "vendor": fav_name,
+                    "category": fav_cat, "amount": fav_amt})
+                st.success(f"✅ Added shortcut for {fav_name}")
                 st.rerun()
+            else:
+                st.warning("Please fill in both name and amount.")
