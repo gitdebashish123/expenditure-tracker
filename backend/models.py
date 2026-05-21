@@ -1,9 +1,13 @@
 from sqlmodel import SQLModel, Field, create_engine, Session, select
 from typing import Optional
 from datetime import datetime, date as DateT
+from dotenv import load_dotenv
 import os
 
-DATABASE_URL = "sqlite:///./data/expenses.db"
+# Load .env file if present — must happen before reading env vars
+load_dotenv()
+
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./data/expenses.db")
 engine = create_engine(DATABASE_URL, echo=False)
 
 

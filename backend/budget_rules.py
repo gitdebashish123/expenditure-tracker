@@ -1,7 +1,11 @@
 from sqlmodel import Session, select
 from backend.models import Expense, BudgetLimit, IncomeEntry, FixedExpenseTemplate, PoolEntry
 from datetime import date
+from dotenv import load_dotenv
+import os
 import yaml
+
+load_dotenv()
 
 with open("config.yaml") as f:
     config = yaml.safe_load(f)
@@ -61,11 +65,14 @@ def check_budget_warnings(session: Session, month_key: str) -> list[dict]:
 
 
 def get_balance_summary(session: Session, month_key: str) -> dict:
-    # Income: only count explicitly saved entries — 0 if none saved yet (no salary fallback)
+    # Income: only count explicitly saved entries — 0 if none saved yet
     incomes = session.exec(
         select(IncomeEntry).where(IncomeEntry.month_key == month_key)
     ).all()
     total_income = sum(i.amount for i in incomes)
+    if total_income == 0:
+        # Fall back to DEFAULT_MONTHLY_INCOME env var (default 0)
+        total_income = int(os.getenv("DEFAULT_MONTHLY_INCOME", "0"))
 
     # Fixed: only count PAID (ticked) rows — unpaid rows don't reduce balance yet
     fixed_all = session.exec(

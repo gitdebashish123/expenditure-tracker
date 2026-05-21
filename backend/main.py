@@ -4,7 +4,12 @@ from sqlmodel import Session, select
 from pydantic import BaseModel
 from typing import Optional
 from datetime import date
+from dotenv import load_dotenv
+import os
 import yaml
+
+# Load .env before anything else
+load_dotenv()
 
 from backend.models import (
     Expense, BudgetLimit, IncomeEntry, FixedExpenseTemplate, ExpenseTemplate, PoolEntry,
@@ -537,8 +542,9 @@ def get_income(month_key: str, session: Session = Depends(get_session)):
     ).first()
     if entry:
         return {"source": entry.source, "amount": entry.amount, "note": entry.note}
-    # Return config default if no entry exists
-    return {"source": "Infosys Salary", "amount": config["salary"]["net_monthly"], "note": None}
+    # Fall back to DEFAULT_MONTHLY_INCOME env var, then 0
+    default_income = int(os.getenv("DEFAULT_MONTHLY_INCOME", "0"))
+    return {"source": "Salary", "amount": default_income, "note": None}
 
 
 @app.get("/months")

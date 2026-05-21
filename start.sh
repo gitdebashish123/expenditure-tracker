@@ -12,10 +12,20 @@ if ! command -v uv &>/dev/null; then
     exit 1
 fi
 
-# Check for API key
+# Load .env file if it exists
+if [ -f ".env" ]; then
+    echo "📋 Loading environment from .env..."
+    set -a
+    source .env
+    set +a
+else
+    echo "⚠️  No .env file found. Copy .env.example to .env and fill in your values."
+fi
+
+# Check for API key (may have come from .env or pre-existing shell env)
 if [ -z "$ANTHROPIC_API_KEY" ]; then
     echo "❌ ERROR: ANTHROPIC_API_KEY not set."
-    echo "   Export it: export ANTHROPIC_API_KEY='your-key-here'"
+    echo "   Add it to your .env file: ANTHROPIC_API_KEY=sk-ant-..."
     exit 1
 fi
 

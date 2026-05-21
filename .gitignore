@@ -8,3 +8,33 @@ wheels/
 
 # Virtual environments
 .venv
+
+# Environment variables — NEVER commit these
+.env
+.env.local
+.env.*.local
+
+# Database — contains personal financial data
+data/expenses.db
+data/*.db
+data/*.db-shm
+data/*.db-wal
+
+# Uploaded/imported files with personal data
+monthly_expenditure.xlsx
+*.xlsx
+
+# macOS
+.DS_Store
+
+# IDE
+.vscode/settings.json
+.idea/
+
+# Logs
+*.log
+
+# Test artifacts
+.pytest_cache/
+htmlcov/
+.coverage
