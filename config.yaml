@@ -81,7 +81,6 @@ vendor_categories:
   food:
     - zomato
     - swiggy
-    - blinkit
     - pizza
     - restaurant
     - cafe
@@ -103,12 +102,16 @@ vendor_categories:
     - taxi
   groceries:
     - bigbasket
+    - blinkit
     - grofers
     - dmart
+    - jiomart
+    - jio mart
     - reliance fresh
     - more
     - zepto
     - instamart
+    - swiggy instamart
     - vegetables
     - fruits
   shopping:
