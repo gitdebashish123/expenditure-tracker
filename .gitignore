@@ -38,3 +38,8 @@ monthly_expenditure.xlsx
 .pytest_cache/
 htmlcov/
 .coverage
+
+# TLS certificates — never commit private keys or self-signed certs
+nginx/certs/*.crt
+nginx/certs/*.key
+nginx/certs/*.pem
