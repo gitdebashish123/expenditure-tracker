@@ -45,7 +45,7 @@ app.add_middleware(
         # e.g. "https://spendsense.railway.app"
     ],
     allow_methods=["*"],   # tightened in Sprint 5 — API Hardening
-    allow_headers=["*"],   # tightened in Sprint 5 — API Hardening
+    allow_headers=["*", "Authorization"],  # Authorization added for Bearer token — tightened in Sprint 5
 )
 
 
@@ -53,14 +53,34 @@ app.add_middleware(
 def on_startup():
     create_db()
     with Session(engine) as session:
-        # Seed budget limits
+        # ── Seed budget limits ─────────────────────────────────
         existing = session.exec(select(BudgetLimit)).first()
         if not existing:
             for cat, limit in config.get("budget_limits", {}).items():
                 session.add(BudgetLimit(category=cat, limit_amount=limit))
             session.commit()
-        # Seed current month fixed expenses (also migrates config → DB templates on first run)
+
+        # ── Seed current month fixed expenses ────────────────────
+        # Also migrates config → DB templates on first run
         seed_fixed_expenses(session, get_month_key())
+
+        # ── Default admin user ────────────────────────────────
+        # Created only if no users exist — prevents lockout on first run
+        # Credentials come from .env (ADMIN_EMAIL, ADMIN_PASSWORD)
+        existing_user = session.exec(select(User)).first()
+        if not existing_user:
+            admin_email    = os.getenv("ADMIN_EMAIL", "admin@spendsense.local")
+            admin_password = os.getenv("ADMIN_PASSWORD", "changeme123")
+            admin = User(
+                email=admin_email,
+                hashed_password=hash_password(admin_password),
+                is_active=True,
+                is_admin=True,
+            )
+            session.add(admin)
+            session.commit()
+            print(f"\n✅ Default admin created: {admin_email}")
+            print("⚠️  Change the default password immediately — update ADMIN_PASSWORD in .env\n")
 
 
 # ── Request Models ───────────────────────────────────────────────────────────

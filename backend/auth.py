@@ -18,7 +18,7 @@ from datetime import datetime, timedelta
 from typing import Optional
 
 from jose import JWTError, jwt
-from passlib.context import CryptContext
+import bcrypt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlmodel import Session, select
@@ -54,15 +54,14 @@ if not SECRET_KEY:
     )
 
 # ── Password Hashing ──────────────────────────────────────────────────────────
-# bcrypt is intentionally slow — this is a feature, not a bug.
-# It makes offline brute-force attacks against stolen hashes impractical.
-# "deprecated=auto" automatically upgrades weaker hashes on next login.
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# bcrypt is used directly (not via passlib) — passlib has compatibility issues
+# with bcrypt >= 4.x on Python 3.13.
+# bcrypt is intentionally slow — makes offline brute-force attacks impractical.
 
 
 def hash_password(plain: str) -> str:
     """Return a bcrypt hash of the plaintext password. Never store the input."""
-    return pwd_context.hash(plain)
+    return bcrypt.hashpw(plain.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
 
 
 def verify_password(plain: str, hashed: str) -> bool:
@@ -70,7 +69,7 @@ def verify_password(plain: str, hashed: str) -> bool:
     Return True if the plaintext matches the bcrypt hash, False otherwise.
     Constant-time comparison — safe against timing attacks.
     """
-    return pwd_context.verify(plain, hashed)
+    return bcrypt.checkpw(plain.encode("utf-8"), hashed.encode("utf-8"))
 
 
 # ── JWT Token Creation ────────────────────────────────────────────────────────
