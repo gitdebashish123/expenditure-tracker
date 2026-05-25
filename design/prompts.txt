@@ -14,3 +14,43 @@ Commit 2.3 — Test Data Isolation and save under the same folder
 
 Ok let's proceed with the implementation of design/COMMIT_2_3_TEST_ISOLATION_PROMPT.md excepts 
 "How to Run" step
+
+Test run scripts failed with error
+
+"── Cleanup ───────────────────────────────────────────
+  ℹ️  No test users found to clean up
+INFO:     127.0.0.1:61983 - "POST /auth/register HTTP/1.1" 201 Created
+INFO:     127.0.0.1:61984 - "POST /auth/register HTTP/1.1" 201 Created
+INFO:     127.0.0.1:61985 - "POST /auth/login HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61986 - "POST /auth/login HTTP/1.1" 200 OK
+✅ Registered and logged in both test users
+INFO:     127.0.0.1:61987 - "POST /expenses/manual HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61988 - "POST /income HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61989 - "PUT /budget HTTP/1.1" 500 Internal Server Error
+ERROR:    Exception in ASGI application
+Traceback (most recent call last):
+  File "/Users/debashish/Desktop/ai-projects/expenditure-tracker/.venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1967, in _exec_single_context
+    self.dialect.do_execute(
+    ~~~~~~~~~~~~~~~~~~~~~~~^
+        cursor, str_statement, effective_parameters, context
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/debashish/Desktop/ai-projects/expenditure-tracker/.venv/lib/python3.13/site-packages/sqlalchemy/engine/default.py", line 952, in do_execute
+    cursor.execute(statement, parameters)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+sqlite3.IntegrityError: UNIQUE constraint failed: budgetlimit.category
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/debashish/Desktop/ai-projects/expenditure-tracker/.venv/lib/python3.13/site-packages/uvicorn/protocols/http/httptools_impl.py", line 421, in run_asgi
+    result = await app(  # type: ignore[func-returns-value]
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+             .
+             .
+             ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  ❌ 2/32 TESTS FAILED
+     • User A's Food limit is 5000
+     • User B's Food limit is 3000
+             "
