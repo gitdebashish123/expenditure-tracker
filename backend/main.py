@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlmodel import Session, select
 from pydantic import BaseModel
 from typing import Optional
-from datetime import date
+from datetime import date, datetime
 from dotenv import load_dotenv
 import os
 import yaml
@@ -13,12 +13,16 @@ load_dotenv()
 
 from backend.models import (
     Expense, BudgetLimit, IncomeEntry, FixedExpenseTemplate, ExpenseTemplate, PoolEntry,
-    create_db, get_session, engine
+    User, create_db, get_session, engine
 )
 from backend.ai_parser import parse_expense_input
 from backend.budget_rules import (
     get_month_key, check_budget_warnings, get_balance_summary,
     seed_fixed_expenses, get_monthly_spent_by_category, get_budget_limits
+)
+from backend.auth import (
+    hash_password, verify_password,
+    create_access_token, get_current_user
 )
 
 with open("config.yaml") as f:
@@ -140,10 +144,91 @@ class ExpenseTemplateUpdate(BaseModel):
     is_active: Optional[bool] = None
 
 
-# ── Variable Expense Endpoints ───────────────────────────────────────────────
+# ── Auth Request / Response Models ──────────────────────────────────────────
+
+class RegisterRequest(BaseModel):
+    email: str
+    password: str
+
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+
+class TokenResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+
+class UserResponse(BaseModel):
+    id: int
+    email: str
+    is_active: bool
+    is_admin: bool
+    created_at: datetime
+    last_login: Optional[datetime]
+
+
+# ── Auth Endpoints ──────────────────────────────────────────────────────────
+# These endpoints are intentionally PUBLIC (no Depends(get_current_user))
+# /auth/register and /auth/login must be accessible before a token exists
+
+@app.post("/auth/register", response_model=UserResponse, status_code=201)
+def register(req: RegisterRequest, session: Session = Depends(get_session)):
+    """Register a new user. Does not return a token — user must log in explicitly."""
+    if "@" not in req.email or "." not in req.email.split("@")[-1]:
+        raise HTTPException(status_code=400, detail="Invalid email format")
+    if len(req.password) < 8:
+        raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
+    existing = session.exec(select(User).where(User.email == req.email)).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="Email already registered")
+    user = User(
+        email=req.email,
+        hashed_password=hash_password(req.password),
+        is_active=True,
+        is_admin=False,
+    )
+    session.add(user)
+    session.commit()
+    session.refresh(user)
+    return UserResponse(
+        id=user.id, email=user.email, is_active=user.is_active,
+        is_admin=user.is_admin, created_at=user.created_at, last_login=user.last_login,
+    )
+
+
+@app.post("/auth/login", response_model=TokenResponse)
+def login(req: LoginRequest, session: Session = Depends(get_session)):
+    """Authenticate and return a signed JWT. Same 401 for wrong email or wrong password."""
+    user = session.exec(select(User).where(User.email == req.email)).first()
+    # Identical error for wrong email or wrong password — no information leakage
+    if not user or not verify_password(req.password, user.hashed_password):
+        raise HTTPException(
+            status_code=401, detail="Invalid credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    if not user.is_active:
+        raise HTTPException(status_code=403, detail="Account disabled — contact administrator")
+    user.last_login = datetime.utcnow()
+    session.add(user)
+    session.commit()
+    return TokenResponse(access_token=create_access_token(data={"sub": user.email}))
+
+
+@app.get("/auth/me", response_model=UserResponse)
+def get_me(current_user: User = Depends(get_current_user)):
+    """Return the authenticated user's profile. Used by frontend to verify session."""
+    return UserResponse(
+        id=current_user.id, email=current_user.email, is_active=current_user.is_active,
+        is_admin=current_user.is_admin, created_at=current_user.created_at,
+        last_login=current_user.last_login,
+    )
+
+
+# ── Variable Expense Endpoints ───────────────────────────────────────────
 
 @app.post("/expenses/parse")
-def parse_and_save(input: ExpenseInput, session: Session = Depends(get_session)):
+def parse_and_save(input: ExpenseInput, session: Session = Depends(get_session),
+                   current_user: User = Depends(get_current_user)):
     try:
         parsed = parse_expense_input(input.text)
     except Exception as e:
@@ -177,7 +262,8 @@ def parse_and_save(input: ExpenseInput, session: Session = Depends(get_session))
 
 
 @app.post("/expenses/manual")
-def add_manual_expense(exp: ManualExpense, session: Session = Depends(get_session)):
+def add_manual_expense(exp: ManualExpense, session: Session = Depends(get_session),
+                       current_user: User = Depends(get_current_user)):
     expense_date = date.fromisoformat(exp.expense_date) if exp.expense_date else date.today()
     month_key = get_month_key(expense_date)
 
@@ -199,7 +285,8 @@ def add_manual_expense(exp: ManualExpense, session: Session = Depends(get_sessio
 
 
 @app.get("/expenses/{month_key}")
-def get_expenses(month_key: str, session: Session = Depends(get_session)):
+def get_expenses(month_key: str, session: Session = Depends(get_session),
+                 current_user: User = Depends(get_current_user)):
     expenses = session.exec(
         select(Expense).where(Expense.month_key == month_key)
         .order_by(Expense.date.desc())
@@ -208,7 +295,8 @@ def get_expenses(month_key: str, session: Session = Depends(get_session)):
 
 
 @app.patch("/expenses/{expense_id}")
-def edit_expense(expense_id: int, update: ExpenseUpdate, session: Session = Depends(get_session)):
+def edit_expense(expense_id: int, update: ExpenseUpdate, session: Session = Depends(get_session),
+                 current_user: User = Depends(get_current_user)):
     """Edit vendor, amount, category or note of a variable expense."""
     exp = session.get(Expense, expense_id)
     if not exp or exp.is_fixed:
@@ -227,7 +315,8 @@ def edit_expense(expense_id: int, update: ExpenseUpdate, session: Session = Depe
 
 
 @app.post("/expenses/bulk-delete")
-def bulk_delete_expenses(req: BulkDeleteRequest, session: Session = Depends(get_session)):
+def bulk_delete_expenses(req: BulkDeleteRequest, session: Session = Depends(get_session),
+                         current_user: User = Depends(get_current_user)):
     """Delete multiple variable expenses at once."""
     deleted = []
     for expense_id in req.ids:
@@ -240,7 +329,8 @@ def bulk_delete_expenses(req: BulkDeleteRequest, session: Session = Depends(get_
 
 
 @app.delete("/expenses/{expense_id}")
-def delete_expense(expense_id: int, session: Session = Depends(get_session)):
+def delete_expense(expense_id: int, session: Session = Depends(get_session),
+                   current_user: User = Depends(get_current_user)):
     exp = session.get(Expense, expense_id)
     if not exp:
         raise HTTPException(status_code=404, detail="Expense not found")
@@ -252,7 +342,8 @@ def delete_expense(expense_id: int, session: Session = Depends(get_session)):
 # ── Fixed Expense: Monthly Tick ──────────────────────────────────────────────
 
 @app.get("/fixed/{month_key}")
-def get_fixed_expenses(month_key: str, session: Session = Depends(get_session)):
+def get_fixed_expenses(month_key: str, session: Session = Depends(get_session),
+                       current_user: User = Depends(get_current_user)):
     """Return all fixed expense rows for a month with paid status."""
     seed_fixed_expenses(session, month_key)
     expenses = session.exec(
@@ -263,7 +354,8 @@ def get_fixed_expenses(month_key: str, session: Session = Depends(get_session)):
 
 
 @app.patch("/fixed/{expense_id}/toggle")
-def toggle_paid(expense_id: int, session: Session = Depends(get_session)):
+def toggle_paid(expense_id: int, session: Session = Depends(get_session),
+                current_user: User = Depends(get_current_user)):
     """Toggle the paid/unpaid tick for a fixed expense."""
     exp = session.get(Expense, expense_id)
     if not exp or not exp.is_fixed:
@@ -276,7 +368,8 @@ def toggle_paid(expense_id: int, session: Session = Depends(get_session)):
 
 
 @app.patch("/fixed/{expense_id}/amount")
-def update_fixed_amount(expense_id: int, amount: float, session: Session = Depends(get_session)):
+def update_fixed_amount(expense_id: int, amount: float, session: Session = Depends(get_session),
+                        current_user: User = Depends(get_current_user)):
     """Override amount for a specific month's fixed expense."""
     exp = session.get(Expense, expense_id)
     if not exp or not exp.is_fixed:
@@ -291,7 +384,8 @@ def update_fixed_amount(expense_id: int, amount: float, session: Session = Depen
 # ── Expense Templates (Favourites) ──────────────────────────────────────────
 
 @app.get("/expense-templates")
-def list_expense_templates(session: Session = Depends(get_session)):
+def list_expense_templates(session: Session = Depends(get_session),
+                           current_user: User = Depends(get_current_user)):
     return session.exec(
         select(ExpenseTemplate).where(ExpenseTemplate.is_active == True)
         .order_by(ExpenseTemplate.use_count.desc())
@@ -299,7 +393,8 @@ def list_expense_templates(session: Session = Depends(get_session)):
 
 
 @app.post("/expense-templates")
-def create_expense_template(tmpl: ExpenseTemplateCreate, session: Session = Depends(get_session)):
+def create_expense_template(tmpl: ExpenseTemplateCreate, session: Session = Depends(get_session),
+                            current_user: User = Depends(get_current_user)):
     new = ExpenseTemplate(
         name=tmpl.name, vendor=tmpl.vendor,
         category=tmpl.category, amount=tmpl.amount
@@ -312,7 +407,8 @@ def create_expense_template(tmpl: ExpenseTemplateCreate, session: Session = Depe
 
 @app.put("/expense-templates/{tmpl_id}")
 def update_expense_template(tmpl_id: int, update: ExpenseTemplateUpdate,
-                            session: Session = Depends(get_session)):
+                            session: Session = Depends(get_session),
+                            current_user: User = Depends(get_current_user)):
     tmpl = session.get(ExpenseTemplate, tmpl_id)
     if not tmpl:
         raise HTTPException(status_code=404, detail="Template not found")
@@ -325,7 +421,8 @@ def update_expense_template(tmpl_id: int, update: ExpenseTemplateUpdate,
 
 
 @app.delete("/expense-templates/{tmpl_id}")
-def delete_expense_template(tmpl_id: int, session: Session = Depends(get_session)):
+def delete_expense_template(tmpl_id: int, session: Session = Depends(get_session),
+                            current_user: User = Depends(get_current_user)):
     tmpl = session.get(ExpenseTemplate, tmpl_id)
     if not tmpl:
         raise HTTPException(status_code=404, detail="Template not found")
@@ -337,7 +434,8 @@ def delete_expense_template(tmpl_id: int, session: Session = Depends(get_session
 
 @app.post("/expense-templates/{tmpl_id}/log")
 def log_from_template(tmpl_id: int, expense_date: Optional[str] = None,
-                      session: Session = Depends(get_session)):
+                      session: Session = Depends(get_session),
+                      current_user: User = Depends(get_current_user)):
     """One-tap log: create an expense from a favourite template."""
     tmpl = session.get(ExpenseTemplate, tmpl_id)
     if not tmpl:
@@ -362,7 +460,8 @@ def log_from_template(tmpl_id: int, expense_date: Optional[str] = None,
 # ── Income Check ─────────────────────────────────────────────────────────────
 
 @app.get("/income/check/{month_key}")
-def check_income_set(month_key: str, session: Session = Depends(get_session)):
+def check_income_set(month_key: str, session: Session = Depends(get_session),
+                     current_user: User = Depends(get_current_user)):
     """Check if income has been explicitly set for a month."""
     entry = session.exec(
         select(IncomeEntry).where(IncomeEntry.month_key == month_key)
@@ -373,7 +472,8 @@ def check_income_set(month_key: str, session: Session = Depends(get_session)):
 # ── Fixed Due Day ─────────────────────────────────────────────────────────────
 
 @app.get("/fixed/due-reminders/{month_key}")
-def get_due_reminders(month_key: str, session: Session = Depends(get_session)):
+def get_due_reminders(month_key: str, session: Session = Depends(get_session),
+                      current_user: User = Depends(get_current_user)):
     """Return unpaid fixed expenses whose due_day is today or has passed."""
     from datetime import date as dt
     today = dt.today()
@@ -404,7 +504,8 @@ def get_due_reminders(month_key: str, session: Session = Depends(get_session)):
 # ── Fixed Expense Templates (CRUD) ───────────────────────────────────────────
 
 @app.get("/fixed-templates")
-def list_templates(session: Session = Depends(get_session)):
+def list_templates(session: Session = Depends(get_session),
+                   current_user: User = Depends(get_current_user)):
     return session.exec(
         select(FixedExpenseTemplate)
         .order_by(FixedExpenseTemplate.sort_order, FixedExpenseTemplate.id)
@@ -412,7 +513,8 @@ def list_templates(session: Session = Depends(get_session)):
 
 
 @app.post("/fixed-templates")
-def create_template(tmpl: FixedTemplateCreate, session: Session = Depends(get_session)):
+def create_template(tmpl: FixedTemplateCreate, session: Session = Depends(get_session),
+                    current_user: User = Depends(get_current_user)):
     new = FixedExpenseTemplate(
         name=tmpl.name,
         category=tmpl.category,
@@ -430,7 +532,8 @@ def create_template(tmpl: FixedTemplateCreate, session: Session = Depends(get_se
 def update_template(
     template_id: int,
     update: FixedTemplateUpdate,
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
 ):
     tmpl = session.get(FixedExpenseTemplate, template_id)
     if not tmpl:
@@ -444,7 +547,8 @@ def update_template(
 
 
 @app.delete("/fixed-templates/{template_id}")
-def delete_template(template_id: int, session: Session = Depends(get_session)):
+def delete_template(template_id: int, session: Session = Depends(get_session),
+                    current_user: User = Depends(get_current_user)):
     tmpl = session.get(FixedExpenseTemplate, template_id)
     if not tmpl:
         raise HTTPException(status_code=404, detail="Template not found")
@@ -471,7 +575,8 @@ def delete_template(template_id: int, session: Session = Depends(get_session)):
 # ── Summary & Budget ─────────────────────────────────────────────────────────
 
 @app.get("/summary/{month_key}")
-def get_summary(month_key: str, session: Session = Depends(get_session)):
+def get_summary(month_key: str, session: Session = Depends(get_session),
+                current_user: User = Depends(get_current_user)):
     seed_fixed_expenses(session, month_key)
     balance = get_balance_summary(session, month_key)
     warnings = check_budget_warnings(session, month_key)
@@ -504,12 +609,14 @@ def get_summary(month_key: str, session: Session = Depends(get_session)):
 
 
 @app.get("/summary/current/now")
-def get_current_summary(session: Session = Depends(get_session)):
+def get_current_summary(session: Session = Depends(get_session),
+                        current_user: User = Depends(get_current_user)):
     return get_summary(get_month_key(), session)
 
 
 @app.put("/budget")
-def update_budget(update: BudgetUpdate, session: Session = Depends(get_session)):
+def update_budget(update: BudgetUpdate, session: Session = Depends(get_session),
+                  current_user: User = Depends(get_current_user)):
     bl = session.exec(select(BudgetLimit).where(BudgetLimit.category == update.category)).first()
     if bl:
         bl.limit_amount = update.limit_amount
@@ -521,12 +628,14 @@ def update_budget(update: BudgetUpdate, session: Session = Depends(get_session))
 
 
 @app.get("/budgets")
-def list_budgets(session: Session = Depends(get_session)):
+def list_budgets(session: Session = Depends(get_session),
+                 current_user: User = Depends(get_current_user)):
     return session.exec(select(BudgetLimit)).all()
 
 
 @app.post("/income")
-def upsert_income(income: IncomeInput, session: Session = Depends(get_session)):
+def upsert_income(income: IncomeInput, session: Session = Depends(get_session),
+                  current_user: User = Depends(get_current_user)):
     """Upsert income for a month — updates existing entry rather than stacking duplicates."""
     month_key = income.month_key or get_month_key()
     existing = session.exec(
@@ -546,7 +655,8 @@ def upsert_income(income: IncomeInput, session: Session = Depends(get_session)):
 
 
 @app.get("/income/{month_key}")
-def get_income(month_key: str, session: Session = Depends(get_session)):
+def get_income(month_key: str, session: Session = Depends(get_session),
+               current_user: User = Depends(get_current_user)):
     """Get income entry for a specific month."""
     entry = session.exec(
         select(IncomeEntry).where(IncomeEntry.month_key == month_key)
@@ -559,19 +669,22 @@ def get_income(month_key: str, session: Session = Depends(get_session)):
 
 
 @app.get("/months")
-def list_months(session: Session = Depends(get_session)):
+def list_months(session: Session = Depends(get_session),
+                current_user: User = Depends(get_current_user)):
     expenses = session.exec(select(Expense.month_key).distinct()).all()
     return sorted(set(expenses), reverse=True)
 
 
 @app.post("/seed/{month_key}")
-def seed_month(month_key: str, session: Session = Depends(get_session)):
+def seed_month(month_key: str, session: Session = Depends(get_session),
+               current_user: User = Depends(get_current_user)):
     seed_fixed_expenses(session, month_key)
     return {"seeded": month_key}
 
 
 @app.get("/insights/mom/{month_key}")
-def month_over_month(month_key: str, session: Session = Depends(get_session)):
+def month_over_month(month_key: str, session: Session = Depends(get_session),
+                     current_user: User = Depends(get_current_user)):
     """
     Return variable spend per category for the given month + 2 preceding months.
     Used for the month-over-month comparison table on the dashboard.
@@ -618,7 +731,8 @@ def month_over_month(month_key: str, session: Session = Depends(get_session)):
 
 
 @app.get("/insights/top-spends/{month_key}")
-def top_spends(month_key: str, limit: int = 5, session: Session = Depends(get_session)):
+def top_spends(month_key: str, limit: int = 5, session: Session = Depends(get_session),
+               current_user: User = Depends(get_current_user)):
     """
     Return top N individual variable expense transactions for the month.
     """
@@ -643,7 +757,8 @@ def top_spends(month_key: str, limit: int = 5, session: Session = Depends(get_se
 
 
 @app.get("/insights/projection/{month_key}")
-def budget_projection(month_key: str, session: Session = Depends(get_session)):
+def budget_projection(month_key: str, session: Session = Depends(get_session),
+                      current_user: User = Depends(get_current_user)):
     """
     For each variable category, project end-of-month spend based on daily burn rate.
     """
@@ -709,7 +824,8 @@ def budget_projection(month_key: str, session: Session = Depends(get_session)):
 # ── Pool Entries (Essential Pools) ───────────────────────────────────────────
 
 @app.get("/pools/{month_key}")
-def get_pools_for_month(month_key: str, session: Session = Depends(get_session)):
+def get_pools_for_month(month_key: str, session: Session = Depends(get_session),
+                        current_user: User = Depends(get_current_user)):
     """
     Return all active pool templates with their entries for the given month.
     Used to render the Essential Pools section in the Fixed tab.
@@ -758,7 +874,8 @@ def add_pool_entry(
     pool_template_id: int,
     month_key: str,
     entry: PoolEntryCreate,
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
 ):
     """Add a new payment entry to an essential pool for a month."""
     tmpl = session.get(FixedExpenseTemplate, pool_template_id)
@@ -784,7 +901,8 @@ def add_pool_entry(
 def update_pool_entry(
     entry_id: int,
     update: PoolEntryUpdate,
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
 ):
     """Update label, amount, paid status or note of a pool entry."""
     entry = session.get(PoolEntry, entry_id)
@@ -803,7 +921,8 @@ def update_pool_entry(
 
 
 @app.patch("/pools/entries/{entry_id}/toggle")
-def toggle_pool_entry_paid(entry_id: int, session: Session = Depends(get_session)):
+def toggle_pool_entry_paid(entry_id: int, session: Session = Depends(get_session),
+                           current_user: User = Depends(get_current_user)):
     """Toggle paid status of a pool entry."""
     entry = session.get(PoolEntry, entry_id)
     if not entry:
@@ -817,7 +936,8 @@ def toggle_pool_entry_paid(entry_id: int, session: Session = Depends(get_session
 
 
 @app.delete("/pools/entries/{entry_id}")
-def delete_pool_entry(entry_id: int, session: Session = Depends(get_session)):
+def delete_pool_entry(entry_id: int, session: Session = Depends(get_session),
+                      current_user: User = Depends(get_current_user)):
     """Delete a pool entry."""
     entry = session.get(PoolEntry, entry_id)
     if not entry:

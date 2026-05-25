@@ -11,6 +11,29 @@ DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./data/expenses.db")
 engine = create_engine(DATABASE_URL, echo=False)
 
 
+class User(SQLModel, table=True):
+    """
+    Authenticated user account.
+
+    Placed first in this file so existing tables can reference
+    User.id as a foreign key in Sprint 2 (data isolation).
+
+    Security notes:
+    - `email` is the login identifier — unique and indexed
+    - `hashed_password` stores a bcrypt hash only — plaintext is never persisted
+    - `is_active=False` disables login without deleting the account or its data
+    - `is_admin=True` grants access to the Sprint 6.3 admin panel
+    - `last_login` is updated on each successful login for security auditing
+    """
+    id: Optional[int] = Field(default=None, primary_key=True)
+    email: str = Field(unique=True, index=True)         # login identifier
+    hashed_password: str                                 # bcrypt hash — never plaintext
+    is_active: bool = Field(default=True)               # False = account disabled
+    is_admin: bool = Field(default=False)               # True = Sprint 6.3 admin panel access
+    created_at: datetime = Field(default_factory=datetime.now)
+    last_login: Optional[datetime] = Field(default=None)  # updated on each successful login
+
+
 class FixedExpenseTemplate(SQLModel, table=True):
     """Master list of fixed expenses — managed by the user, persists across months."""
     id: Optional[int] = Field(default=None, primary_key=True)
