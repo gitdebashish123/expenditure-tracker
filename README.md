@@ -17,6 +17,30 @@ Access from your Mac or any mobile browser on the same WiFi network.
 
 ---
 
+## 🗄️ Database Migrations
+
+When upgrading from a single-user to multi-user setup (Sprint 2),
+run the schema migration script once:
+
+```bash
+# 1. Start the backend first so the user table and default admin are created
+uv run uvicorn backend.main:app --port 8000
+# Wait for "Application startup complete", then Ctrl+C
+
+# 2. Run the migration
+uv run python migrate_add_user_id.py
+```
+
+This adds `user_id` to all data tables and assigns any existing data to
+the default admin account (`admin@spendsense.local`). Safe to re-run —
+skips columns that already exist.
+
+| Migration script | What it does |
+|---|---|
+| `migrate_add_user_id.py` | Adds `user_id` FK to all 6 data tables (Sprint 2.1) |
+
+---
+
 ## 🚀 Setup (Mac)
 
 This project uses **[uv](https://docs.astral.sh/uv/)** — a fast Python package and project manager that handles your virtual environment and dependencies in one step. No need to manage `pip`, `venv`, or `python` versions manually.

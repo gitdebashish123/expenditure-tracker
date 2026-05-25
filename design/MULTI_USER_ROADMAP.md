@@ -94,7 +94,8 @@ the goal is to make it available to a small group of trusted users while ensurin
 - Test full stack locally with Docker
 
 ### Commit 3.2 — Railway/Render Deployment
-- Create `railway.toml` or `render.yaml` deployment config
+- Create `railway.toml` deployment config
+- `render.yaml` deployment config will be consider (if required) , for now skip it
 - Set all environment variables in platform dashboard (never in code)
 - Configure persistent volume for SQLite database
 - Set up automatic deploys from `main` branch on GitHub
