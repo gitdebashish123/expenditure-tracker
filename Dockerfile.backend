@@ -46,12 +46,12 @@ RUN uv sync --no-dev --frozen
 COPY backend/    ./backend/
 COPY config.yaml ./config.yaml
 
-# Create data directory — volume mount will overlay this at runtime,
-# but the directory must exist in the image for the mount point
-RUN mkdir -p /app/data && chown -R appuser:appuser /app
+# Create data directory mount point
+RUN mkdir -p /app/data
 
-# Switch to non-root user for all subsequent commands and runtime
-USER appuser
+# Note: Running as root in production (Railway volume permissions)
+# The non-root user caused write permission issues with Railway's volume mounts
+# TODO: Revisit with proper volume ownership configuration in a future sprint
 
 # Expose backend API port
 EXPOSE 8000
