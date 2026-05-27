@@ -3,8 +3,9 @@ import requests
 import pandas as pd
 from datetime import date, datetime
 from collections import defaultdict
+import os
 
-API_BASE = "http://localhost:8000"
+API_BASE = os.getenv("API_BASE", "http://localhost:8000")
 CURRENT_MONTH = date.today().strftime("%Y-%m")
 
 CATEGORY_ICONS = {

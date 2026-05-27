@@ -54,3 +54,15 @@ Traceback (most recent call last):
      • User A's Food limit is 5000
      • User B's Food limit is 3000
              "
+
+
+Read design/MULTI_USER_ROADMAP.md and let's prepare a solid prompt to implement Sprint 3 — Production Infrastructure , 
+Commit 3.1 — Dockerise the App and save under the same folder
+
+Read design/COMMIT_3_1_DOCKERISE_PROMPT.md and 
+proceed with the implementation of Step 1 — Add GET /health Endpoint to backend/main.py
+
+
+
+Read design/MULTI_USER_ROADMAP.md and let's prepare a solid prompt to implement sprint3 , 
+Commit 3.2 — Railway/Render Deployment and save under the same folder

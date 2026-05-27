@@ -83,6 +83,23 @@ def on_startup():
             print("⚠️  Change the default password immediately — update ADMIN_PASSWORD in .env\n")
 
 
+# ── Health Check ─────────────────────────────────────────────────────────────
+
+@app.get("/health")
+def health_check():
+    """
+    Public health check — no authentication required.
+    Called by Railway/Render to verify the container is running.
+    Called by docker-compose HEALTHCHECK directive.
+    """
+    return {
+        "status": "ok",
+        "app": "SpendSense",
+        "version": "2.0.0",
+        "timestamp": datetime.utcnow().isoformat(),
+    }
+
+
 # ── Request Models ────────────────────────────────────────────────────────────
 
 class ExpenseInput(BaseModel):

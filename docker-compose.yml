@@ -1,0 +1,106 @@
+# ── SpendSense — Docker Compose ───────────────────────────────────────────────
+# Local development and production-equivalent stack
+#
+# Usage:
+#   Start all services:      docker compose up -d
+#   Watch logs:              docker compose logs -f
+#   Stop all services:       docker compose down
+#   Rebuild images:          docker compose up -d --build
+#   Reset (deletes DB):      docker compose down -v   ⚠️  WARNING: deletes database volume
+#   Check container status:  docker compose ps
+#
+# Services:
+#   db-init    — one-shot schema migration, runs then exits
+#   backend    — FastAPI on port 8000, depends on db-init completing
+#   frontend   — Streamlit on port 8501, depends on backend being healthy
+#
+# Access:
+#   Frontend:  http://localhost:8501
+#   API Docs:  http://localhost:8000/docs
+#   Health:    http://localhost:8000/health
+
+services:
+
+  # ── Schema Migration (one-shot, runs then exits) ───────────────────────────
+  # Runs migrate_schema.py before the backend starts.
+  # If migration fails, the backend never starts (fail-fast behaviour).
+  # Migration logs are isolated in their own service — easy to inspect.
+  # In production (Railway), this maps to a "pre-deploy command".
+  db-init:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    command: ["uv", "run", "python", "migrate_schema.py"]
+    env_file: .env
+    volumes:
+      # Persistent volume — same DB file used by backend
+      - spendsense_data:/app/data
+      # Mount migration script read-only so it can access the DB at runtime
+      - ./migrate_schema.py:/app/migrate_schema.py:ro
+    restart: "no"   # one-shot — run once and exit, never restart
+
+  # ── FastAPI Backend ────────────────────────────────────────────────────────
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    ports:
+      # Expose backend on host — allows direct API access and curl testing
+      - "8000:8000"
+    env_file: .env
+    volumes:
+      # Persistent named volume for SQLite database
+      # Data survives: image rebuilds, container recreation, system reboots
+      # Data lost only on: docker compose down -v (explicit volume delete)
+      - spendsense_data:/app/data
+    depends_on:
+      db-init:
+        # Wait for migration to complete successfully before starting backend
+        # If db-init exits with non-zero code, backend will not start
+        condition: service_completed_successfully
+    restart: unless-stopped   # auto-restart on crash or system reboot
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      start_period: 30s   # grace period for uvicorn startup
+      retries: 3
+
+  # ── Streamlit Frontend ─────────────────────────────────────────────────────
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    ports:
+      # Expose frontend on host — main user-facing port
+      - "8501:8501"
+    env_file: .env
+    environment:
+      # Override API_BASE to use Docker's internal DNS
+      # 'backend' resolves to the backend container's IP automatically
+      # This is how the frontend reaches the backend inside Docker's network
+      # Without this override, frontend would try http://localhost:8000
+      # which points to itself (not the backend container)
+      API_BASE: "http://backend:8000"
+    depends_on:
+      backend:
+        # Wait for backend health check to pass before starting frontend
+        # Prevents frontend from loading while backend is still starting up
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
+      interval: 30s
+      timeout: 10s
+      start_period: 40s   # Streamlit takes slightly longer to boot than FastAPI
+      retries: 3
+
+# ── Named Volumes ──────────────────────────────────────────────────────────────
+volumes:
+  spendsense_data:
+    driver: local
+    # This volume stores data/expenses.db
+    # Mounted at /app/data in both db-init and backend containers
+    # To inspect: docker volume inspect expenditure-tracker_spendsense_data
+    # To backup:  docker run --rm -v expenditure-tracker_spendsense_data:/data \
+    #               -v $(pwd):/backup alpine tar czf /backup/db_backup.tar.gz /data
