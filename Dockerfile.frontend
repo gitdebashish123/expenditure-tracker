@@ -16,9 +16,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Install uv — fast Python package manager
-RUN curl -LsSf https://astral.sh/uv/install.sh | sh
-ENV PATH="/root/.cargo/bin:/root/.local/bin:$PATH"
+# Install uv to /usr/local/bin (system-wide, accessible to all users)
+# Avoids permission denied errors in Railway containers where
+# /root/.local/bin may not be executable
+RUN curl -LsSf https://astral.sh/uv/install.sh | UV_INSTALL_DIR=/usr/local/bin sh
 
 # Create non-root user for security
 RUN useradd --create-home --shell /bin/bash appuser
