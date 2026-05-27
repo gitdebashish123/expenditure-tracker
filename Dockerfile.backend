@@ -1,0 +1,74 @@
+# ── SpendSense Backend — Dockerfile ──────────────────────────────────────────
+# FastAPI + Uvicorn
+# Python 3.13-slim, uv package manager, non-root user
+# Exposes port 8000
+#
+# Build:  docker build -f Dockerfile.backend -t spendsense-backend:local .
+# Run:    docker run --env-file .env -p 8000:8000 spendsense-backend:local
+
+FROM python:3.13-slim
+
+# System dependencies for bcrypt and cryptography packages
+# build-essential (gcc, make) required — bcrypt>=5.0 compiles native extensions
+# curl required — used by HEALTHCHECK and uv installer
+# slim (Debian-based) chosen over alpine — musl libc causes bcrypt/cryptography build failures
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        curl \
+        build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install uv — fast Python package manager (replaces pip)
+# Matches the local development environment exactly
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh
+ENV PATH="/root/.cargo/bin:/root/.local/bin:$PATH"
+
+# Create non-root user for security
+# Running as root inside a container is a security risk — if the container
+# is compromised, the attacker has root access to the container filesystem
+RUN useradd --create-home --shell /bin/bash appuser
+
+# Set working directory
+WORKDIR /app
+
+# ── Dependency Installation (layer caching) ───────────────────────────────────
+# Copy dependency files BEFORE application code.
+# Docker caches each layer — if pyproject.toml and uv.lock haven't changed,
+# this layer is reused and uv sync is skipped on rebuild (much faster builds).
+COPY pyproject.toml uv.lock ./
+
+# Install production dependencies only (no dev tools like pytest, black, etc.)
+# --frozen: fails if uv.lock is out of sync with pyproject.toml (prevents silent drift)
+# --no-dev: excludes dev dependency groups
+RUN uv sync --no-dev --frozen
+
+# ── Application Code ──────────────────────────────────────────────────────────
+# Copy after dependency install to preserve layer cache on code-only changes
+COPY backend/    ./backend/
+COPY config.yaml ./config.yaml
+
+# Create data directory — volume mount will overlay this at runtime,
+# but the directory must exist in the image for the mount point
+RUN mkdir -p /app/data && chown -R appuser:appuser /app
+
+# Switch to non-root user for all subsequent commands and runtime
+USER appuser
+
+# Expose backend API port
+EXPOSE 8000
+
+# ── Health Check ──────────────────────────────────────────────────────────────
+# Docker marks the container unhealthy if this fails, preventing traffic routing
+# --start-period: grace period for app startup before health checks begin
+# --interval: check every 30 seconds
+# --timeout: fail if no response within 10 seconds
+# --retries: 3 consecutive failures = unhealthy
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
+
+# ── Start Command ─────────────────────────────────────────────────────────────
+# No --reload flag in production — it watches the filesystem and wastes CPU
+# --host 0.0.0.0 is required — without it the server only listens on localhost
+# inside the container and is unreachable from outside
+CMD ["uv", "run", "uvicorn", "backend.main:app", \
+     "--host", "0.0.0.0", \
+     "--port", "8000"]

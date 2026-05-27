@@ -17,6 +17,30 @@ Access from your Mac or any mobile browser on the same WiFi network.
 
 ---
 
+## 🗄️ Database Migrations
+
+When upgrading from a single-user to multi-user setup (Sprint 2),
+run the schema migration script once:
+
+```bash
+# 1. Start the backend first so the user table and default admin are created
+uv run uvicorn backend.main:app --port 8000
+# Wait for "Application startup complete", then Ctrl+C
+
+# 2. Run the migration
+uv run python migrate_add_user_id.py
+```
+
+This adds `user_id` to all data tables and assigns any existing data to
+the default admin account (`admin@spendsense.local`). Safe to re-run —
+skips columns that already exist.
+
+| Migration script | What it does |
+|---|---|
+| `migrate_add_user_id.py` | Adds `user_id` FK to all 6 data tables (Sprint 2.1) |
+
+---
+
 ## 🚀 Setup (Mac)
 
 This project uses **[uv](https://docs.astral.sh/uv/)** — a fast Python package and project manager that handles your virtual environment and dependencies in one step. No need to manage `pip`, `venv`, or `python` versions manually.
@@ -83,6 +107,110 @@ uv run uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload
 # Terminal 2 — Frontend UI
 uv run streamlit run frontend/app.py --server.address 0.0.0.0 --server.port 8501
 ```
+
+---
+
+## 🔒 HTTPS Setup
+
+### Local Development
+
+**Prerequisites**
+- nginx: `brew install nginx` (if not already installed)
+- openssl: pre-installed on Mac — verify with `openssl version`
+
+**One-time setup per machine**
+
+```bash
+# Step 1 — Generate self-signed certificate
+bash nginx/generate_certs.sh
+```
+
+```bash
+# Step 2 — (Optional but recommended) Trust the cert in Mac Keychain
+# Removes the "Your connection is not private" browser warning permanently
+sudo security add-trusted-cert -d -r trustRoot \
+  -k /Library/Keychains/System.keychain \
+  nginx/certs/spendsense.crt
+```
+
+```bash
+# Step 3 — Start the app (nginx starts automatically)
+./start.sh
+```
+
+**Access URLs after HTTPS setup**
+
+| Service | URL |
+|---|---|
+| Frontend | https://localhost:8443 |
+| API Docs | https://localhost:8444/docs |
+
+> **First visit browser warning** — on the first visit, your browser will show
+> a security warning because the certificate is self-signed (not issued by a
+> trusted authority). Click **Advanced → Proceed to localhost** to continue.
+> If you ran the Keychain trust command above, this warning will not appear.
+
+> **Certificate renewal** — the self-signed cert is valid for 365 days.
+> Re-run `bash nginx/generate_certs.sh` after a year to regenerate it.
+
+---
+
+### 📱 iPhone / Mobile Access
+
+iPhone does not trust self-signed certificates without a manual profile
+installation, so HTTP is used directly for local mobile development.
+
+1. Make sure your phone is on the **same WiFi network** as your Mac
+2. Find your Mac's local IP:
+   ```bash
+   ipconfig getifaddr en0
+   ```
+3. Open in Safari: `http://192.168.x.x:8501`
+
+No HTTPS setup is needed on the iPhone for local development.
+
+---
+
+### 🚂 Production HTTPS — Railway (Recommended)
+
+HTTPS is **fully automatic** on Railway — zero configuration required.
+
+- Railway provisions and renews the TLS certificate automatically
+- No nginx, no certbot, no certificate files needed
+- HTTPS is active from the very first deploy
+
+**Steps:**
+1. Push your code to GitHub
+2. Connect the repo to Railway (railway.app → New Project → Deploy from GitHub)
+3. Set environment variables in the Railway dashboard (`ANTHROPIC_API_KEY` etc.)
+4. Railway deploys and assigns a `https://your-app.railway.app` URL automatically
+
+**Verify HTTPS is working:**
+```bash
+curl https://your-app.railway.app/months
+# expect: JSON array of months
+```
+
+---
+
+### 🎨 Production HTTPS — Render (Alternative)
+
+Same as Railway — HTTPS is automatic on every deploy.
+
+- Custom domain supported on the free tier
+- Certificate provisioned and renewed by the platform
+- No additional configuration needed beyond setting environment variables
+
+---
+
+### 🛠️ Troubleshooting
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| **Streamlit blank screen after HTTPS** | WebSocket headers missing in nginx config | Check `nginx/spendsense-frontend.conf` — all three WebSocket headers must be present: `Upgrade`, `Connection`, `proxy_http_version 1.1` |
+| **Browser shows security warning** | Self-signed certificate not trusted | Click **Advanced → Proceed to localhost**, or run the `sudo security add-trusted-cert` Keychain command |
+| **iPhone connection refused on HTTPS** | Expected — iOS rejects untrusted self-signed certs | Use HTTP directly: `http://192.168.x.x:8501` |
+| **Port 8443 or 8444 already in use** | Another process is using the port | Run `lsof -i :8443` to identify the process, then `kill <PID>` |
 
 ---
 

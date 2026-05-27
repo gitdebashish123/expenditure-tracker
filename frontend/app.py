@@ -3,8 +3,9 @@ import requests
 import pandas as pd
 from datetime import date, datetime
 from collections import defaultdict
+import os
 
-API_BASE = "http://localhost:8000"
+API_BASE = os.getenv("API_BASE", "http://localhost:8000")
 CURRENT_MONTH = date.today().strftime("%Y-%m")
 
 CATEGORY_ICONS = {
@@ -15,6 +16,19 @@ CATEGORY_ICONS = {
 }
 FIXED_CATEGORIES = ["Housing", "EMI", "Savings", "Investments", "Insurance", "Utilities", "Household"]
 VAR_CATEGORIES   = ["Food", "Travel", "Groceries", "Shopping", "Medical", "Entertainment", "Gifts", "Course", "Miscellaneous"]
+
+# ── Auth Session State ────────────────────────────────────────────────
+# Initialised before any api() call and before theme — must stay here
+if "token" not in st.session_state:
+    st.session_state.token = None           # JWT string or None
+if "user_email" not in st.session_state:
+    st.session_state.user_email = None      # email of logged-in user
+if "user_is_admin" not in st.session_state:
+    st.session_state.user_is_admin = False  # True = Sprint 6.3 admin panel
+if "auth_error" not in st.session_state:
+    st.session_state.auth_error = None      # error message shown on login form
+if "show_register" not in st.session_state:
+    st.session_state.show_register = False  # toggle between login and register form
 
 # ── Theme ────────────────────────────────────────────────────────────────────
 if "theme" not in st.session_state:
@@ -144,23 +158,177 @@ h1, h2, h3 {{ font-family: 'Syne', sans-serif !important; color:{T["text"]} !imp
 div[data-testid="stMetricValue"] {{ font-family: 'Syne', sans-serif !important; }}
 .stCheckbox > label {{ color: {T["text"]} !important; }}
 p, div, span, label {{ color: {T["text"]}; }}
+
+/* Login page */
 </style>
 """, unsafe_allow_html=True)
 
 
+
+# ── Login Page ────────────────────────────────────────────────────────────────
+def show_login_page():
+    """Renders login/register page. Uses requests directly — no token yet."""
+    _, card_col, _ = st.columns([1, 2, 1])
+    with card_col:
+
+        st.markdown("""
+        <div style="text-align:center;margin-bottom:32px;margin-top:40px;">
+            <div style="font-size:2.5rem;">💸</div>
+            <div class="login-title" style="text-align:center;">SpendSense</div>
+            <div class="login-subtitle" style="text-align:center;">Your personal salary tracker</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        if st.session_state.auth_error:
+            css = "auth-success" if st.session_state.auth_error.startswith("✅") else "auth-error"
+            st.markdown(
+                f'<div class="{css}">{st.session_state.auth_error}</div>',
+                unsafe_allow_html=True
+            )
+
+        if not st.session_state.show_register:
+            # Login form
+            with st.form("login_form"):
+                email    = st.text_input("Email", placeholder="your@email.com",
+                                         label_visibility="collapsed", key="login_email")
+                password = st.text_input("Password", placeholder="Password",
+                                         type="password",
+                                         label_visibility="collapsed", key="login_password")
+                submitted = st.form_submit_button("Sign In", use_container_width=True)
+
+            if submitted:
+                if not email or not password:
+                    st.session_state.auth_error = "Please enter your email and password."
+                    st.rerun()
+                else:
+                    try:
+                        r = requests.post(f"{API_BASE}/auth/login",
+                                          json={"email": email, "password": password},
+                                          timeout=10)
+                        if r.status_code == 200:
+                            data = r.json()
+                            st.session_state.token = data["access_token"]
+                            me = requests.get(
+                                f"{API_BASE}/auth/me",
+                                headers={"Authorization": "Bearer " + st.session_state.token},
+                                timeout=10,
+                            ).json()
+                            st.session_state.user_email    = me.get("email")
+                            st.session_state.user_is_admin = me.get("is_admin", False)
+                            st.session_state.auth_error    = None
+                            st.rerun()
+                        elif r.status_code == 401:
+                            st.session_state.auth_error = "Invalid email or password."
+                            st.rerun()
+                        elif r.status_code == 403:
+                            st.session_state.auth_error = "Account disabled — contact administrator."
+                            st.rerun()
+                        else:
+                            st.session_state.auth_error = f"Login failed (status {r.status_code})."
+                            st.rerun()
+                    except requests.exceptions.ConnectionError:
+                        st.session_state.auth_error = "Backend not running. Start with: ./start.sh"
+                        st.rerun()
+                    except Exception as e:
+                        st.session_state.auth_error = f"Unexpected error: {e}"
+                        st.rerun()
+
+            st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
+            if st.button("Don't have an account? Create one",
+                         use_container_width=True, key="go_register"):
+                st.session_state.show_register = True
+                st.session_state.auth_error    = None
+                st.rerun()
+
+        else:
+            # Register form
+            st.markdown('<div class="login-subtitle" style="text-align:center;">Create your account</div>',
+                        unsafe_allow_html=True)
+            with st.form("register_form"):
+                reg_email    = st.text_input("Email", placeholder="your@email.com",
+                                             label_visibility="collapsed", key="reg_email")
+                reg_password = st.text_input("Password (min 8 characters)", placeholder="Password",
+                                             type="password",
+                                             label_visibility="collapsed", key="reg_password")
+                reg_confirm  = st.text_input("Confirm Password", placeholder="Confirm Password",
+                                             type="password",
+                                             label_visibility="collapsed", key="reg_confirm")
+                reg_submitted = st.form_submit_button("Create Account", use_container_width=True)
+
+            if reg_submitted:
+                if not reg_email or not reg_password:
+                    st.session_state.auth_error = "Please fill in all fields."
+                    st.rerun()
+                elif len(reg_password) < 8:
+                    st.session_state.auth_error = "Password must be at least 8 characters."
+                    st.rerun()
+                elif reg_password != reg_confirm:
+                    st.session_state.auth_error = "Passwords do not match."
+                    st.rerun()
+                else:
+                    try:
+                        r = requests.post(f"{API_BASE}/auth/register",
+                                          json={"email": reg_email, "password": reg_password},
+                                          timeout=10)
+                        if r.status_code == 201:
+                            st.session_state.auth_error    = "✅ Account created! Please sign in."
+                            st.session_state.show_register = False
+                            st.rerun()
+                        elif r.status_code == 400:
+                            st.session_state.auth_error = r.json().get("detail", "Registration failed.")
+                            st.rerun()
+                        else:
+                            st.session_state.auth_error = f"Registration failed (status {r.status_code})."
+                            st.rerun()
+                    except requests.exceptions.ConnectionError:
+                        st.session_state.auth_error = "Backend not running."
+                        st.rerun()
+                    except Exception as e:
+                        st.session_state.auth_error = f"Unexpected error: {e}"
+                        st.rerun()
+
+            st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
+            if st.button("Already have an account? Sign In",
+                         use_container_width=True, key="go_login"):
+                st.session_state.show_register = False
+                st.session_state.auth_error    = None
+                st.rerun()
+
 # ── Helpers ───────────────────────────────────────────────────────────────────
 def api(method, path, **kwargs):
+    """
+    Make an authenticated API call.
+    - Injects Authorization: Bearer <token> header if token exists
+    - On 401: clears session and reruns to login page
+    - On connection error: shows backend-not-running message
+    - On other HTTP errors: returns None silently
+    """
+    headers = kwargs.pop("headers", {})
+    if st.session_state.get("token"):
+        headers["Authorization"] = "Bearer " + st.session_state.token
+
     try:
-        r = requests.request(method, f"{API_BASE}{path}", timeout=30, **kwargs)
+        r = requests.request(method, f"{API_BASE}{path}",
+                             timeout=30, headers=headers, **kwargs)
+
+        if r.status_code == 401:
+            st.session_state.token = None
+            st.session_state.user_email = None
+            st.session_state.user_is_admin = False
+            st.session_state.auth_error = "Your session has expired. Please log in again."
+            st.rerun()
+
         r.raise_for_status()
         return r.json()
+
     except requests.exceptions.ConnectionError:
-        st.error("\u26a0\ufe0f Backend not running. Start with: `uv run uvicorn backend.main:app --reload`")
+        st.error("Backend not running. Start with: uv run uvicorn backend.main:app --reload")
+        return None
+    except requests.exceptions.HTTPError:
         return None
     except Exception as e:
         st.error(f"API error: {e}")
         return None
-
 def bar_color(pct):
     if pct >= 100: return "#ef4444"
     if pct >= 80:  return "#f59e0b"
@@ -171,13 +339,29 @@ def fmt_month(m):
     return datetime.strptime(m, "%Y-%m").strftime("%B %Y")
 
 
+# ── Auth Gate ────────────────────────────────────────────────────────────────
+# Everything below requires authentication.
+# If token is missing or expired, show login page and stop execution.
+if not st.session_state.get("token"):
+    show_login_page()
+    st.stop()
+
+# ── Token Validation on Load ──────────────────────────────────────────────────
+# Validates token on every page load (e.g. after browser refresh).
+# If expired, api() will auto-clear token and rerun to login page.
+me = api("GET", "/auth/me")
+if me and st.session_state.user_email is None:
+    # Restore user info if session state was lost (e.g. after hot reload)
+    st.session_state.user_email    = me.get("email")
+    st.session_state.user_is_admin = me.get("is_admin", False)
+
 # ── Header row: title + theme toggle + month selector ─────────────────────────
 all_months = api("GET", "/months") or []
 if CURRENT_MONTH not in all_months:
     all_months = [CURRENT_MONTH] + all_months
 all_months = sorted(set(all_months), reverse=True)
 
-col_title, col_theme, col_month = st.columns([3, 0.5, 1])
+col_title, col_theme, col_logout, col_month = st.columns([3, 0.5, 0.7, 1])
 with col_title:
     st.markdown(f"""
     <div class="app-header">
@@ -190,6 +374,19 @@ with col_theme:
     moon = "\U0001f319" if is_dark else "\u2600\ufe0f"
     if st.button(moon, key="theme_toggle", help="Toggle dark/light mode"):
         st.session_state.theme = "light" if is_dark else "dark"
+        st.rerun()
+with col_logout:
+    st.markdown("<div style='height:18px'></div>", unsafe_allow_html=True)
+    email_initial = st.session_state.user_email[0].upper() if st.session_state.user_email else "?"
+    if st.button(
+        f"👤 {email_initial}  Sign out",
+        key="logout_btn",
+        help=f"Signed in as {st.session_state.user_email}"
+    ):
+        st.session_state.token = None
+        st.session_state.user_email = None
+        st.session_state.user_is_admin = False
+        st.session_state.auth_error = None
         st.rerun()
 with col_month:
     st.markdown("<div style='height:14px'></div>", unsafe_allow_html=True)

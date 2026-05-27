@@ -1,0 +1,82 @@
+# ── SpendSense Frontend — Dockerfile ─────────────────────────────────────────
+# Streamlit UI
+# Python 3.13-slim, uv package manager, non-root user
+# Exposes port 8501
+#
+# Build:  docker build -f Dockerfile.frontend -t spendsense-frontend:local .
+# Run:    docker run --env-file .env -e API_BASE=http://backend:8000 \
+#                   -p 8501:8501 spendsense-frontend:local
+
+FROM python:3.13-slim
+
+# System dependencies
+# curl required — used by uv installer and HEALTHCHECK
+# No build-essential needed — Streamlit has no C extensions (unlike bcrypt)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install uv — fast Python package manager
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh
+ENV PATH="/root/.cargo/bin:/root/.local/bin:$PATH"
+
+# Create non-root user for security
+RUN useradd --create-home --shell /bin/bash appuser
+
+# Set working directory
+WORKDIR /app
+
+# ── Dependency Installation (layer caching) ───────────────────────────────────
+# Copy dependency files before application code for layer cache efficiency.
+# uv sync only re-runs when pyproject.toml or uv.lock changes.
+COPY pyproject.toml uv.lock ./
+
+# Install production dependencies only
+# --frozen: fails build if uv.lock is out of sync with pyproject.toml
+# --no-dev: excludes dev-only tools
+RUN uv sync --no-dev --frozen
+
+# ── Application Code ──────────────────────────────────────────────────────────
+COPY frontend/   ./frontend/
+COPY config.yaml ./config.yaml
+
+RUN chown -R appuser:appuser /app
+
+# Switch to non-root user
+USER appuser
+
+# Expose Streamlit port
+EXPOSE 8501
+
+# ── Streamlit Environment Variables ──────────────────────────────────────────
+# headless=true: required in containers — disables the browser-open attempt
+#                that would otherwise error on startup with no display
+# address=0.0.0.0: bind to all interfaces — without this the server only
+#                  listens on localhost inside the container and is unreachable
+# port: explicit for clarity, matches EXPOSE above
+# CORS allowedOrigins: allow all origins — nginx handles restriction in production
+ENV STREAMLIT_SERVER_HEADLESS=true
+ENV STREAMLIT_SERVER_ADDRESS=0.0.0.0
+ENV STREAMLIT_SERVER_PORT=8501
+ENV STREAMLIT_BROWSER_GATHER_USAGE_STATS=false
+
+# API_BASE — where the frontend sends API requests
+# Default: localhost (for running the container standalone in local dev)
+# Override: http://backend:8000 (Docker Compose internal DNS)
+# Override: https://your-api.railway.app (production)
+ENV API_BASE=http://localhost:8000
+
+# ── Health Check ──────────────────────────────────────────────────────────────
+# Streamlit exposes a built-in health endpoint at /_stcore/health
+# Returns "ok" when the server is ready to accept connections
+# --start-period: 40s grace period (Streamlit takes slightly longer to boot)
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD curl -f http://localhost:8501/_stcore/health || exit 1
+
+# ── Start Command ─────────────────────────────────────────────────────────────
+# Flags mirror the ENV variables above for explicitness
+# Both ENV and CLI flags set — ENV is used by Streamlit's config system,
+# CLI flags are the authoritative override
+CMD ["uv", "run", "streamlit", "run", "frontend/app.py", \
+     "--server.address", "0.0.0.0", \
+     "--server.port", "8501"]

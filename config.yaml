@@ -1,8 +1,10 @@
-salary:
-  net_monthly: 146709
-  sources:
-    - name: "Infosys Salary"
-      amount: 146709
+# ── Salary / Income ──────────────────────────────────────────────────────────
+# Personal salary details have been moved out of this file.
+# Set DEFAULT_MONTHLY_INCOME in your .env file as a fallback.
+# The actual monthly income is recorded per-month in Settings → My Take-home.
+#
+# Example .env entry:
+#   DEFAULT_MONTHLY_INCOME=0
 
 # Fixed monthly expenses (auto-loaded each month)
 fixed_expenses:

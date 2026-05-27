@@ -1,0 +1,88 @@
+# ── SpendSense — Docker Build Context Exclusions ─────────────────────────────
+# Files listed here are excluded from the Docker build context.
+# A smaller build context = faster builds and smaller images.
+# More importantly, secrets and local artifacts never end up in images.
+#
+# Rule of thumb: if it's not needed to RUN the app, exclude it.
+
+# ── Python artifacts ──────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# ── Virtual environments ───────────────────────────────────────────────────────
+# Never copy the local venv — Docker creates its own inside the image via uv sync
+.venv/
+venv/
+env/
+
+# ── Environment files — NEVER bake secrets into images ────────────────────────
+# Secrets are injected at runtime via --env-file or platform dashboard env vars
+# If .env were included, every docker build would embed credentials in a layer
+.env
+.env.local
+.env.*.local
+.env.example
+
+# ── Database — injected via volume mount, not baked into image ────────────────
+# The actual DB lives in the named volume spendsense_data
+# Baking the DB into the image would mean a fresh empty DB on every image rebuild
+data/
+*.db
+*.db-shm
+*.db-wal
+
+# ── Local development tools — not needed in production ────────────────────────
+nginx/
+tests/
+design/
+.claude/
+scripts/
+
+# ── Version control ───────────────────────────────────────────────────────────
+.git/
+.gitignore
+.gitattributes
+
+# ── macOS system files ────────────────────────────────────────────────────────
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# ── IDE and editor files ──────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ── Uploaded and imported data files ─────────────────────────────────────────
+# Personal financial data — never in an image
+*.xlsx
+monthly_expenditure.xlsx
+
+# ── uv local cache ────────────────────────────────────────────────────────────
+.uv/
+.uv-cache/
+
+# ── Logs ──────────────────────────────────────────────────────────────────────
+*.log
+logs/
+
+# ── Test artifacts ────────────────────────────────────────────────────────────
+.pytest_cache/
+htmlcov/
+.coverage
+coverage.xml
+
+# ── Docker files themselves (not needed inside the image) ─────────────────────
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+
+# ── README and docs (optional — remove these two lines if you want docs in image) ──
+README.md
+PRIVACY.md
