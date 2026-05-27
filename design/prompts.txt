@@ -66,3 +66,6 @@ proceed with the implementation of Step 1 — Add GET /health Endpoint to backe
 
 Read design/MULTI_USER_ROADMAP.md and let's prepare a solid prompt to implement sprint3 , 
 Commit 3.2 — Railway/Render Deployment and save under the same folder
+
+Read design/COMMIT_3_2_RAILWAY_DEPLOY_PROMPT.md and 
+proceed with the implementation of Step 1 — Add GET /health Endpoint to backend/main.py

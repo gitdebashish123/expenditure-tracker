@@ -51,25 +51,64 @@ free of egress charges, and more secure than routing through the internet.
 
 ## Prerequisites — Complete Before Starting
 
+### Git Branching Strategy
+
+Railway auto-deploys on every push to `main`. This means `main` must only
+receive merges when a sprint is fully verified — never during development.
+
+```
+main          ← production only — Railway deploys from here
+  └── develop ← integration branch — all day-to-day development
+        ├── feature/sprint2-data-isolation
+        ├── feature/sprint2-api-queries
+        ├── feature/sprint3-railway-deploy   ← this commit
+        └── feature/sprint4-data-export
+```
+
+**Rules:**
+- All development work goes to `develop` or `feature/*` branches
+- `main` only receives a merge when a sprint is complete and fully verified
+- Every merge to `main` triggers a Railway production deploy — treat it as a release
+
+**Set up branching now (if not already done):**
+
 ```bash
-# 1. Verify Docker stack works locally
+cd /Users/debashish/Desktop/ai-projects/expenditure-tracker
+
+# Create develop branch from current main
+git checkout -b develop
+git push origin develop
+
+# All Sprint 2 and Sprint 3 work happens on develop (or feature branches)
+# Only merge to main when sprint is verified end-to-end
+```
+
+### Pre-flight Checks
+
+```bash
+# 1. Verify you are on develop branch
+git branch --show-current
+# expect: develop
+
+# 2. Verify Docker stack works locally
 docker compose up -d
 curl http://localhost:8000/health
 # expect: {"status":"ok","app":"SpendSense",...}
 
-# 2. Verify git is clean (all changes committed)
-cd /Users/debashish/Desktop/ai-projects/expenditure-tracker
+# 3. Verify git is clean (all changes committed)
 git status
 # expect: nothing to commit
 
-# 3. Install Railway CLI
+# 4. Push develop to GitHub
+git push origin develop
+
+# 5. Install Railway CLI
 brew install railway
 # verify: railway --version
 
-# 4. Push to GitHub (if not already)
+# 6. Confirm GitHub remote exists
 git remote -v
 # expect: origin pointing to your GitHub repo
-git push origin main
 ```
 
 ---
@@ -270,24 +309,49 @@ railway status
 
 ---
 
-## Step 5 — Set Up Auto-Deploy from GitHub
+## Step 5 — Merge to `main` and Verify Auto-Deploy
 
-Railway auto-deploys on every push to `main` by default when connected to GitHub.
-Verify it's enabled:
+Railway is configured to deploy from `main`. All work so far has been on
+`develop`. This step merges `develop` → `main` for the first production deploy.
 
-1. Railway dashboard → spendsense project → **Settings**
-2. Confirm **GitHub integration** shows your repo
-3. Confirm **Deploy on push** is enabled for `main` branch
-4. Make a test commit and push — both services should redeploy automatically
+**Only do this step when all local verification passes.**
 
 ```bash
-# Test auto-deploy
-echo "# deployed $(date)" >> README.md
-git add README.md
-git commit -m "test: verify Railway auto-deploy"
+cd /Users/debashish/Desktop/ai-projects/expenditure-tracker
+
+# Ensure develop is clean and up to date
+git checkout develop
+git status
+# expect: nothing to commit
+
+# Merge develop into main — this triggers Railway deploy
+git checkout main
+git merge develop --no-ff -m "release: Sprint 3.2 Railway deployment"
 git push origin main
 # expect: Railway dashboard shows new deploy triggered within 30 seconds
 ```
+
+**`--no-ff` flag** — creates a merge commit instead of fast-forwarding.
+This keeps the git history clean — you can clearly see when each sprint
+was released to production.
+
+**After this merge, all future sprint work:**
+```bash
+# Always develop on develop or feature branches — never directly on main
+git checkout develop
+
+# When a sprint is complete and verified:
+git checkout main
+git merge develop --no-ff -m "release: Sprint X.X description"
+git push origin main   # triggers Railway deploy
+git checkout develop   # immediately switch back
+```
+
+**Verify Railway auto-deploy triggered:**
+1. Open Railway dashboard after `git push origin main`
+2. expect: new deployment triggered within 30 seconds
+3. expect: deploy goes live within 3–5 minutes
+4. expect: zero downtime (Railway uses rolling deploys)
 
 ---
 
@@ -378,9 +442,14 @@ curl -X POST $BACKEND_URL/expenses/manual \
   -H "Content-Type: application/json" \
   -d '{"vendor":"RailwayTest","amount":100,"category":"Food"}'
 
-# Trigger a redeploy
+# Trigger a redeploy via develop → main merge
+git checkout develop
 git commit --allow-empty -m "test: verify data persistence across deploy"
+git push origin develop
+git checkout main
+git merge develop --no-ff -m "test: data persistence verification"
 git push origin main
+git checkout develop
 
 # Wait for redeploy to complete (~3-5 minutes), then check expense still exists
 MONTH=$(date +%Y-%m)
@@ -389,10 +458,16 @@ curl $BACKEND_URL/expenses/$MONTH \
 # expect: RailwayTest expense is still present
 ```
 
-### V6 — Auto-deploy works
+### V6 — Auto-deploy triggers on main merge
 ```bash
-# Make any small change and push
+# Make a change on develop and merge to main
+git checkout develop
+git commit --allow-empty -m "test: verify Railway auto-deploy"
+git push origin develop
+git checkout main
+git merge develop --no-ff -m "test: auto-deploy verification"
 git push origin main
+git checkout develop
 # Open Railway dashboard
 # expect: new deployment triggered within 30 seconds
 # expect: new deployment goes live within 3-5 minutes
@@ -476,6 +551,13 @@ first external user. Send them:
 **Before sharing:** Change `ADMIN_PASSWORD` in Railway dashboard from `changeme123`
 to a strong password. This is the single most important security step before
 going multi-user.
+
+**Return to develop after sharing:**
+```bash
+# All future work continues on develop
+git checkout develop
+# Never commit directly to main again
+```
 
 ---
 
