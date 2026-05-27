@@ -102,9 +102,10 @@ git status
 # 4. Push develop to GitHub
 git push origin develop
 
-# 5. Install Railway CLI
-brew install railway
-# verify: railway --version
+# 5. Verify Railway CLI is v4+
+railway --version
+# expect: v4.x.x or higher
+# If on older version: brew upgrade railway
 
 # 6. Confirm GitHub remote exists
 git remote -v
@@ -249,54 +250,181 @@ string — SQLModel code is unchanged, only the env var changes.
 
 ## Step 4 — Deploy to Railway
 
-### 4a. Create Railway account and project
+> **Railway CLI v4 note:** The `service create --name` command was removed in
+> v4. Services are now created via the dashboard and then linked to the CLI.
+> The recommended approach for a two-service project like SpendSense is
+> GitHub-connected auto-deploy, which is more reliable and requires no CLI
+> uploads at all.
+
+### 4a. Create Railway account and login
 
 ```bash
-# Login (opens browser)
+# Login — opens browser for OAuth
 railway login
 
-# Create new project linked to GitHub repo
-railway init
+# If browser login fails, use browserless mode:
+railway login --browserless
+# Opens a URL in terminal — visit it in any browser to complete login
 
+# Verify login
+railway whoami
+# expect: your Railway account email
+```
+
+### 4b. Create project and services in the dashboard
+
+Railway CLI v4 removed `service create --name`. Use the dashboard instead:
+
+1. Go to `https://railway.app` → **New Project** → **Empty Project**
+2. Name it `spendsense`
+3. Inside the project: click **+ New** → **Empty Service** → name it `backend`
+4. Click **+ New** again → **Empty Service** → name it `frontend`
+
+### 4c. Connect GitHub repo to each service
+
+**Preferred method — GitHub auto-deploy via dashboard:**
+
+**For the backend service:**
+1. Click the `backend` service tile
+2. Go to **Settings** tab
+3. Under **Source** section → click **Connect Repo**
+4. Select `gitdebashish123/expenditure-tracker`
+5. Set **Branch** to `main`
+6. Under **Build** section (scroll down below Source):
+   - Change **Builder** from `Railpack` to `Dockerfile`
+   - A new field appears: **Dockerfile Path** → type `Dockerfile.backend`
+7. Under **Deploy** section (scroll down below Build):
+   - Set **Start Command** to:
+     `uv run uvicorn backend.main:app --host 0.0.0.0 --port 8000`
+8. Click **Save** → Railway auto-deploys
+
+**For the frontend service:**
+1. Click the `frontend` service tile
+2. Go to **Settings** tab
+3. Under **Source** section → click **Connect Repo**
+4. Select `gitdebashish123/expenditure-tracker`
+5. Set **Branch** to `main`
+6. Under **Build** section:
+   - Change **Builder** from `Railpack` to `Dockerfile`
+   - Set **Dockerfile Path** to `Dockerfile.frontend`
+7. Under **Deploy** section:
+   - Set **Start Command** to:
+     `uv run streamlit run frontend/app.py --server.address 0.0.0.0 --server.port 8501`
+8. Click **Save** → Railway auto-deploys
+
+> **Why Builder must be set to Dockerfile:**
+> Railway's default builder (Railpack) auto-detects Python projects and overrides
+> the Dockerfile CMD with its own start command using system Python. This causes
+> `ModuleNotFoundError` because the venv built by `uv sync` is bypassed.
+> Setting Builder to Dockerfile forces Railway to use your Dockerfile exclusively.
+>
+> **Why `uv run` prefix in Start Command:**
+> Even with Dockerfile builder, the explicit Start Command field in Railway
+> overrides the Dockerfile CMD. Always prefix with `uv run` so the virtual
+> environment (where all dependencies are installed) is activated before
+> starting the app.
+
+> Railway reads `railway.toml` from the repo root automatically — health
+> checks, pre-deploy commands, and restart policy are all picked up from
+> the file committed in Step 1.
+
+---
+
+**Alternative method — CLI upload (use if GitHub Connect shows "No repositories found")**
+
+Railway's GitHub App sync can lag on trial accounts or newly public repos.
+The CLI upload bypasses the GitHub connection entirely and deploys directly
+from your Mac. GitHub auto-deploy can be reconnected later once the sync
+issue resolves.
+
+```bash
+cd /Users/debashish/Desktop/ai-projects/expenditure-tracker
+
+# Verify you are logged in
+railway whoami
+# expect: your Railway account email
+
+# Link this directory to the spendsense Railway project
+railway link
 # When prompted:
-# Project name: spendsense
-# Link to existing repo: Yes → select your GitHub repo
+# Select project: spendsense
+# Select environment: production
+
+# Deploy backend service
+railway service backend
+railway up --detach
+# expect: upload starts, build triggered in Railway dashboard
+
+# Deploy frontend service
+railway service frontend
+railway up --detach
+# expect: upload starts, build triggered in Railway dashboard
+
+# Check deployment status and get URLs
+railway status
+# expect: both services listed with deployed URLs
 ```
 
-### 4b. Link backend service
+> **Note on CLI upload + Builder settings:**
+> Even when deploying via CLI, you must still set the Builder to `Dockerfile`
+> and configure the Start Command with `uv run` prefix in the Railway dashboard.
+> The CLI uploads the code but Railway still controls how it builds and starts.
 
-```bash
-# From project root
-railway service create --name backend
-railway up --service backend --dockerfile Dockerfile.backend
-```
+### 4d. Add volume to backend service (dashboard only)
 
-### 4c. Add volume to backend (dashboard only)
+Volumes cannot be created via CLI — dashboard only:
 
-Cannot be done via CLI — must use Railway dashboard:
-1. Open `https://railway.app` → spendsense project → backend service
-2. Click **Volumes** tab → **Add Volume**
+1. Click the `backend` service tile
+2. Go to **Volumes** tab → **Add Volume**
 3. Mount path: `/app/data`
-4. Click **Create Volume**
+4. Volume name: `spendsense-db`
+5. Click **Create Volume**
 
-### 4d. Set backend environment variables (dashboard)
+The volume mounts at `/app/data` inside the container — this is where
+`expenses.db` lives. Data persists across all deploys.
 
-1. backend service → **Variables** tab
-2. Add each variable from the backend table in Step 3
-3. Railway will redeploy automatically after saving
+### 4e. Set environment variables (dashboard)
 
-### 4e. Create and deploy frontend service
+**Backend service → Variables tab:**
 
-```bash
-railway service create --name frontend
-railway up --service frontend --dockerfile Dockerfile.frontend
+Add each variable from the backend table in Step 3. Railway redeploys
+automatically after saving variables.
+
+Quickest method — use Railway's **Raw Editor** (paste all at once):
+```
+ANTHROPIC_API_KEY=sk-ant-your-key-here
+JWT_SECRET_KEY=your-64-char-hex-here
+JWT_EXPIRE_MINUTES=480
+ADMIN_EMAIL=your@email.com
+ADMIN_PASSWORD=your-strong-password
+DATABASE_URL=sqlite:////app/data/expenses.db
+DEFAULT_MONTHLY_INCOME=0
 ```
 
-### 4f. Set frontend environment variable (dashboard)
+**Frontend service → Variables tab:**
+```
+API_BASE=http://backend.railway.internal:8000
+```
 
-1. frontend service → **Variables** tab
-2. Add `API_BASE` = `http://backend.railway.internal:8000`
-3. Railway redeploys automatically
+### 4f. Link CLI to project (optional — for logs and status)
+
+```bash
+cd /Users/debashish/Desktop/ai-projects/expenditure-tracker
+
+# Link this directory to the Railway project
+railway link
+# When prompted:
+# Select project: spendsense
+# Select environment: production
+
+# Check status
+railway status
+# expect: both services listed with deployed URLs
+
+# View logs
+railway logs --service backend
+railway logs --service frontend
+```
 
 ### 4g. Get deployed URLs
 
@@ -306,6 +434,9 @@ railway status
 # backend:  https://spendsense-backend-production.up.railway.app
 # frontend: https://spendsense-frontend-production.up.railway.app
 ```
+
+Or find them in the dashboard: click each service tile → **Settings** →
+**Networking** → **Generate Domain**.
 
 ---
 
@@ -520,6 +651,9 @@ not suitable for a shared app where other users need it available at any time.
 
 | Symptom | Likely cause | Fix |
 |---|---|---|
+| "No repositories found" in Connect Repo | Railway GitHub App sync lag — common on trial accounts and newly public repos | Use CLI upload alternative in Step 4c: `railway link` then `railway up --detach` |
+| `ModuleNotFoundError: No module named 'jose'` or any missing module | Railway using system Python instead of uv venv | Settings → Build → change Builder from Railpack to Dockerfile; set Dockerfile Path to `Dockerfile.backend` |
+| `Error loading ASGI app. Attribute "app" not found in module "main"` | Railway start command using `main` instead of `backend.main` | Settings → Deploy → Start Command: `uv run uvicorn backend.main:app --host 0.0.0.0 --port 8000` |
 | `migrate_schema.py` fails on first deploy | `DATABASE_URL` not set or wrong path | Verify `sqlite:////app/data/expenses.db` (4 slashes) in backend variables |
 | Frontend shows "Backend not running" | `API_BASE` wrong or backend not healthy | Check `API_BASE=http://backend.railway.internal:8000` in frontend variables |
 | Login returns 500 | `JWT_SECRET_KEY` not set | Add it to backend variables in dashboard |
@@ -533,9 +667,10 @@ not suitable for a shared app where other users need it available at any time.
 
 1. ✅ Commit 3.1 Docker stack working locally (`docker compose ps` all healthy)
 2. ✅ All code committed and pushed to GitHub (`git status` clean)
-3. ✅ Railway CLI installed (`railway --version`)
-4. ✅ Railway account created at `https://railway.app`
-5. ✅ GitHub repo is public or Railway has access to private repo
+3. ✅ Railway CLI v4+ installed (`railway --version` shows v4.x.x)
+4. ✅ Railway account created at `https://railway.app` and logged in (`railway whoami`)
+5. ✅ GitHub repo is public or Railway GitHub App has access to the private repo
+6. ✅ `railway.toml` committed to repo (Step 1 complete)
 
 ---
 
