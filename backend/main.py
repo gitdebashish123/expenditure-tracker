@@ -1,4 +1,5 @@
 from fastapi import FastAPI, Depends, HTTPException
+from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from sqlmodel import Session, select
 from pydantic import BaseModel
@@ -7,6 +8,8 @@ from datetime import date, datetime
 from dotenv import load_dotenv
 import os
 import yaml
+import csv
+import io
 
 # Load .env before anything else
 load_dotenv()
@@ -862,6 +865,99 @@ def budget_projection(month_key: str, session: Session = Depends(get_session),
                 ),
             })
     return sorted(projections, key=lambda x: x["pct_projected"], reverse=True)
+
+
+# ── Data Export ─────────────────────────────────────────────────────────────
+# NOTE: /export/csv/all MUST be defined before /export/csv/{month_key}
+# to prevent FastAPI treating the literal string "all" as a month_key value.
+
+@app.get("/export/csv/all")
+def export_all_csv(
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Export all expenses for the authenticated user as a CSV file.
+    Defence in depth: user_id filter applied even though endpoint is JWT-protected.
+    """
+    expenses = session.exec(
+        select(Expense)
+        .where(Expense.user_id == current_user.id)
+        .order_by(Expense.date)
+    ).all()
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+
+    # Header row — month column first, then standard columns
+    writer.writerow(["month", "date", "vendor", "category", "amount", "note", "type", "paid"])
+
+    for e in expenses:
+        writer.writerow([
+            e.month_key,
+            e.date.isoformat() if e.date else "",
+            e.vendor,
+            e.category,
+            e.amount,
+            e.note or "",
+            "fixed" if e.is_fixed else "variable",
+            "yes" if e.paid else "no",
+        ])
+
+    output.seek(0)
+    today = date.today().isoformat()
+    filename = f"spendsense_all_{today}.csv"
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
+
+
+@app.get("/export/csv/{month_key}")
+def export_month_csv(
+    month_key: str,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Export expenses for a specific month as a CSV file.
+    Defence in depth: user_id filter applied even though endpoint is JWT-protected.
+    Returns a header-only CSV if no expenses exist for the month.
+    """
+    expenses = session.exec(
+        select(Expense)
+        .where(
+            Expense.month_key == month_key,
+            Expense.user_id == current_user.id,
+        )
+        .order_by(Expense.date)
+    ).all()
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+
+    # Header row
+    writer.writerow(["date", "vendor", "category", "amount", "note", "type", "paid"])
+
+    for e in expenses:
+        writer.writerow([
+            e.date.isoformat() if e.date else "",
+            e.vendor,
+            e.category,
+            e.amount,
+            e.note or "",
+            "fixed" if e.is_fixed else "variable",
+            "yes" if e.paid else "no",
+        ])
+
+    output.seek(0)
+    filename = f"spendsense_{month_key}.csv"
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
 
 
 # ── Pool Entries (Essential Pools) ────────────────────────────────────────────

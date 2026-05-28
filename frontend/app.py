@@ -1319,3 +1319,58 @@ with tab5:
                 st.rerun()
             else:
                 st.warning("Please fill in both name and amount.")
+
+    # ══════════════════════════════════════
+    # 5. MY DATA (Export)
+    # ══════════════════════════════════════
+    settings_section("📥", "My Data",
+        "Download your expense history as a spreadsheet-compatible CSV file.")
+
+    dl_col1, dl_col2 = st.columns([1, 1])
+
+    with dl_col1:
+        try:
+            r_month = requests.get(
+                f"{API_BASE}/export/csv/{sel_month}",
+                headers={"Authorization": f"Bearer {st.session_state.token}"},
+                timeout=30,
+            )
+            if r_month.status_code == 200:
+                st.download_button(
+                    label=f"⬇️ Download {fmt_month(sel_month)}",
+                    data=r_month.content,
+                    file_name=f"spendsense_{sel_month}.csv",
+                    mime="text/csv",
+                    key="dl_month",
+                    use_container_width=True,
+                )
+            else:
+                st.markdown(f'<div style="color:#f87171;font-size:0.82rem;">Could not load export ({r_month.status_code})</div>',
+                            unsafe_allow_html=True)
+        except Exception as e:
+            st.markdown(f'<div style="color:#f87171;font-size:0.82rem;">Export unavailable: {e}</div>',
+                        unsafe_allow_html=True)
+
+    with dl_col2:
+        try:
+            r_all = requests.get(
+                f"{API_BASE}/export/csv/all",
+                headers={"Authorization": f"Bearer {st.session_state.token}"},
+                timeout=30,
+            )
+            if r_all.status_code == 200:
+                today_str = date.today().isoformat()
+                st.download_button(
+                    label="⬇️ Download Full History",
+                    data=r_all.content,
+                    file_name=f"spendsense_all_{today_str}.csv",
+                    mime="text/csv",
+                    key="dl_all",
+                    use_container_width=True,
+                )
+            else:
+                st.markdown(f'<div style="color:#f87171;font-size:0.82rem;">Could not load export ({r_all.status_code})</div>',
+                            unsafe_allow_html=True)
+        except Exception as e:
+            st.markdown(f'<div style="color:#f87171;font-size:0.82rem;">Export unavailable: {e}</div>',
+                        unsafe_allow_html=True)

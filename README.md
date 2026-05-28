@@ -1,8 +1,20 @@
 # 💸 SpendSense — Personal Expenditure Tracker
 
-A natural-language-powered expense tracker built with Python 3.12+, FastAPI, Claude AI, and Streamlit.
+A natural-language-powered expense tracker built with Python 3.13, FastAPI, Claude AI, and Streamlit.
 Log expenses by typing `zomato 500, ola 200` — Claude categorises them instantly.
-Access from your Mac or any mobile browser on the same WiFi network.
+Access from anywhere via the live deployment or run locally on your Mac.
+
+---
+
+## 🌐 Live Deployment
+
+| Service | URL |
+|---|---|
+| **Frontend** | https://frontend-production-22a3.up.railway.app |
+| **API Docs** | https://backend-production-xxxx.up.railway.app/docs |
+| **Health** | https://backend-production-xxxx.up.railway.app/health |
+
+> Hosted on Railway. HTTPS automatic. Data persists on a dedicated volume.
 
 ---
 
