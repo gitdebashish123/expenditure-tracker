@@ -294,6 +294,8 @@ def show_login_page():
                 st.session_state.auth_error    = None
                 st.rerun()
 
+        st.markdown('<div style="text-align:center;margin-top:20px;color:rgba(255,255,255,0.25);font-size:0.75rem;">By signing in you acknowledge our <a href="https://github.com/gitdebashish123/expenditure-tracker/blob/main/PRIVACY.md" target="_blank" style="color:#a5b4fc;">Privacy Notice</a></div>', unsafe_allow_html=True)
+
 # ── Helpers ───────────────────────────────────────────────────────────────────
 def api(method, path, **kwargs):
     """
@@ -1481,7 +1483,6 @@ with tab5:
                     if r.status_code == 200:
                         st.session_state.token         = None
                         st.session_state.user_email    = None
-                        st.session_state.del_error = detail
                         st.session_state.user_is_admin = False
                         st.session_state.auth_error    = 'Your account has been deleted.'
                         st.rerun()
@@ -1491,10 +1492,13 @@ with tab5:
                         except Exception:
                             detail = f'Deletion failed (status {r.status_code}).'
                         st.rerun()
+                        st.session_state.del_error = detail
                 except Exception as e:
                     st.session_state.del_error = f'Could not delete account: {e}'
                     st.rerun()
 
+
+    st.markdown('<div style="margin-top:40px;padding-top:16px;border-top:1px solid rgba(255,255,255,0.07);text-align:center;color:rgba(255,255,255,0.25);font-size:0.78rem;">SpendSense &middot; <a href="https://github.com/gitdebashish123/expenditure-tracker/blob/main/PRIVACY.md" target="_blank" style="color:#a5b4fc;">Privacy Notice</a> &middot; Your data is private and isolated to your account</div>', unsafe_allow_html=True)
 
     with dl_col2:
         try:
