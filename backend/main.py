@@ -33,12 +33,21 @@ app = FastAPI(title="Expenditure Tracker API", version="2.0.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
+        # HTTP direct — used by Streamlit when accessed from iPhone on local WiFi
+        # and as a fallback during local development without nginx
         "http://localhost:8501",
+
+        # HTTPS via nginx — used by Mac browser after Commit 1.2 HTTPS setup
+        # nginx listens on 8443 and proxies to Streamlit on 8501
         "https://localhost:8443",
-        # TODO Sprint 5: add production URL
+
+        # Production — Railway frontend URL
+        "https://frontend-production-22a3.up.railway.app",
+
+        # TODO Sprint 5 (API Hardening): tighten allow_methods and allow_headers
     ],
-    allow_methods=["*"],
-    allow_headers=["*", "Authorization"],
+    allow_methods=["*"],   # tightened in Sprint 5 — API Hardening
+    allow_headers=["*", "Authorization"],  # Authorization added for Bearer token — tightened in Sprint 5
 )
 
 
