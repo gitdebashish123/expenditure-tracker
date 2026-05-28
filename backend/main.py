@@ -1,4 +1,5 @@
 from fastapi import FastAPI, Depends, HTTPException
+from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from sqlmodel import Session, select
 from pydantic import BaseModel
@@ -7,6 +8,8 @@ from datetime import date, datetime
 from dotenv import load_dotenv
 import os
 import yaml
+import csv
+import io
 
 # Load .env before anything else
 load_dotenv()
@@ -206,6 +209,15 @@ class UserResponse(BaseModel):
     last_login: Optional[datetime]
 
 
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str
+
+
+class DeleteAccountRequest(BaseModel):
+    confirmation: str   # must equal "DELETE" to proceed
+
+
 # ── Auth Endpoints (PUBLIC — no token required) ───────────────────────────────
 
 @app.post("/auth/register", response_model=UserResponse, status_code=201)
@@ -258,6 +270,98 @@ def get_me(current_user: User = Depends(get_current_user)):
         is_admin=current_user.is_admin, created_at=current_user.created_at,
         last_login=current_user.last_login,
     )
+
+
+@app.put("/auth/password")
+def change_password(
+    req: ChangePasswordRequest,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Change the authenticated user's password.
+    Returns 400 (not 401) for wrong current password — user IS authenticated,
+    just the old password is wrong. 401 would trigger frontend session expiry.
+    Existing JWT tokens remain valid after password change (no blacklist yet).
+    """
+    # Verify current password
+    if not verify_password(req.current_password, current_user.hashed_password):
+        raise HTTPException(status_code=400, detail="Current password is incorrect")
+
+    # Validate new password length
+    if len(req.new_password) < 8:
+        raise HTTPException(status_code=400, detail="New password must be at least 8 characters")
+
+    # Reject if new password is same as current
+    if verify_password(req.new_password, current_user.hashed_password):
+        raise HTTPException(status_code=400, detail="New password must be different from current password")
+
+    # Hash and save
+    current_user.hashed_password = hash_password(req.new_password)
+    session.add(current_user)
+    session.commit()
+    return {"message": "Password updated successfully"}
+
+
+@app.delete("/auth/account")
+def delete_account(
+    req: DeleteAccountRequest,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Permanently delete the authenticated user's account and ALL their data.
+    Requires confirmation string "DELETE" as a UX guard.
+    Deletes in FK dependency order to avoid constraint violations.
+    Single commit after all deletes — atomic: if anything fails, nothing is deleted.
+    """
+    if req.confirmation != "DELETE":
+        raise HTTPException(
+            status_code=400,
+            detail='Type DELETE to confirm account deletion'
+        )
+
+    user_id = current_user.id
+    email   = current_user.email
+
+    # Delete in FK dependency order
+    # 1. PoolEntry (references FixedExpenseTemplate)
+    pool_entries = session.exec(select(PoolEntry).where(PoolEntry.user_id == user_id)).all()
+    for row in pool_entries:
+        session.delete(row)
+
+    # 2. Expense (may reference FixedExpenseTemplate)
+    expenses = session.exec(select(Expense).where(Expense.user_id == user_id)).all()
+    for row in expenses:
+        session.delete(row)
+
+    # 3. IncomeEntry
+    incomes = session.exec(select(IncomeEntry).where(IncomeEntry.user_id == user_id)).all()
+    for row in incomes:
+        session.delete(row)
+
+    # 4. BudgetLimit
+    budgets = session.exec(select(BudgetLimit).where(BudgetLimit.user_id == user_id)).all()
+    for row in budgets:
+        session.delete(row)
+
+    # 5. ExpenseTemplate
+    templates = session.exec(select(ExpenseTemplate).where(ExpenseTemplate.user_id == user_id)).all()
+    for row in templates:
+        session.delete(row)
+
+    # 6. FixedExpenseTemplate
+    fixed_tmpls = session.exec(select(FixedExpenseTemplate).where(FixedExpenseTemplate.user_id == user_id)).all()
+    for row in fixed_tmpls:
+        session.delete(row)
+
+    # 7. User record itself
+    session.delete(current_user)
+
+    # Single commit — atomic: all or nothing
+    session.commit()
+
+    return {"message": "Account deleted", "email": email}
 
 
 # ── Variable Expense Endpoints ────────────────────────────────────────────────
@@ -862,6 +966,99 @@ def budget_projection(month_key: str, session: Session = Depends(get_session),
                 ),
             })
     return sorted(projections, key=lambda x: x["pct_projected"], reverse=True)
+
+
+# ── Data Export ─────────────────────────────────────────────────────────────
+# NOTE: /export/csv/all MUST be defined before /export/csv/{month_key}
+# to prevent FastAPI treating the literal string "all" as a month_key value.
+
+@app.get("/export/csv/all")
+def export_all_csv(
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Export all expenses for the authenticated user as a CSV file.
+    Defence in depth: user_id filter applied even though endpoint is JWT-protected.
+    """
+    expenses = session.exec(
+        select(Expense)
+        .where(Expense.user_id == current_user.id)
+        .order_by(Expense.date)
+    ).all()
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+
+    # Header row — month column first, then standard columns
+    writer.writerow(["month", "date", "vendor", "category", "amount", "note", "type", "paid"])
+
+    for e in expenses:
+        writer.writerow([
+            e.month_key,
+            e.date.isoformat() if e.date else "",
+            e.vendor,
+            e.category,
+            e.amount,
+            e.note or "",
+            "fixed" if e.is_fixed else "variable",
+            "yes" if e.paid else "no",
+        ])
+
+    output.seek(0)
+    today = date.today().isoformat()
+    filename = f"spendsense_all_{today}.csv"
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
+
+
+@app.get("/export/csv/{month_key}")
+def export_month_csv(
+    month_key: str,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Export expenses for a specific month as a CSV file.
+    Defence in depth: user_id filter applied even though endpoint is JWT-protected.
+    Returns a header-only CSV if no expenses exist for the month.
+    """
+    expenses = session.exec(
+        select(Expense)
+        .where(
+            Expense.month_key == month_key,
+            Expense.user_id == current_user.id,
+        )
+        .order_by(Expense.date)
+    ).all()
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+
+    # Header row
+    writer.writerow(["date", "vendor", "category", "amount", "note", "type", "paid"])
+
+    for e in expenses:
+        writer.writerow([
+            e.date.isoformat() if e.date else "",
+            e.vendor,
+            e.category,
+            e.amount,
+            e.note or "",
+            "fixed" if e.is_fixed else "variable",
+            "yes" if e.paid else "no",
+        ])
+
+    output.seek(0)
+    filename = f"spendsense_{month_key}.csv"
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
 
 
 # ── Pool Entries (Essential Pools) ────────────────────────────────────────────

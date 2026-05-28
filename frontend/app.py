@@ -294,6 +294,8 @@ def show_login_page():
                 st.session_state.auth_error    = None
                 st.rerun()
 
+        st.markdown('<div style="text-align:center;margin-top:20px;color:rgba(255,255,255,0.25);font-size:0.75rem;">By signing in you acknowledge our <a href="https://github.com/gitdebashish123/expenditure-tracker/blob/main/PRIVACY.md" target="_blank" style="color:#a5b4fc;">Privacy Notice</a></div>', unsafe_allow_html=True)
+
 # ── Helpers ───────────────────────────────────────────────────────────────────
 def api(method, path, **kwargs):
     """
@@ -1319,3 +1321,205 @@ with tab5:
                 st.rerun()
             else:
                 st.warning("Please fill in both name and amount.")
+
+    # ══════════════════════════════════════
+    # 5. MY DATA (Export)
+    # ══════════════════════════════════════
+    settings_section("📥", "My Data",
+        "Download your expense history as a spreadsheet-compatible CSV file.")
+
+    dl_col1, dl_col2 = st.columns([1, 1])
+
+    with dl_col1:
+        try:
+            r_month = requests.get(
+                f"{API_BASE}/export/csv/{sel_month}",
+                headers={"Authorization": f"Bearer {st.session_state.token}"},
+                timeout=30,
+            )
+            if r_month.status_code == 200:
+                st.download_button(
+                    label=f"⬇️ Download {fmt_month(sel_month)}",
+                    data=r_month.content,
+                    file_name=f"spendsense_{sel_month}.csv",
+                    mime="text/csv",
+                    key="dl_month",
+                    use_container_width=True,
+                )
+            else:
+                st.markdown(f'<div style="color:#f87171;font-size:0.82rem;">Could not load export ({r_month.status_code})</div>',
+                            unsafe_allow_html=True)
+        except Exception as e:
+            st.markdown(f'<div style="color:#f87171;font-size:0.82rem;">Export unavailable: {e}</div>',
+                        unsafe_allow_html=True)
+
+    # ══════════════════════════════════════
+    # 6. MY ACCOUNT
+    # ══════════════════════════════════════
+
+    # Fetch account info once for last login display
+    account_info = api("GET", "/auth/me") or {}
+    raw_last_login = account_info.get("last_login")
+
+    def fmt_last_login(raw):
+        if not raw:
+            return "First login"
+        try:
+            dt = datetime.fromisoformat(raw.replace("Z", "+00:00")).replace(tzinfo=None)
+            today     = datetime.utcnow().date()
+            yesterday = datetime.utcnow().date().__class__.fromordinal(today.toordinal() - 1)
+            if dt.date() == today:
+                return f"Today at {dt.strftime('%H:%M')}"
+            elif dt.date() == yesterday:
+                return f"Yesterday at {dt.strftime('%H:%M')}"
+            else:
+                return dt.strftime("%d %b %Y at %H:%M")
+        except Exception:
+            return raw
+
+    last_login_str = fmt_last_login(raw_last_login)
+
+    settings_section("👤", "My Account",
+        f"Signed in as {st.session_state.user_email} \u00b7 Last login: {last_login_str}")
+
+    # ── Sub-section A: Change Password ───────────────────────────────────
+    with st.expander("🔑 Change Password", expanded=False):
+        if "pw_success" not in st.session_state:
+            st.session_state.pw_success = False
+        if "pw_error" not in st.session_state:
+            st.session_state.pw_error = None
+
+        if st.session_state.pw_success:
+            st.markdown('<div class="toast-success">✅ Password changed successfully</div>',
+                        unsafe_allow_html=True)
+            st.session_state.pw_success = False
+
+        if st.session_state.pw_error:
+            st.markdown(f'<div class="warn-danger">{st.session_state.pw_error}</div>',
+                        unsafe_allow_html=True)
+
+        with st.form("change_password_form", clear_on_submit=True):
+            cur_pw  = st.text_input("Current Password", type="password",
+                                    placeholder="Your current password",
+                                    label_visibility="visible")
+            new_pw  = st.text_input("New Password (min 8 characters)", type="password",
+                                    placeholder="At least 8 characters",
+                                    label_visibility="visible")
+            conf_pw = st.text_input("Confirm New Password", type="password",
+                                    placeholder="Repeat new password",
+                                    label_visibility="visible")
+            pw_submitted = st.form_submit_button("🔒 Change Password", use_container_width=True)
+
+        if pw_submitted:
+            if not cur_pw or not new_pw or not conf_pw:
+                st.session_state.pw_error = "Please fill in all three fields."
+                st.session_state.pw_success = False
+                st.rerun()
+            elif len(new_pw) < 8:
+                st.session_state.pw_error = "New password must be at least 8 characters."
+                st.session_state.pw_success = False
+                st.rerun()
+            elif new_pw != conf_pw:
+                st.session_state.pw_error = "New passwords do not match."
+                st.session_state.pw_success = False
+                st.rerun()
+            else:
+                result = api("PUT", "/auth/password",
+                             json={"current_password": cur_pw, "new_password": new_pw})
+                if result and result.get("message"):
+                    st.session_state.pw_success = True
+                    st.session_state.pw_error   = None
+                    st.rerun()
+                else:
+                    # api() returns None on HTTP error — try direct call to get detail
+                    try:
+                        r = requests.put(
+                            f"{API_BASE}/auth/password",
+                            json={"current_password": cur_pw, "new_password": new_pw},
+                            headers={"Authorization": f"Bearer {st.session_state.token}"},
+                            timeout=10,
+                        )
+                        detail = r.json().get("detail", "Password change failed.")
+                        st.session_state.pw_error   = detail
+                        st.session_state.pw_success = False
+                    except Exception:
+                        st.session_state.pw_error   = "Could not change password. Try again."
+                        st.session_state.pw_success = False
+                    st.rerun()
+
+    # ── Sub-section B: Last Login ─────────────────────────────────────────
+    st.markdown(f"""
+    <div style="background:{T['card2']};border-radius:10px;padding:12px 14px;
+        border:1px solid {T['border']};margin:12px 0;">
+        <span style="color:{T['sub']};font-size:0.82rem;">
+            🕐 Last login: <b style="color:{T['text']};">{last_login_str}</b>
+            &nbsp;&middot;&nbsp; Sign-in history is recorded for security.
+            Contact admin if you see unexpected logins.
+        </span>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # -- Sub-section C: Delete Account (Danger Zone)
+    with st.expander('Warning Danger Zone', expanded=False):
+        if 'del_error' not in st.session_state:
+            st.session_state.del_error = None
+        if st.session_state.del_error:
+            st.markdown(f'<div class="warn-danger">{st.session_state.del_error}</div>', unsafe_allow_html=True)
+        with st.form('delete_account_form', clear_on_submit=True):
+            del_confirm = st.text_input('Type DELETE to confirm', placeholder='DELETE')
+            del_submitted = st.form_submit_button('Delete My Account', use_container_width=True)
+        if del_submitted:
+            if del_confirm != 'DELETE':
+                st.session_state.del_error = 'Please type DELETE (all caps) to confirm.'
+                st.rerun()
+            else:
+                try:
+                    r = requests.delete(
+                        f'{API_BASE}/auth/account',
+                        json={'confirmation': del_confirm},
+                        headers={'Authorization': 'Bearer ' + st.session_state.token},
+                        timeout=10,
+                    )
+                    if r.status_code == 200:
+                        st.session_state.token         = None
+                        st.session_state.user_email    = None
+                        st.session_state.user_is_admin = False
+                        st.session_state.auth_error    = 'Your account has been deleted.'
+                        st.rerun()
+                    else:
+                        try:
+                            detail = r.json().get('detail', 'Deletion failed.')
+                        except Exception:
+                            detail = f'Deletion failed (status {r.status_code}).'
+                        st.rerun()
+                        st.session_state.del_error = detail
+                except Exception as e:
+                    st.session_state.del_error = f'Could not delete account: {e}'
+                    st.rerun()
+
+
+    st.markdown('<div style="margin-top:40px;padding-top:16px;border-top:1px solid rgba(255,255,255,0.07);text-align:center;color:rgba(255,255,255,0.25);font-size:0.78rem;">SpendSense &middot; <a href="https://github.com/gitdebashish123/expenditure-tracker/blob/main/PRIVACY.md" target="_blank" style="color:#a5b4fc;">Privacy Notice</a> &middot; Your data is private and isolated to your account</div>', unsafe_allow_html=True)
+
+    with dl_col2:
+        try:
+            r_all = requests.get(
+                f"{API_BASE}/export/csv/all",
+                headers={"Authorization": f"Bearer {st.session_state.token}"},
+                timeout=30,
+            )
+            if r_all.status_code == 200:
+                today_str = date.today().isoformat()
+                st.download_button(
+                    label="⬇️ Download Full History",
+                    data=r_all.content,
+                    file_name=f"spendsense_all_{today_str}.csv",
+                    mime="text/csv",
+                    key="dl_all",
+                    use_container_width=True,
+                )
+            else:
+                st.markdown(f'<div style="color:#f87171;font-size:0.82rem;">Could not load export ({r_all.status_code})</div>',
+                            unsafe_allow_html=True)
+        except Exception as e:
+            st.markdown(f'<div style="color:#f87171;font-size:0.82rem;">Export unavailable: {e}</div>',
+                        unsafe_allow_html=True)
