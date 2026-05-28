@@ -229,17 +229,24 @@ string — SQLModel code is unchanged, only the env var changes.
 | `ADMIN_PASSWORD` | strong password | Change from `changeme123` |
 | `DATABASE_URL` | `sqlite:////app/data/expenses.db` | 4 slashes — absolute path inside container |
 | `DEFAULT_MONTHLY_INCOME` | `0` | Optional fallback |
+| `PORT` | `8000` | Required — tells Railway's proxy which port to route traffic to |
 
 **Important: `DATABASE_URL` format in Railway**
 - Local Docker uses `sqlite:///./data/expenses.db` (relative path)
 - Railway needs `sqlite:////app/data/expenses.db` (absolute path, 4 slashes)
 - The volume is mounted at `/app/data` — must use absolute path
 
+**Important: `PORT` variable**
+- Railway's internal proxy routes external HTTPS traffic to whatever port `PORT` specifies
+- Without `PORT=8000`, Railway defaults to port 8080 and returns 502 because nothing is listening there
+- Both services need their own `PORT` variable set explicitly
+
 ### Frontend environment variables (set in Railway dashboard)
 
 | Variable | Value | Notes |
 |---|---|---|
 | `API_BASE` | `http://backend.railway.internal:8000` | Railway's private internal network |
+| `PORT` | `8501` | Required — tells Railway's proxy which port Streamlit listens on |
 
 **Why `railway.internal` not the public URL:**
 - Internal network is free — no egress bandwidth charges
@@ -619,12 +626,12 @@ railway logs --service frontend | grep "API_BASE\|backend"
 | File | Change |
 |---|---|
 | `railway.toml` | New — Railway deployment config |
+| `Dockerfile.backend` | uv install path changed to `/usr/local/bin`; removed `USER appuser` for Railway volume compatibility |
+| `Dockerfile.frontend` | uv install path changed to `/usr/local/bin` to fix Railway permission denied error |
 | `backend/main.py` | Add production frontend URL to `allow_origins` |
 | `README.md` | Add Deployment section with live URLs and ops commands |
 
 ### Files NOT changed
-- `Dockerfile.backend` — unchanged
-- `Dockerfile.frontend` — unchanged
 - `docker-compose.yml` — local dev unchanged
 - `migrate_schema.py` — unchanged (Railway runs it as pre-deploy command)
 - `.env` — secrets never in code, set in Railway dashboard
