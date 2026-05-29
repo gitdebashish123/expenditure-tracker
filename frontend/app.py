@@ -18,8 +18,8 @@ CATEGORY_ICONS = {
 FIXED_CATEGORIES = ["Housing", "EMI", "Savings", "Investments", "Insurance", "Utilities", "Household"]
 VAR_CATEGORIES   = ["Food", "Travel", "Groceries", "Shopping", "Medical", "Entertainment", "Gifts", "Course", "Miscellaneous"]
 
-# ── Auth Session State ────────────────────────────────────────────────
-# Initialised before any api() call and before theme — must stay here
+# \u2500\u2500 Auth Session State \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+# Initialised before any api() call and before theme \u2014 must stay here
 if "token" not in st.session_state:
     st.session_state.token = None           # JWT string or None
 if "user_email" not in st.session_state:
@@ -35,7 +35,7 @@ if "onboarding_complete" not in st.session_state:
 if "onboarding_step" not in st.session_state:
     st.session_state.onboarding_step = 1
 
-# ── Theme ────────────────────────────────────────────────────────────────────
+# \u2500\u2500 Theme \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 if "theme" not in st.session_state:
     st.session_state.theme = "dark"
 
@@ -170,22 +170,22 @@ p, div, span, label {{ color: {T["text"]}; }}
 
 
 
-# ── Login Page ────────────────────────────────────────────────────────────────
+# \u2500\u2500 Login Page \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 def show_login_page():
-    """Renders login/register page. Uses requests directly — no token yet."""
+    """Renders login/register page. Uses requests directly \u2014 no token yet."""
     _, card_col, _ = st.columns([1, 2, 1])
     with card_col:
 
         st.markdown("""
         <div style="text-align:center;margin-bottom:32px;margin-top:40px;">
-            <div style="font-size:2.5rem;">💸</div>
+            <div style="font-size:2.5rem;">\U0001f4b8</div>
             <div class="login-title" style="text-align:center;">SpendSense</div>
             <div class="login-subtitle" style="text-align:center;">Your personal salary tracker</div>
         </div>
         """, unsafe_allow_html=True)
 
         if st.session_state.auth_error:
-            css = "auth-success" if st.session_state.auth_error.startswith("✅") else "auth-error"
+            css = "auth-success" if st.session_state.auth_error.startswith("\u2705") else "auth-error"
             st.markdown(
                 f'<div class="{css}">{st.session_state.auth_error}</div>',
                 unsafe_allow_html=True
@@ -227,7 +227,7 @@ def show_login_page():
                             st.session_state.auth_error = "Invalid email or password."
                             st.rerun()
                         elif r.status_code == 403:
-                            st.session_state.auth_error = "Account disabled — contact administrator."
+                            st.session_state.auth_error = "Account disabled \u2014 contact administrator."
                             st.rerun()
                         else:
                             st.session_state.auth_error = f"Login failed (status {r.status_code})."
@@ -249,7 +249,7 @@ def show_login_page():
         else:
             # Register form
             # reg_email and reg_password are outside the form so Streamlit
-            # re-renders them on every keystroke — enabling a live strength bar.
+            # re-renders them on every keystroke \u2014 enabling a live strength bar.
             st.markdown('<div class="login-subtitle" style="text-align:center;">Create your account</div>',
                         unsafe_allow_html=True)
             reg_email    = st.text_input("Email", placeholder="your@email.com",
@@ -258,7 +258,7 @@ def show_login_page():
                                          type="password",
                                          label_visibility="collapsed", key="reg_password")
 
-            # Live password strength bar — updates on every keystroke
+            # Live password strength bar \u2014 updates on every keystroke
             if reg_password:
                 checks = [
                     len(reg_password) >= 8,
@@ -304,7 +304,7 @@ def show_login_page():
                                           json={"email": reg_email, "password": reg_password},
                                           timeout=10)
                         if r.status_code == 201:
-                            st.session_state.auth_error    = "✅ Account created! Please sign in."
+                            st.session_state.auth_error    = "\u2705 Account created! Please sign in."
                             st.session_state.show_register = False
                             st.rerun()
                         elif r.status_code == 400:
@@ -451,7 +451,7 @@ def show_onboarding_wizard():
                     api("POST", "/fixed-templates",
                         json={"name": name, "category": cat,
                               "amount": amt, "template_type": ttype})
-                    st.toast(f"Added {name}", icon="📋")
+                    st.toast(f"Added {name}", icon="\U0001f4cb")
                     st.rerun()
             elif nxt or skipped:
                 st.session_state.onboarding_step = 3
@@ -484,7 +484,7 @@ def show_onboarding_wizard():
                 api("POST", "/auth/complete-onboarding")
                 st.session_state.onboarding_complete = True
                 st.session_state.onboarding_step     = 1
-                st.toast("You're all set! Welcome to SpendSense.", icon="🎉")
+                st.toast("You're all set! Welcome to SpendSense.", icon="\U0001f389")
                 st.rerun()
             elif skipped:
                 api("POST", "/auth/complete-onboarding")
@@ -501,7 +501,7 @@ def show_onboarding_wizard():
             st.session_state.onboarding_step     = 1
             st.rerun()
 
-# ── Helpers ───────────────────────────────────────────────────────────────────
+# \u2500\u2500 Helpers \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 def api(method, path, **kwargs):
     """
     Make an authenticated API call.
@@ -526,7 +526,7 @@ def api(method, path, **kwargs):
             st.rerun()
 
         if r.status_code == 429:
-            st.warning("⏱️ Too many requests. Please wait a moment before trying again.")
+            st.warning("\u23f1\ufe0f Too many requests. Please wait a moment before trying again.")
             return None
 
         r.raise_for_status()
@@ -589,14 +589,14 @@ def fmt_date(date_str):
 
 
 
-# ── Auth Gate ────────────────────────────────────────────────────────────────
+# \u2500\u2500 Auth Gate \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 # Everything below requires authentication.
 # If token is missing or expired, show login page and stop execution.
 if not st.session_state.get("token"):
     show_login_page()
     st.stop()
 
-# ── Token Validation on Load ──────────────────────────────────────────────────
+# \u2500\u2500 Token Validation on Load \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 # Validates token on every page load (e.g. after browser refresh).
 # If expired, api() will auto-clear token and rerun to login page.
 me = api("GET", "/auth/me")
@@ -604,17 +604,17 @@ if me and st.session_state.user_email is None:
     # Restore user info if session state was lost (e.g. after hot reload)
     st.session_state.user_email          = me.get("email")
     st.session_state.user_is_admin       = me.get("is_admin", False)
-# Always sync onboarding_complete from server — not gated on user_email being None
+# Always sync onboarding_complete from server \u2014 not gated on user_email being None
 # so it reflects the real DB value on every page load and after login rerun
 if me:
     st.session_state.onboarding_complete = me.get("onboarding_complete", True)
 
-# ── Onboarding gate ─────────────────────────────────────────────────────────
+# \u2500\u2500 Onboarding gate \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 if not st.session_state.get("onboarding_complete", True):
     show_onboarding_wizard()
     st.stop()
 
-# ── Header row: title + theme toggle + month selector ─────────────────────────
+# \u2500\u2500 Header row: title + theme toggle + month selector \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 all_months = api("GET", "/months") or []
 if CURRENT_MONTH not in all_months:
     all_months = [CURRENT_MONTH] + all_months
@@ -638,7 +638,7 @@ with col_logout:
     st.markdown("<div style='height:18px'></div>", unsafe_allow_html=True)
     email_initial = st.session_state.user_email[0].upper() if st.session_state.user_email else "?"
     PRIV_URL = "https://github.com/gitdebashish123/expenditure-tracker/blob/main/PRIVACY.md"
-    with st.popover(f"👤 {email_initial}", use_container_width=False):
+    with st.popover(f"\U0001f464 {email_initial}", use_container_width=False):
         st.markdown(
             f"<div style='color:{T['sub']};font-size:0.78rem;padding:4px 0 8px;"
             f"border-bottom:1px solid {T['border']};margin-bottom:8px;'>"
@@ -646,20 +646,20 @@ with col_logout:
             f"{st.session_state.user_email}</b></div>",
             unsafe_allow_html=True,
         )
-        if st.button("🔑 Change Password", key="popover_pw", use_container_width=True):
+        if st.button("\U0001f511 Change Password", key="popover_pw", use_container_width=True):
             st.session_state.scroll_to_account = True
             st.rerun()
         st.markdown(
             f"<a href='{PRIV_URL}' target='_blank' "
             f"style='color:#a5b4fc;font-size:0.85rem;text-decoration:none;"
-            f"display:block;padding:6px 0;'>🔒 Privacy Notice</a>",
+            f"display:block;padding:6px 0;'>\U0001f512 Privacy Notice</a>",
             unsafe_allow_html=True,
         )
         st.markdown(
             f"<hr style='border:none;border-top:1px solid {T['border']};margin:8px 0;'>",
             unsafe_allow_html=True,
         )
-        if st.button("🚪 Sign Out", key="popover_signout", use_container_width=True):
+        if st.button("\U0001f6aa Sign Out", key="popover_signout", use_container_width=True):
             st.session_state.token         = None
             st.session_state.user_email    = None
             st.session_state.user_is_admin = False
@@ -672,10 +672,10 @@ with col_month:
 is_current  = sel_month == CURRENT_MONTH
 month_label = fmt_month(sel_month)
 badge_class = "month-badge" if is_current else "past-badge"
-badge_text  = f"{'📅 ' if is_current else '🕐 '}{month_label}"
+badge_text  = f"{'\U0001f4c5 ' if is_current else '\U0001f550 '}{month_label}"
 
 
-# ── Salary credit reminder (days 1-3 of month, income not set) ───────────────
+# \u2500\u2500 Salary credit reminder (days 1-3 of month, income not set) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 if is_current and date.today().day <= 3:
     income_check = api("GET", f"/income/check/{CURRENT_MONTH}")
     if income_check and not income_check.get("is_set"):
@@ -688,7 +688,7 @@ if is_current and date.today().day <= 3:
         )
 
 
-# ── Summary ───────────────────────────────────────────────────────────────────
+# \u2500\u2500 Summary \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 summary = api("GET", f"/summary/{sel_month}")
 
 if summary:
@@ -699,9 +699,9 @@ if summary:
     total_count = fp.get("total", 0)
     pct_done    = int(paid_count / total_count * 100) if total_count else 0
     rem_color   = "#34d399" if rem >= 0 else "#f87171"
-    title_icon = '🟢' if rem >= 0 else '🔴'
+    title_icon = '\U0001f7e2' if rem >= 0 else '\U0001f534'
     rem_str = fmt_inr(rem)
-    st.markdown(f"<script>document.title = '{title_icon} {rem_str} left·SpendSense';</script>", unsafe_allow_html=True)
+    st.markdown(f"<script>document.title = '{title_icon} {rem_str} left\u00b7SpendSense';</script>", unsafe_allow_html=True)
     total_income   = bal.get("total_income", 0)
     income_display = f"\u20b9{total_income:,.0f}" if total_income > 0 else "Not set"
 
@@ -736,13 +736,18 @@ if summary:
             st.markdown(f'<div class="{css}">{w["message"]}</div>', unsafe_allow_html=True)
 
 
-# ── Tabs ──────────────────────────────────────────────────────────────────────
-tab1, tab2, tab3, tab4, tab5 = st.tabs(["\u26a1 Quick Add", "\U0001f4cc Fixed", "\U0001f4ca Dashboard", "\U0001f4cb Expenses", "\u2699\ufe0f Settings"])
+# \u2500\u2500 Tabs \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+_tab_labels = ["\u26a1 Quick Add", "\U0001f4cc Fixed", "\U0001f4ca Dashboard", "\U0001f4cb Expenses", "\u2699\ufe0f Settings"]
+if st.session_state.user_is_admin:
+    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(_tab_labels + ["\U0001f6e1\ufe0f Admin"])
+else:
+    tab1, tab2, tab3, tab4, tab5 = st.tabs(_tab_labels)
+    tab6 = None
 
 
-# ═══════════════════════════════════════════════════════
+# \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
 # TAB 1: QUICK ADD
-# ═══════════════════════════════════════════════════════
+# \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
 with tab1:
     if not is_current:
         st.markdown(f"""
@@ -773,7 +778,7 @@ with tab1:
             })
         if result:
             saved = result.get("saved", [])
-            st.toast(f"✅ {len(saved)} expense(s) saved", icon="⚡")
+            st.toast(f"\u2705 {len(saved)} expense(s) saved", icon="\u26a1")
             cols = st.columns(min(len(saved), 3))
             for i, item in enumerate(saved):
                 icon = CATEGORY_ICONS.get(item["category"], "\U0001f4e6")
@@ -802,13 +807,13 @@ with tab1:
                 """, unsafe_allow_html=True)
             st.rerun()
 
-    # ── Favourites / Quick Templates ──────────────────────────────────────
+    # \u2500\u2500 Favourites / Quick Templates \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
     fav_templates = api("GET", "/expense-templates") or []
     if fav_templates:
         st.markdown('<div class="section-title">Quick Add Favourites</div>', unsafe_allow_html=True)
         st.markdown(f'<div style="color:{T["sub"]};font-size:0.8rem;margin-bottom:10px;">Tap to log instantly</div>', unsafe_allow_html=True)
 
-        # Render as chips — 3 per row
+        # Render as chips \u2014 3 per row
         cols = st.columns(3)
         for i, tmpl in enumerate(fav_templates):
             icon = CATEGORY_ICONS.get(tmpl["category"], "\U0001f4e6")
@@ -823,7 +828,7 @@ with tab1:
                         st.toast(f"\u2705 Logged {tmpl['vendor']} \u20b9{tmpl['amount']:,.0f}", icon="\u26a1")
                         st.rerun()
 
-    # ── Today's Entries with swipe-to-delete ──────────────────────────────
+    # \u2500\u2500 Today's Entries with swipe-to-delete \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
     st.markdown('<div class="section-title">Today\'s Entries</div>', unsafe_allow_html=True)
 
     # Swipe-to-delete JS injection
@@ -896,9 +901,9 @@ with tab1:
             st.info('Nothing logged today. Type something like: zomato 350, ola 120')
 
 
-# ═══════════════════════════════════════════════════════
+# \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
 # TAB 2: FIXED EXPENSES with due reminders + Essential Pools
-# ═══════════════════════════════════════════════════════
+# \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
 with tab2:
     st.markdown(f'<div class="section-title">Fixed Expenses \xb7 <span style="color:#6366f1">{month_label}</span></div>', unsafe_allow_html=True)
 
@@ -913,7 +918,7 @@ with tab2:
                 unsafe_allow_html=True
             )
 
-    # ── True Fixed Expenses ─────────────────────────────────────────────
+    # \u2500\u2500 True Fixed Expenses \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
     fixed_exps = api("GET", f"/fixed/{sel_month}") or []
     if fixed_exps:
         by_cat = defaultdict(list)
@@ -956,7 +961,7 @@ with tab2:
                     amt_color = "#34d399" if paid else T["sub"]
                     st.markdown(f'<div style="padding:8px 0;text-align:right;font-family:\'Syne\',sans-serif;font-size:0.88rem;color:{amt_color};">\u20b9{item["amount"]:,.0f}</div>', unsafe_allow_html=True)
 
-    # ── Essential Pools ─────────────────────────────────────────────────
+    # \u2500\u2500 Essential Pools \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
     pools = api("GET", f"/pools/{sel_month}") or []
     if pools:
         st.markdown('<div class="section-title">Essential Pools</div>', unsafe_allow_html=True)
@@ -1015,7 +1020,7 @@ with tab2:
                 pa, pb, pc = st.columns([0.4, 0.3, 0.3])
                 with pa:
                     new_label = st.text_input("Label", placeholder="e.g. Home, Rented House, Self", key=f"pl_{pool['id']}", label_visibility="collapsed",
-                    help="Enter label and amount, then click Add — logged as paid immediately")
+                    help="Enter label and amount, then click Add \u2014 logged as paid immediately")
                 with pb:
                     new_amount = st.number_input("Amount (\u20b9)", min_value=0, step=10, key=f"pa_{pool['id']}", label_visibility="collapsed")
                 with pc:
@@ -1040,17 +1045,17 @@ with tab2:
             st.markdown('</div>', unsafe_allow_html=True)
 
     if not fixed_exps and not pools:
-        st.info('No bills set up yet. Go to Settings → Monthly Bills to add rent, EMI and subscriptions.')
+        st.info('No bills set up yet. Go to Settings \u2192 Monthly Bills to add rent, EMI and subscriptions.')
 
 
-# ═══════════════════════════════════════════════════════
+# \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
 # TAB 3: DASHBOARD
-# ═══════════════════════════════════════════════════════
+# \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
 with tab3:
     st.markdown(f'<div class="section-title">Dashboard \xb7 <span style="color:#6366f1">{month_label}</span></div>', unsafe_allow_html=True)
 
     if not summary:
-        st.info('No data yet this month. Head to Quick Add to log expenses or Settings → My Take-home to record income.')
+        st.info('No data yet this month. Head to Quick Add to log expenses or Settings \u2192 My Take-home to record income.')
     else:
         bal       = summary["balance"]
         income    = bal.get("total_income", 0)
@@ -1199,9 +1204,9 @@ with tab3:
             st.markdown(table_html, unsafe_allow_html=True)
 
 
-# ═══════════════════════════════════════════════════════
-# TAB 4: EXPENSES — edit, bulk delete, swipe delete
-# ═══════════════════════════════════════════════════════
+# \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
+# TAB 4: EXPENSES \u2014 edit, bulk delete, swipe delete
+# \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
 with tab4:
     st.markdown(f'<div class="section-title">Transactions \xb7 <span style="color:#6366f1">{month_label}</span></div>', unsafe_allow_html=True)
 
@@ -1336,16 +1341,16 @@ with tab4:
             st.info('No transactions this month. Log expenses in Quick Add and they will appear here.')
 
 
-# ═══════════════════════════════════════════════════════
-# TAB 5: SETTINGS — friendly, goal-oriented layout
-# ═══════════════════════════════════════════════════════
+# \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
+# TAB 5: SETTINGS \u2014 friendly, goal-oriented layout
+# \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
 with tab5:
     if st.session_state.get("scroll_to_account"):
         st.session_state.scroll_to_account = False
-        st.info("👇 Scroll down to My Account to change your password.")
+        st.info("\U0001f447 Scroll down to My Account to change your password.")
 
 
-    # ── Section helper ────────────────────────────────────────────────────
+    # \u2500\u2500 Section helper \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
     def settings_section(icon, title, subtitle):
         st.markdown(f"""
         <div style="margin-top:28px;margin-bottom:4px;">
@@ -1357,12 +1362,7 @@ with tab5:
         <div style="border-bottom:1px solid {T['border']};margin-bottom:16px;"></div>
         """, unsafe_allow_html=True)
 
-    # ════════════════════════════════════════
-    # ══════════════════════════════════════
     # 6. MY ACCOUNT
-    # ══════════════════════════════════════
-
-    # Fetch account info once for last login display
     account_info = api("GET", "/auth/me") or {}
     raw_last_login = account_info.get("last_login")
 
@@ -1384,18 +1384,17 @@ with tab5:
 
     last_login_str = fmt_last_login(raw_last_login)
 
-    settings_section("👤", "My Account",
+    settings_section("\U0001f464", "My Account",
         f"Signed in as {st.session_state.user_email} \u00b7 Last login: {last_login_str}")
 
-    # ── Sub-section A: Change Password ───────────────────────────────────
-    with st.expander("🔑 Change Password", expanded=False):
+    with st.expander("\U0001f511 Change Password", expanded=False):
         if "pw_success" not in st.session_state:
             st.session_state.pw_success = False
         if "pw_error" not in st.session_state:
             st.session_state.pw_error = None
 
         if st.session_state.pw_success:
-            st.toast("✅ Password changed successfully", icon="🔑")
+            st.toast("\u2705 Password changed successfully", icon="\U0001f511")
             st.session_state.pw_success = False
 
         if st.session_state.pw_error:
@@ -1412,7 +1411,7 @@ with tab5:
             conf_pw = st.text_input("Confirm New Password", type="password",
                                     placeholder="Repeat new password",
                                     label_visibility="visible")
-            pw_submitted = st.form_submit_button("🔒 Change Password", use_container_width=True)
+            pw_submitted = st.form_submit_button("\U0001f512 Change Password", use_container_width=True)
 
         if pw_submitted:
             if not cur_pw or not new_pw or not conf_pw:
@@ -1435,7 +1434,6 @@ with tab5:
                     st.session_state.pw_error   = None
                     st.rerun()
                 else:
-                    # api() returns None on HTTP error — try direct call to get detail
                     try:
                         r = requests.put(
                             f"{API_BASE}/auth/password",
@@ -1451,19 +1449,17 @@ with tab5:
                         st.session_state.pw_success = False
                     st.rerun()
 
-    # ── Sub-section B: Last Login ─────────────────────────────────────────
     st.markdown(f"""
     <div style="background:{T['card2']};border-radius:10px;padding:12px 14px;
         border:1px solid {T['border']};margin:12px 0;">
         <span style="color:{T['sub']};font-size:0.82rem;">
-            🕐 Last login: <b style="color:{T['text']};">{last_login_str}</b>
+            \U0001f550 Last login: <b style="color:{T['text']};">{last_login_str}</b>
             &nbsp;&middot;&nbsp; Sign-in history is recorded for security.
             Contact admin if you see unexpected logins.
         </span>
     </div>
     """, unsafe_allow_html=True)
 
-    # -- Sub-section C: Delete Account (Danger Zone)
     with st.expander('Warning Danger Zone', expanded=False):
         if 'del_error' not in st.session_state:
             st.session_state.del_error = None
@@ -1505,10 +1501,9 @@ with tab5:
     st.markdown('<div style="margin-top:40px;padding-top:16px;border-top:1px solid rgba(255,255,255,0.07);text-align:center;color:rgba(255,255,255,0.25);font-size:0.78rem;">SpendSense &middot; <a href="https://github.com/gitdebashish123/expenditure-tracker/blob/main/PRIVACY.md" target="_blank" style="color:#a5b4fc;">Privacy Notice</a> &middot; Your data is private and isolated to your account</div>', unsafe_allow_html=True)
 
     # 1. MY INCOME
-    # ════════════════════════════════════════
-    settings_section("💰", "My Take-home", f"Your salary or income credited this month. Currently editing {month_label}.")
+    settings_section("\U0001f4b0", "My Take-home", f"Your salary or income credited this month. Currently editing {month_label}.")
 
-    current_income = api("GET", f"/income/{sel_month}") or {{}}
+    current_income = api("GET", f"/income/{sel_month}") or {}
     saved_source   = current_income.get("source", "Infosys Salary")
     saved_amount   = int(current_income.get("amount", 0))
     saved_note     = current_income.get("note") or ""
@@ -1519,20 +1514,18 @@ with tab5:
             income_source = st.text_input("Where does it come from?", value=saved_source,
                 placeholder="e.g. Infosys Salary, Freelance")
         with ic2:
-            income_amount = st.number_input("How much was credited? (₹)", value=saved_amount, step=1000)
+            income_amount = st.number_input("How much was credited? (\u20b9)", value=saved_amount, step=1000)
         income_note = st.text_input("Any note? (optional)", value=saved_note,
             placeholder="e.g. Includes bonus")
-        if st.form_submit_button("💾 Save"):
+        if st.form_submit_button("\U0001f4be Save"):
             result = api("POST", "/income", json={"source": income_source, "amount": income_amount,
                                                    "note": income_note, "month_key": sel_month})
             if result:
-                st.toast(f"✅ Income saved for {month_label}", icon="💰")
+                st.toast(f"\u2705 Income saved for {month_label}", icon="\U0001f4b0")
                 st.rerun()
 
-    # ════════════════════════════════════════
     # 2. MONTHLY BILLS
-    # ════════════════════════════════════════
-    settings_section("📋", "Monthly Bills",
+    settings_section("\U0001f4cb", "Monthly Bills",
         "Everything you pay every month. Fixed = same amount always. Variable Recurring = amount changes (like electric bill).")
 
     templates     = api("GET", "/fixed-templates") or []
@@ -1540,13 +1533,12 @@ with tab5:
     fixed_tmpls   = [t for t in active_tmpls if t.get("template_type", "fixed") == "fixed"]
     pool_tmpls    = [t for t in active_tmpls if t.get("template_type", "fixed") == "pool"]
 
-    # ── Fixed bills (same every month) ────────────────────────────────────
     if fixed_tmpls:
         total_fixed = sum(t["amount"] for t in fixed_tmpls)
         st.markdown(f"""
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
             <span style="color:{T['text']};font-size:0.88rem;font-weight:600;">Same amount every month</span>
-            <span style="color:{T['sub']};font-size:0.8rem;">fmt_inr(total_fixed)/month total</span>
+            <span style="color:{T['sub']};font-size:0.8rem;">{fmt_inr(total_fixed)}/month total</span>
         </div>
         """, unsafe_allow_html=True)
 
@@ -1555,7 +1547,7 @@ with tab5:
             tmpl_by_cat[t["category"]].append(t)
 
         for cat, items in sorted(tmpl_by_cat.items()):
-            icon = CATEGORY_ICONS.get(cat, "📦")
+            icon = CATEGORY_ICONS.get(cat, "\U0001f4e6")
             with st.expander(f"{icon} {cat} ({len(items)} bills)", expanded=False):
                 for t in items:
                     row1, row2, row3, row4 = st.columns([0.38, 0.22, 0.2, 0.2])
@@ -1563,10 +1555,9 @@ with tab5:
                         new_name = st.text_input("Bill name", value=t["name"],
                             key=f"tname_{t['id']}", label_visibility="collapsed")
                     with row2:
-                        new_amt = st.number_input("Monthly amount (₹)", value=int(t["amount"]),
+                        new_amt = st.number_input("Monthly amount (\u20b9)", value=int(t["amount"]),
                             step=100, key=f"tamt_{t['id']}", label_visibility="collapsed")
                     with row3:
-                        # Due day as a friendly dropdown
                         due_options = [0] + list(range(1, 32))
                         due_val = int(t.get("due_day") or 0)
                         new_due = st.selectbox(
@@ -1579,39 +1570,37 @@ with tab5:
                     with row4:
                         bcol1, bcol2 = st.columns(2)
                         with bcol1:
-                            if st.button("💾", key=f"tsave_{t['id']}", help="Save changes"):
+                            if st.button("\U0001f4be", key=f"tsave_{t['id']}", help="Save changes"):
                                 api("PUT", f"/fixed-templates/{t['id']}", json={
                                     "name": new_name, "amount": new_amt,
                                     "due_day": new_due if new_due > 0 else None
                                 })
-                                st.toast(f"✅ Saved {new_name}")
+                                st.toast(f"\u2705 Saved {new_name}")
                                 st.rerun()
                         with bcol2:
-                            if st.button("🗑️", key=f"tdel_{t['id']}", help="Remove this bill"):
+                            if st.button("\U0001f5d1\ufe0f", key=f"tdel_{t['id']}", help="Remove this bill"):
                                 api("DELETE", f"/fixed-templates/{t['id']}")
                                 st.rerun()
 
-    # ── Variable recurring bills (amount changes each month) ──────────────
     if pool_tmpls:
         st.markdown(f'<div style="color:{T["text"]};font-size:0.88rem;font-weight:600;margin:14px 0 8px;">Amount changes each month (Electric Bill, Recharge etc.)</div>', unsafe_allow_html=True)
         for t in pool_tmpls:
-            icon = CATEGORY_ICONS.get(t["category"], "📦")
+            icon = CATEGORY_ICONS.get(t["category"], "\U0001f4e6")
             pc1, pc2 = st.columns([0.75, 0.25])
             with pc1:
                 st.markdown(f"""
                 <div style="background:{T['card2']};border-radius:10px;padding:12px 14px;
                     border:1px solid {T['border']};">
                     <span style="color:{T['text']};font-size:0.88rem;font-weight:600;">{icon} {t['name']}</span>
-                    <span style="color:{T['sub']};font-size:0.78rem;margin-left:8px;">{t['category']} · Add payments in Fixed tab each month</span>
+                    <span style="color:{T['sub']};font-size:0.78rem;margin-left:8px;">{t['category']} \xb7 Add payments in Fixed tab each month</span>
                 </div>
                 """, unsafe_allow_html=True)
             with pc2:
-                if st.button("🗑️ Remove", key=f"ptdel_{t['id']}"):
+                if st.button("\U0001f5d1\ufe0f Remove", key=f"ptdel_{t['id']}"):
                     api("DELETE", f"/fixed-templates/{t['id']}")
                     st.rerun()
 
-    # ── Add new bill ───────────────────────────────────────────────────────
-    with st.expander("➕ Add a new bill", expanded=False):
+    with st.expander("\u2795 Add a new bill", expanded=False):
         with st.form("add_bill_form", clear_on_submit=True):
             st.markdown(f'<div style="color:{T["sub"]};font-size:0.82rem;margin-bottom:12px;">Tell us about a bill you pay every month.</div>', unsafe_allow_html=True)
 
@@ -1621,7 +1610,7 @@ with tab5:
                     placeholder="e.g. Rent, Car Loan, Netflix")
             with b2:
                 new_tcat = st.selectbox("What type of expense is it?", FIXED_CATEGORIES,
-                    format_func=lambda x: f"{CATEGORY_ICONS.get(x, '📦')} {x}")
+                    format_func=lambda x: f"{CATEGORY_ICONS.get(x, '\U0001f4e6')} {x}")
 
             b3, b4 = st.columns(2)
             with b3:
@@ -1632,11 +1621,11 @@ with tab5:
                 )
             with b4:
                 new_tamt = st.number_input(
-                    "How much? (₹)" if bill_kind == "Yes, always the same" else "Typical amount (₹, or 0 if unknown)",
+                    "How much? (\u20b9)" if bill_kind == "Yes, always the same" else "Typical amount (\u20b9, or 0 if unknown)",
                     min_value=0, step=100
                 )
 
-            if st.form_submit_button("➕ Add Bill"):
+            if st.form_submit_button("\u2795 Add Bill"):
                 if new_tname:
                     ttype = "fixed" if bill_kind == "Yes, always the same" else "pool"
                     if ttype == "fixed" and new_tamt == 0:
@@ -1646,20 +1635,16 @@ with tab5:
                             "name": new_tname, "category": new_tcat,
                             "amount": new_tamt, "template_type": ttype
                         })
-                        kind_label = "bill" if ttype == "fixed" else "variable recurring bill"
-                        st.toast(f"✅ Added {new_tname}", icon="📋")
+                        st.toast(f"\u2705 Added {new_tname}", icon="\U0001f4cb")
                         st.rerun()
                 else:
                     st.warning("Please enter a name for the bill.")
 
-    # ════════════════════════════════════════
     # 3. SPENDING CAPS
-    # ════════════════════════════════════════
-    settings_section("🎯", "Spending Caps",
+    settings_section("\U0001f3af", "Spending Caps",
         "Set a monthly limit for each type of discretionary expense. You'll get a warning when you're close.")
 
     budgets = api("GET", "/budgets") or []
-    # Get current month spend for context
     cat_spent = {}
     if summary:
         for c in summary.get("categories", []):
@@ -1671,42 +1656,39 @@ with tab5:
             cols = st.columns(2)
             for i, bl in enumerate(budgets):
                 with cols[i % 2]:
-                    icon    = CATEGORY_ICONS.get(bl["category"], "📦")
+                    icon    = CATEGORY_ICONS.get(bl["category"], "\U0001f4e6")
                     spent   = cat_spent.get(bl["category"], 0)
                     limit   = int(bl["limit_amount"])
                     pct     = round(spent / limit * 100) if limit > 0 else 0
                     bar_col = "#ef4444" if pct >= 100 else "#f59e0b" if pct >= 80 else "#34d399"
-                    # Show context: spent vs current limit
                     st.markdown(f"""
                     <div style="margin-bottom:4px;display:flex;justify-content:space-between;">
                         <span style="color:{T['text']};font-size:0.85rem;">{icon} {bl['category']}</span>
-                        <span style="color:{bar_col};font-size:0.78rem;">fmt_inr(spent) spent this month</span>
+                        <span style="color:{bar_col};font-size:0.78rem;">{fmt_inr(spent)} spent this month</span>
                     </div>
                     """, unsafe_allow_html=True)
                     new_val = st.number_input(
-                        f"Monthly cap for {bl['category']} (₹)",
+                        f"Monthly cap for {bl['category']} (\u20b9)",
                         value=limit, step=500,
                         key=f"budget_{bl['category']}",
                         label_visibility="collapsed"
                     )
                     updated[bl["category"]] = new_val
 
-            if st.form_submit_button("💾 Save Spending Caps"):
+            if st.form_submit_button("\U0001f4be Save Spending Caps"):
                 for cat, lim in updated.items():
                     api("PUT", "/budget", json={"category": cat, "limit_amount": lim})
-                st.toast("✅ Spending caps updated", icon="🎯")
+                st.toast("\u2705 Spending caps updated", icon="\U0001f3af")
                 st.rerun()
 
-    # ════════════════════════════════════════
     # 4. SAVED SHORTCUTS
-    # ════════════════════════════════════════
-    settings_section("⚡", "Saved Shortcuts",
+    settings_section("\u26a1", "Saved Shortcuts",
         "Expenses you log frequently. These appear as one-tap buttons in Quick Add.")
 
     fav_tmpls = api("GET", "/expense-templates") or []
     if fav_tmpls:
         for t in fav_tmpls:
-            icon = CATEGORY_ICONS.get(t["category"], "📦")
+            icon = CATEGORY_ICONS.get(t["category"], "\U0001f4e6")
             fc1, fc2, fc3, fc4, fc5 = st.columns([0.3, 0.2, 0.18, 0.17, 0.15])
             with fc1:
                 fn = st.text_input("Name", value=t["name"], key=f"fn_{t['id']}", label_visibility="collapsed")
@@ -1714,20 +1696,20 @@ with tab5:
                 fc = st.selectbox("Category", VAR_CATEGORIES,
                     index=VAR_CATEGORIES.index(t["category"]) if t["category"] in VAR_CATEGORIES else 0,
                     key=f"fc_{t['id']}", label_visibility="collapsed",
-                    format_func=lambda x: f"{CATEGORY_ICONS.get(x,'📦')} {x}")
+                    format_func=lambda x: f"{CATEGORY_ICONS.get(x,'\U0001f4e6')} {x}")
             with fc3:
-                fa = st.number_input("₹", value=int(t["amount"]), step=50, key=f"fa_{t['id']}", label_visibility="collapsed")
+                fa = st.number_input("\u20b9", value=int(t["amount"]), step=50, key=f"fa_{t['id']}", label_visibility="collapsed")
             with fc4:
-                if st.button("💾 Save", key=f"fsave_{t['id']}"):
+                if st.button("\U0001f4be Save", key=f"fsave_{t['id']}"):
                     api("PUT", f"/expense-templates/{t['id']}", json={"name": fn, "category": fc, "amount": fa, "vendor": fn})
-                    st.toast(f"✅ Saved {fn}")
+                    st.toast(f"\u2705 Saved {fn}")
                     st.rerun()
             with fc5:
-                if st.button("🗑️", key=f"fdel_{t['id']}"):
+                if st.button("\U0001f5d1\ufe0f", key=f"fdel_{t['id']}"):
                     api("DELETE", f"/expense-templates/{t['id']}")
                     st.rerun()
 
-        st.markdown(f'<div style="color:{T["sub"]};font-size:0.78rem;margin-top:4px;margin-bottom:16px;">{len(fav_tmpls)} shortcut(s) · sorted by most used</div>', unsafe_allow_html=True)
+        st.markdown(f'<div style="color:{T["sub"]};font-size:0.78rem;margin-top:4px;margin-bottom:16px;">{len(fav_tmpls)} shortcut(s) \xb7 sorted by most used</div>', unsafe_allow_html=True)
     else:
         st.markdown(f'<div style="color:{T["muted"]};font-size:0.85rem;padding:12px 0;">No shortcuts yet. Add one below.</div>', unsafe_allow_html=True)
 
@@ -1736,23 +1718,21 @@ with tab5:
         with sf1:
             fav_name = st.text_input("What do you usually buy?", placeholder="e.g. Petrol, Cook extra")
         with sf2:
-            fav_amt  = st.number_input("Usual amount (₹)", min_value=0, step=50)
+            fav_amt  = st.number_input("Usual amount (\u20b9)", min_value=0, step=50)
         with sf3:
             fav_cat  = st.selectbox("Category", VAR_CATEGORIES,
-                format_func=lambda x: f"{CATEGORY_ICONS.get(x,'📦')} {x}")
-        if st.form_submit_button("➕ Add Shortcut"):
+                format_func=lambda x: f"{CATEGORY_ICONS.get(x,'\U0001f4e6')} {x}")
+        if st.form_submit_button("\u2795 Add Shortcut"):
             if fav_name and fav_amt > 0:
                 api("POST", "/expense-templates", json={"name": fav_name, "vendor": fav_name,
                     "category": fav_cat, "amount": fav_amt})
-                st.toast(f"✅ Added shortcut for {fav_name}", icon="⚡")
+                st.toast(f"\u2705 Added shortcut for {fav_name}", icon="\u26a1")
                 st.rerun()
             else:
                 st.warning("Please fill in both name and amount.")
 
-    # ══════════════════════════════════════
     # 5. MY DATA (Export)
-    # ══════════════════════════════════════
-    settings_section("📥", "My Data",
+    settings_section("\U0001f4e5", "My Data",
         "Download your expense history as a spreadsheet-compatible CSV file.")
 
     dl_col1, dl_col2 = st.columns([1, 1])
@@ -1766,7 +1746,7 @@ with tab5:
             )
             if r_month.status_code == 200:
                 st.download_button(
-                    label=f"⬇️ Download {fmt_month(sel_month)}",
+                    label=f"\u2b07\ufe0f Download {fmt_month(sel_month)}",
                     data=r_month.content,
                     file_name=f"spendsense_{sel_month}.csv",
                     mime="text/csv",
@@ -1780,7 +1760,6 @@ with tab5:
             st.markdown(f'<div style="color:#f87171;font-size:0.82rem;">Export unavailable: {e}</div>',
                         unsafe_allow_html=True)
 
-
     with dl_col2:
         try:
             r_all = requests.get(
@@ -1791,7 +1770,7 @@ with tab5:
             if r_all.status_code == 200:
                 today_str = date.today().isoformat()
                 st.download_button(
-                    label="⬇️ Download Full History",
+                    label="\u2b07\ufe0f Download Full History",
                     data=r_all.content,
                     file_name=f"spendsense_all_{today_str}.csv",
                     mime="text/csv",
@@ -1804,3 +1783,48 @@ with tab5:
         except Exception as e:
             st.markdown(f'<div style="color:#f87171;font-size:0.82rem;">Export unavailable: {e}</div>',
                         unsafe_allow_html=True)
+
+
+# \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
+# TAB 6: ADMIN (admin users only)
+# \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
+if tab6:
+    with tab6:
+        settings_section("\U0001f6e1\ufe0f", "Admin Panel",
+                         "User management and system overview. Visible to admins only.")
+
+        # Stats row
+        stats = api("GET", "/admin/stats") or {}
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Total Users",    stats.get("total_users", 0))
+        c2.metric("Active Users",   stats.get("active_users", 0))
+        c3.metric("Total Expenses", stats.get("total_expenses", 0))
+
+        st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
+
+        # User list
+        users = api("GET", "/admin/users") or []
+        if users:
+            st.markdown(f'<div style="color:{T["sub"]};font-size:0.78rem;margin-bottom:10px;">{len(users)} registered user(s)</div>', unsafe_allow_html=True)
+            for user in users:
+                c_email, c_status, c_login, c_exp, c_btn = st.columns([3, 1, 2, 1, 1])
+                with c_email:
+                    icon = "\U0001f451" if user["is_admin"] else ("\U0001f512" if not user["is_active"] else "\U0001f464")
+                    onboard_badge = "" if user["onboarding_complete"] else " \U0001f195"
+                    st.markdown(f"{icon} **{user['email']}**{onboard_badge}")
+                with c_status:
+                    st.markdown("\U0001f7e2 Active" if user["is_active"] else "\U0001f534 Disabled")
+                with c_login:
+                    last = user.get("last_login")
+                    st.markdown(fmt_date(last[:10]) if last else "Never")
+                with c_exp:
+                    st.markdown(f"{user['expense_count']} exp")
+                with c_btn:
+                    if not user["is_admin"]:
+                        lbl = "Disable" if user["is_active"] else "Enable"
+                        if st.button(lbl, key=f"toggle_{user['id']}",
+                                     use_container_width=True):
+                            api("PATCH", f"/admin/users/{user['id']}/toggle-active")
+                            st.rerun()
+        else:
+            st.info("No users found.")

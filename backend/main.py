@@ -4,7 +4,7 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from fastapi.middleware.cors import CORSMiddleware
-from sqlmodel import Session, select
+from sqlmodel import Session, select, func
 from pydantic import BaseModel, field_validator
 import bleach
 from typing import Optional
@@ -471,6 +471,14 @@ def change_password(
     session.add(current_user)
     session.commit()
     return {"message": "Password updated successfully"}
+
+
+# -- Admin dependency ---------------------------------------------------------
+def get_admin_user(current_user: User = Depends(get_current_user)) -> User:
+    """Requires is_admin=True. Returns 403 for non-admin users."""
+    if not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Admin access required")
+    return current_user
 
 
 @app.delete("/auth/account")
@@ -1352,3 +1360,61 @@ def delete_pool_entry(entry_id: int, session: Session = Depends(get_session),
     session.delete(entry)
     session.commit()
     return {"deleted": entry_id}
+
+
+# -- Admin Endpoints ----------------------------------------------------------
+
+@app.get("/admin/stats")
+def admin_stats(
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_admin_user),
+):
+    """Overall system stats. Admin only."""
+    total_users    = session.exec(select(func.count(User.id))).one()
+    active_users   = session.exec(
+        select(func.count(User.id)).where(User.is_active == True)
+    ).one()
+    total_expenses = session.exec(select(func.count(Expense.id))).one()
+    return {"total_users": total_users, "active_users": active_users,
+            "total_expenses": total_expenses}
+
+
+@app.get("/admin/users")
+def admin_list_users(
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_admin_user),
+):
+    """List all users with stats. Admin only."""
+    users = session.exec(select(User).order_by(User.created_at.desc())).all()
+    result = []
+    for user in users:
+        expense_count = session.exec(
+            select(func.count(Expense.id)).where(Expense.user_id == user.id)
+        ).one()
+        result.append({
+            "id": user.id, "email": user.email,
+            "is_active": user.is_active, "is_admin": user.is_admin,
+            "created_at": user.created_at.isoformat(),
+            "last_login": user.last_login.isoformat() if user.last_login else None,
+            "onboarding_complete": user.onboarding_complete,
+            "expense_count": expense_count,
+        })
+    return result
+
+
+@app.patch("/admin/users/{user_id}/toggle-active")
+def admin_toggle_user(
+    user_id: int,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_admin_user),
+):
+    """Enable or disable a user account. Admin only. Cannot disable own account."""
+    if user_id == current_user.id:
+        raise HTTPException(status_code=400, detail="Cannot disable your own account")
+    user = session.get(User, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    user.is_active = not user.is_active
+    session.add(user)
+    session.commit()
+    return {"id": user.id, "email": user.email, "is_active": user.is_active}

@@ -1,0 +1,8 @@
+me = api("GET", "/auth/me")
+if me and st.session_state.user_email is None:
+    # Restore user info if session state was lost (e.g. after hot reload)
+    st.session_state.user_email = me.get("email")
+# Always sync is_admin and onboarding_complete from server on every page load
+if me:
+    st.session_state.user_is_admin       = me.get("is_admin", False)
+    st.session_state.onboarding_complete = me.get("onboarding_complete", True)
