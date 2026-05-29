@@ -50,9 +50,16 @@ def get_rate_limit_key(request: Request):
 
 limiter = Limiter(key_func=get_rate_limit_key)
 
-app = FastAPI(title="SpendSense API", version="2.0.0",
-              description="Personal expenditure tracker - JWT authenticated, per-user data isolation",
-              docs_url="/docs", redoc_url="/redoc")
+app = FastAPI(
+    title="SpendSense API",
+    version="2.0.0",
+    description="Personal expenditure tracker - JWT authenticated, per-user data isolation",
+    docs_url="/docs",
+    redoc_url="/redoc",
+    openapi_url="/openapi.json",
+)
+# TODO Sprint 6: Add /api/v1 prefix via APIRouter(prefix="/api/v1")
+# Requires updating API_BASE in frontend and Railway env vars
 
 app.add_middleware(
     CORSMiddleware,
@@ -81,6 +88,29 @@ async def limit_request_size(request: Request, call_next):
             content={"detail": "Request payload too large. Maximum size is 10KB."},
         )
     return await call_next(request)
+
+
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next):
+    """
+    Add security headers to every response.
+    X-Content-Type-Options: prevents MIME-type sniffing
+    X-Frame-Options: prevents clickjacking
+    X-XSS-Protection: legacy browser XSS filter
+    Strict-Transport-Security: force HTTPS for 1 year
+    Referrer-Policy: control referrer on cross-origin requests
+    """
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"]    = "nosniff"
+    response.headers["X-Frame-Options"]           = "DENY"
+    response.headers["X-XSS-Protection"]          = "1; mode=block"
+    response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    response.headers["Referrer-Policy"]           = "strict-origin-when-cross-origin"
+    if "server" in response.headers:
+        del response.headers["server"]
+    if "x-powered-by" in response.headers:
+        del response.headers["x-powered-by"]
+    return response
 
 
 @app.on_event("startup")
