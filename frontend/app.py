@@ -320,6 +320,10 @@ def api(method, path, **kwargs):
             st.session_state.auth_error = "Your session has expired. Please log in again."
             st.rerun()
 
+        if r.status_code == 429:
+            st.warning("⏱️ Too many requests. Please wait a moment before trying again.")
+            return None
+
         r.raise_for_status()
         return r.json()
 

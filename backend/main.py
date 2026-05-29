@@ -1,8 +1,12 @@
-from fastapi import FastAPI, Depends, HTTPException
-from fastapi.responses import StreamingResponse
+from fastapi import FastAPI, Depends, HTTPException, Request
+from fastapi.responses import JSONResponse, StreamingResponse
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 from fastapi.middleware.cors import CORSMiddleware
 from sqlmodel import Session, select
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
+import bleach
 from typing import Optional
 from datetime import date, datetime
 from dotenv import load_dotenv
@@ -31,27 +35,52 @@ from backend.auth import (
 with open("config.yaml") as f:
     config = yaml.safe_load(f)
 
-app = FastAPI(title="Expenditure Tracker API", version="2.0.0")
+# -- Rate Limiter ----------------------------------------------------------------
+def get_rate_limit_key(request: Request):
+    """Use JWT email as rate limit key if available, else fall back to IP address."""
+    auth = request.headers.get("Authorization", "")
+    if auth.startswith("Bearer "):
+        try:
+            from backend.auth import decode_token
+            payload = decode_token(auth[7:])
+            return payload.get("sub", get_remote_address(request))
+        except Exception:
+            pass
+    return get_remote_address(request)
+
+limiter = Limiter(key_func=get_rate_limit_key)
+
+app = FastAPI(title="SpendSense API", version="2.0.0",
+              description="Personal expenditure tracker - JWT authenticated, per-user data isolation",
+              docs_url="/docs", redoc_url="/redoc")
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        # HTTP direct — used by Streamlit when accessed from iPhone on local WiFi
-        # and as a fallback during local development without nginx
         "http://localhost:8501",
-
-        # HTTPS via nginx — used by Mac browser after Commit 1.2 HTTPS setup
-        # nginx listens on 8443 and proxies to Streamlit on 8501
         "https://localhost:8443",
-
-        # Production — Railway frontend URL
         "https://frontend-production-22a3.up.railway.app",
-
-        # TODO Sprint 5 (API Hardening): tighten allow_methods and allow_headers
     ],
-    allow_methods=["*"],   # tightened in Sprint 5 — API Hardening
-    allow_headers=["*", "Authorization"],  # Authorization added for Bearer token — tightened in Sprint 5
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
+    allow_headers=["Content-Type", "Authorization"],
+    allow_credentials=False,
 )
+
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+
+@app.middleware("http")
+async def limit_request_size(request: Request, call_next):
+    """Reject requests larger than 10KB to prevent payload abuse."""
+    max_size = 10 * 1024  # 10KB
+    content_length = request.headers.get("content-length")
+    if content_length and int(content_length) > max_size:
+        return JSONResponse(
+            status_code=413,
+            content={"detail": "Request payload too large. Maximum size is 10KB."},
+        )
+    return await call_next(request)
 
 
 @app.on_event("startup")
@@ -118,12 +147,42 @@ class ExpenseInput(BaseModel):
     text: str
     date_override: Optional[str] = None
 
+    @field_validator("text")
+    @classmethod
+    def sanitise_text(cls, v):
+        if len(v) > 500:
+            raise ValueError("Input text must be under 500 characters")
+        return bleach.clean(v, tags=[], strip=True).strip()
+
 class ManualExpense(BaseModel):
     vendor: str
     amount: float
     category: str
     note: Optional[str] = None
     expense_date: Optional[str] = None
+
+    @field_validator("vendor")
+    @classmethod
+    def sanitise_vendor(cls, v):
+        if len(v) > 100:
+            raise ValueError("Vendor name must be under 100 characters")
+        return bleach.clean(v, tags=[], strip=True).strip()
+
+    @field_validator("amount")
+    @classmethod
+    def positive_amount(cls, v):
+        if v <= 0:
+            raise ValueError("Amount must be greater than 0")
+        if v > 10_000_000:
+            raise ValueError("Amount exceeds maximum allowed value")
+        return round(v, 2)
+
+    @field_validator("note")
+    @classmethod
+    def sanitise_note(cls, v):
+        if v and len(v) > 300:
+            raise ValueError("Note must be under 300 characters")
+        return bleach.clean(v, tags=[], strip=True).strip() if v else v
 
 class BudgetUpdate(BaseModel):
     category: str
@@ -135,12 +194,42 @@ class IncomeInput(BaseModel):
     month_key: Optional[str] = None
     note: Optional[str] = None
 
+    @field_validator("source")
+    @classmethod
+    def sanitise_source(cls, v):
+        if len(v) > 100:
+            raise ValueError("Source name must be under 100 characters")
+        return bleach.clean(v, tags=[], strip=True).strip()
+
+    @field_validator("amount")
+    @classmethod
+    def positive_amount(cls, v):
+        if v <= 0:
+            raise ValueError("Amount must be greater than 0")
+        if v > 100_000_000:
+            raise ValueError("Amount exceeds maximum allowed value")
+        return round(v, 2)
+
 class FixedTemplateCreate(BaseModel):
     name: str
     category: str
     amount: float
     sort_order: Optional[int] = 0
     template_type: Optional[str] = "fixed"
+
+    @field_validator("name")
+    @classmethod
+    def sanitise_name(cls, v):
+        if len(v) > 100:
+            raise ValueError("Name must be under 100 characters")
+        return bleach.clean(v, tags=[], strip=True).strip()
+
+    @field_validator("amount")
+    @classmethod
+    def positive_amount(cls, v):
+        if v <= 0:
+            raise ValueError("Amount must be greater than 0")
+        return round(v, 2)
 
 class FixedTemplateUpdate(BaseModel):
     name: Optional[str] = None
@@ -192,6 +281,25 @@ class RegisterRequest(BaseModel):
     email: str
     password: str
 
+    @field_validator("email")
+    @classmethod
+    def valid_email(cls, v):
+        v = v.strip().lower()
+        if len(v) > 255:
+            raise ValueError("Email too long")
+        if "@" not in v or "." not in v.split("@")[-1]:
+            raise ValueError("Invalid email format")
+        return v
+
+    @field_validator("password")
+    @classmethod
+    def strong_password(cls, v):
+        if len(v) < 8:
+            raise ValueError("Password must be at least 8 characters")
+        if len(v) > 128:
+            raise ValueError("Password too long")
+        return v
+
 class LoginRequest(BaseModel):
     email: str
     password: str
@@ -221,12 +329,9 @@ class DeleteAccountRequest(BaseModel):
 # ── Auth Endpoints (PUBLIC — no token required) ───────────────────────────────
 
 @app.post("/auth/register", response_model=UserResponse, status_code=201)
-def register(req: RegisterRequest, session: Session = Depends(get_session)):
+@limiter.limit("5/hour", key_func=get_remote_address)
+def register(request: Request, req: RegisterRequest, session: Session = Depends(get_session)):
     """Register a new user. Does not return a token — user must log in explicitly."""
-    if "@" not in req.email or "." not in req.email.split("@")[-1]:
-        raise HTTPException(status_code=400, detail="Invalid email format")
-    if len(req.password) < 8:
-        raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
     existing = session.exec(select(User).where(User.email == req.email)).first()
     if existing:
         raise HTTPException(status_code=400, detail="Email already registered")
@@ -246,7 +351,8 @@ def register(req: RegisterRequest, session: Session = Depends(get_session)):
 
 
 @app.post("/auth/login", response_model=TokenResponse)
-def login(req: LoginRequest, session: Session = Depends(get_session)):
+@limiter.limit("10/hour", key_func=get_remote_address)
+def login(request: Request, req: LoginRequest, session: Session = Depends(get_session)):
     """Authenticate and return a signed JWT. Same 401 for wrong email or wrong password."""
     user = session.exec(select(User).where(User.email == req.email)).first()
     if not user or not verify_password(req.password, user.hashed_password):
@@ -367,7 +473,8 @@ def delete_account(
 # ── Variable Expense Endpoints ────────────────────────────────────────────────
 
 @app.post("/expenses/parse")
-def parse_and_save(input: ExpenseInput, session: Session = Depends(get_session),
+@limiter.limit("30/hour")
+def parse_and_save(request: Request, input: ExpenseInput, session: Session = Depends(get_session),
                    current_user: User = Depends(get_current_user)):
     try:
         parsed = parse_expense_input(input.text)
@@ -403,7 +510,8 @@ def parse_and_save(input: ExpenseInput, session: Session = Depends(get_session),
 
 
 @app.post("/expenses/manual")
-def add_manual_expense(exp: ManualExpense, session: Session = Depends(get_session),
+@limiter.limit("300/hour")
+def add_manual_expense(request: Request, exp: ManualExpense, session: Session = Depends(get_session),
                        current_user: User = Depends(get_current_user)):
     expense_date = date.fromisoformat(exp.expense_date) if exp.expense_date else date.today()
     month_key = get_month_key(expense_date)
@@ -426,7 +534,8 @@ def add_manual_expense(exp: ManualExpense, session: Session = Depends(get_sessio
 
 
 @app.get("/expenses/{month_key}")
-def get_expenses(month_key: str, session: Session = Depends(get_session),
+@limiter.limit("300/hour")
+def get_expenses(request: Request, month_key: str, session: Session = Depends(get_session),
                  current_user: User = Depends(get_current_user)):
     return session.exec(
         select(Expense).where(
@@ -720,7 +829,8 @@ def delete_template(template_id: int, session: Session = Depends(get_session),
 # ── Summary & Budget ──────────────────────────────────────────────────────────
 
 @app.get("/summary/{month_key}")
-def get_summary(month_key: str, session: Session = Depends(get_session),
+@limiter.limit("300/hour")
+def get_summary(request: Request, month_key: str, session: Session = Depends(get_session),
                 current_user: User = Depends(get_current_user)):
     seed_fixed_expenses(session, month_key, user_id=current_user.id)
     balance      = get_balance_summary(session, month_key, user_id=current_user.id)
@@ -973,7 +1083,9 @@ def budget_projection(month_key: str, session: Session = Depends(get_session),
 # to prevent FastAPI treating the literal string "all" as a month_key value.
 
 @app.get("/export/csv/all")
+@limiter.limit("20/hour")
 def export_all_csv(
+    request: Request,
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
@@ -1016,7 +1128,9 @@ def export_all_csv(
 
 
 @app.get("/export/csv/{month_key}")
+@limiter.limit("20/hour")
 def export_month_csv(
+    request: Request,
     month_key: str,
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
