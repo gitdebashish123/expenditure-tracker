@@ -109,5 +109,6 @@ no code or file changes
 
 
 
-Read design/MULTI_USER_ROADMAP.md and let's prepare a solid prompt to implement sprint4 , 
-covering all commits and save under the design folder
+Read todo/01-frontend-mobile-whatsapp-enhancements.md 
+and let's prepare a solid prompt to implement Track 0 — Quick Wins (Current Streamlit Stack) , 
+and save under the design folder
