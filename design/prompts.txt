@@ -112,3 +112,15 @@ no code or file changes
 Read todo/01-frontend-mobile-whatsapp-enhancements.md 
 and let's prepare a solid prompt to implement Track 0 — Quick Wins (Current Streamlit Stack) , 
 and save under the design folder
+
+
+
+Read design/Sprint 5 — Rate Limiting & API Hardening 
+and 
+let's prepare a solid prompt to implement all commits under git feature branch which can be later merge to develop
+and save under the design folder
+
+
+Read design/SPRINT_5_PROMPT.md 
+and 
+proceed with the implementation of all steps for Commit 5.1 - Rate Limiting

@@ -19,6 +19,8 @@ dependencies = [
     "python-jose[cryptography]>=3.5.0",
     "bcrypt>=5.0.0",
     "jose>=1.0.0",
+    "slowapi>=0.1.9",
+    "bleach>=6.3.0",
 ]
 
 [project.scripts]

@@ -92,6 +92,15 @@ def create_access_token(data: dict) -> str:
 
 # ── JWT Token Verification ────────────────────────────────────────────────────
 
+def decode_token(token: str) -> dict:
+    """
+    Decode a JWT token and return the raw payload.
+    Used by the rate limiter to extract user email as the rate limit key.
+    Does NOT raise HTTPException - raises JWTError on invalid token.
+    """
+    return jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+
+
 def decode_access_token(token: str) -> dict:
     """
     Decode and verify a JWT token.
