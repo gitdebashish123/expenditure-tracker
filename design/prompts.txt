@@ -124,3 +124,31 @@ and save under the design folder
 Read design/SPRINT_5_PROMPT.md 
 and 
 proceed with the implementation of all steps for Commit 5.1 - Rate Limiting
+
+
+Read design/MULTI_USER_ROADMAP.md and Sprint 6 — Onboarding & Multi-user Polish 
+and 
+let's prepare a solid prompt to implement all commits under git feature branch which can be later merge to develop
+and save under the design folder
+
+
+
+Read design/SPRINT_6_PROMPT.md 
+and 
+proceed with the implementation of all steps for Commit 6.1 — Registration Flow Polish
+
+
+One major issue I see is for a new user 
+after filling wizard form , for e.g. Rent 5000 , 
+I see under fixed tab on dashboard, there are pre filled entries and
+what I added is just an additional entries. what went wrong, don't modify any code
+without I approve
+
+Read design/SPRINT_6_PROMPT.md 
+and 
+proceed with the implementation of all steps for Commit 6.3 — Admin Panel (Basic)
+
+
+Read design/SPRINT_6_PROMPT.md 
+and 
+proceed with the implementation of all steps for Commit Commit 6.4 — User Acceptance Testing

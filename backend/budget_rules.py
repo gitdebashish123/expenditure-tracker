@@ -153,9 +153,9 @@ def seed_fixed_expenses(session: Session, month_key: str, user_id: int):
         ).order_by(FixedExpenseTemplate.sort_order, FixedExpenseTemplate.id)
     ).all()
 
-    # Fall back to config if no templates exist for this user yet
+    # New users start with a clean slate — the onboarding wizard is their
+    # setup path. Config seeding is intentionally skipped for non-admin users.
     if not templates:
-        _seed_from_config(session, month_key, expense_date, user_id=user_id)
         return
 
     for tmpl in templates:

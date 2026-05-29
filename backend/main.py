@@ -4,7 +4,7 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from fastapi.middleware.cors import CORSMiddleware
-from sqlmodel import Session, select
+from sqlmodel import Session, select, func
 from pydantic import BaseModel, field_validator
 import bleach
 from typing import Optional
@@ -116,6 +116,25 @@ async def add_security_headers(request: Request, call_next):
 @app.on_event("startup")
 def on_startup():
     create_db()
+
+    # ── Auto-migrate: ensure onboarding_complete column exists ───────────────
+    # Handles the case where the backend restarts after a model change
+    # but migrate_schema.py hasn't been run yet.
+    import sqlite3 as _sqlite3
+    _db_path = os.getenv("DATABASE_URL", "sqlite:///./data/expenses.db").replace("sqlite:///", "")
+    try:
+        _conn = _sqlite3.connect(_db_path)
+        _cur  = _conn.cursor()
+        _cur.execute("PRAGMA table_info(user)")
+        _cols = [row[1] for row in _cur.fetchall()]
+        if "onboarding_complete" not in _cols:
+            _cur.execute("ALTER TABLE user ADD COLUMN onboarding_complete INTEGER NOT NULL DEFAULT 0")
+            _conn.commit()
+            print("✅ Auto-migrated: user.onboarding_complete")
+        _conn.close()
+    except Exception as _e:
+        print(f"⚠️  Auto-migration check failed: {_e}")
+
     with Session(engine) as session:
         # Find admin user for seeding
         admin = session.exec(select(User).where(User.is_admin == True)).first()
@@ -345,6 +364,7 @@ class UserResponse(BaseModel):
     is_admin: bool
     created_at: datetime
     last_login: Optional[datetime]
+    onboarding_complete: bool = False
 
 
 class ChangePasswordRequest(BaseModel):
@@ -377,6 +397,7 @@ def register(request: Request, req: RegisterRequest, session: Session = Depends(
     return UserResponse(
         id=user.id, email=user.email, is_active=user.is_active,
         is_admin=user.is_admin, created_at=user.created_at, last_login=user.last_login,
+        onboarding_complete=getattr(user, "onboarding_complete", False),
     )
 
 
@@ -405,7 +426,20 @@ def get_me(current_user: User = Depends(get_current_user)):
         id=current_user.id, email=current_user.email, is_active=current_user.is_active,
         is_admin=current_user.is_admin, created_at=current_user.created_at,
         last_login=current_user.last_login,
+        onboarding_complete=getattr(current_user, "onboarding_complete", False),
     )
+
+
+@app.post("/auth/complete-onboarding")
+def complete_onboarding(
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    """Mark onboarding as complete for the authenticated user."""
+    current_user.onboarding_complete = True
+    session.add(current_user)
+    session.commit()
+    return {"message": "Onboarding complete"}
 
 
 @app.put("/auth/password")
@@ -437,6 +471,14 @@ def change_password(
     session.add(current_user)
     session.commit()
     return {"message": "Password updated successfully"}
+
+
+# -- Admin dependency ---------------------------------------------------------
+def get_admin_user(current_user: User = Depends(get_current_user)) -> User:
+    """Requires is_admin=True. Returns 403 for non-admin users."""
+    if not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Admin access required")
+    return current_user
 
 
 @app.delete("/auth/account")
@@ -1318,3 +1360,61 @@ def delete_pool_entry(entry_id: int, session: Session = Depends(get_session),
     session.delete(entry)
     session.commit()
     return {"deleted": entry_id}
+
+
+# -- Admin Endpoints ----------------------------------------------------------
+
+@app.get("/admin/stats")
+def admin_stats(
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_admin_user),
+):
+    """Overall system stats. Admin only."""
+    total_users    = session.exec(select(func.count(User.id))).one()
+    active_users   = session.exec(
+        select(func.count(User.id)).where(User.is_active == True)
+    ).one()
+    total_expenses = session.exec(select(func.count(Expense.id))).one()
+    return {"total_users": total_users, "active_users": active_users,
+            "total_expenses": total_expenses}
+
+
+@app.get("/admin/users")
+def admin_list_users(
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_admin_user),
+):
+    """List all users with stats. Admin only."""
+    users = session.exec(select(User).order_by(User.created_at.desc())).all()
+    result = []
+    for user in users:
+        expense_count = session.exec(
+            select(func.count(Expense.id)).where(Expense.user_id == user.id)
+        ).one()
+        result.append({
+            "id": user.id, "email": user.email,
+            "is_active": user.is_active, "is_admin": user.is_admin,
+            "created_at": user.created_at.isoformat(),
+            "last_login": user.last_login.isoformat() if user.last_login else None,
+            "onboarding_complete": user.onboarding_complete,
+            "expense_count": expense_count,
+        })
+    return result
+
+
+@app.patch("/admin/users/{user_id}/toggle-active")
+def admin_toggle_user(
+    user_id: int,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_admin_user),
+):
+    """Enable or disable a user account. Admin only. Cannot disable own account."""
+    if user_id == current_user.id:
+        raise HTTPException(status_code=400, detail="Cannot disable your own account")
+    user = session.get(User, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    user.is_active = not user.is_active
+    session.add(user)
+    session.commit()
+    return {"id": user.id, "email": user.email, "is_active": user.is_active}
