@@ -116,6 +116,25 @@ async def add_security_headers(request: Request, call_next):
 @app.on_event("startup")
 def on_startup():
     create_db()
+
+    # ── Auto-migrate: ensure onboarding_complete column exists ───────────────
+    # Handles the case where the backend restarts after a model change
+    # but migrate_schema.py hasn't been run yet.
+    import sqlite3 as _sqlite3
+    _db_path = os.getenv("DATABASE_URL", "sqlite:///./data/expenses.db").replace("sqlite:///", "")
+    try:
+        _conn = _sqlite3.connect(_db_path)
+        _cur  = _conn.cursor()
+        _cur.execute("PRAGMA table_info(user)")
+        _cols = [row[1] for row in _cur.fetchall()]
+        if "onboarding_complete" not in _cols:
+            _cur.execute("ALTER TABLE user ADD COLUMN onboarding_complete INTEGER NOT NULL DEFAULT 0")
+            _conn.commit()
+            print("✅ Auto-migrated: user.onboarding_complete")
+        _conn.close()
+    except Exception as _e:
+        print(f"⚠️  Auto-migration check failed: {_e}")
+
     with Session(engine) as session:
         # Find admin user for seeding
         admin = session.exec(select(User).where(User.is_admin == True)).first()
@@ -345,6 +364,7 @@ class UserResponse(BaseModel):
     is_admin: bool
     created_at: datetime
     last_login: Optional[datetime]
+    onboarding_complete: bool = False
 
 
 class ChangePasswordRequest(BaseModel):
@@ -377,6 +397,7 @@ def register(request: Request, req: RegisterRequest, session: Session = Depends(
     return UserResponse(
         id=user.id, email=user.email, is_active=user.is_active,
         is_admin=user.is_admin, created_at=user.created_at, last_login=user.last_login,
+        onboarding_complete=getattr(user, "onboarding_complete", False),
     )
 
 
@@ -405,7 +426,20 @@ def get_me(current_user: User = Depends(get_current_user)):
         id=current_user.id, email=current_user.email, is_active=current_user.is_active,
         is_admin=current_user.is_admin, created_at=current_user.created_at,
         last_login=current_user.last_login,
+        onboarding_complete=getattr(current_user, "onboarding_complete", False),
     )
+
+
+@app.post("/auth/complete-onboarding")
+def complete_onboarding(
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    """Mark onboarding as complete for the authenticated user."""
+    current_user.onboarding_complete = True
+    session.add(current_user)
+    session.commit()
+    return {"message": "Onboarding complete"}
 
 
 @app.put("/auth/password")

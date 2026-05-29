@@ -4,6 +4,7 @@ import pandas as pd
 from datetime import date, datetime
 from collections import defaultdict
 import os
+import re
 
 API_BASE = os.getenv("API_BASE", "http://localhost:8000")
 CURRENT_MONTH = date.today().strftime("%Y-%m")
@@ -29,6 +30,10 @@ if "auth_error" not in st.session_state:
     st.session_state.auth_error = None      # error message shown on login form
 if "show_register" not in st.session_state:
     st.session_state.show_register = False  # toggle between login and register form
+if "onboarding_complete" not in st.session_state:
+    st.session_state.onboarding_complete = True  # default True avoids wizard for existing users
+if "onboarding_step" not in st.session_state:
+    st.session_state.onboarding_step = 1
 
 # ── Theme ────────────────────────────────────────────────────────────────────
 if "theme" not in st.session_state:
@@ -215,6 +220,7 @@ def show_login_page():
                             ).json()
                             st.session_state.user_email    = me.get("email")
                             st.session_state.user_is_admin = me.get("is_admin", False)
+                            st.session_state.onboarding_complete = me.get("onboarding_complete", True)
                             st.session_state.auth_error    = None
                             st.rerun()
                         elif r.status_code == 401:
@@ -242,14 +248,38 @@ def show_login_page():
 
         else:
             # Register form
+            # reg_email and reg_password are outside the form so Streamlit
+            # re-renders them on every keystroke — enabling a live strength bar.
             st.markdown('<div class="login-subtitle" style="text-align:center;">Create your account</div>',
                         unsafe_allow_html=True)
+            reg_email    = st.text_input("Email", placeholder="your@email.com",
+                                         label_visibility="collapsed", key="reg_email")
+            reg_password = st.text_input("Password (min 8 characters)", placeholder="Password",
+                                         type="password",
+                                         label_visibility="collapsed", key="reg_password")
+
+            # Live password strength bar — updates on every keystroke
+            if reg_password:
+                checks = [
+                    len(reg_password) >= 8,
+                    any(c.isupper() for c in reg_password),
+                    any(c.isdigit() for c in reg_password),
+                    any(c in "!@#$%^&*" for c in reg_password),
+                ]
+                score = sum(checks)
+                colours = ["#ef4444", "#f97316", "#eab308", "#22c55e"]
+                labels  = ["Weak", "Fair", "Good", "Strong"]
+                colour  = colours[score - 1] if score > 0 else "#374151"
+                label   = labels[score - 1]  if score > 0 else ""
+                st.markdown(
+                    f'<div style="height:4px;border-radius:2px;background:{colour};'
+                    f'width:{score * 25}%;margin-top:4px;"></div>'
+                    f'<div style="font-size:0.75rem;color:{colour};margin-top:2px;">{label}</div>',
+                    unsafe_allow_html=True,
+                )
+
+            # Only confirm + submit button live inside the form
             with st.form("register_form"):
-                reg_email    = st.text_input("Email", placeholder="your@email.com",
-                                             label_visibility="collapsed", key="reg_email")
-                reg_password = st.text_input("Password (min 8 characters)", placeholder="Password",
-                                             type="password",
-                                             label_visibility="collapsed", key="reg_password")
                 reg_confirm  = st.text_input("Confirm Password", placeholder="Confirm Password",
                                              type="password",
                                              label_visibility="collapsed", key="reg_confirm")
@@ -258,6 +288,9 @@ def show_login_page():
             if reg_submitted:
                 if not reg_email or not reg_password:
                     st.session_state.auth_error = "Please fill in all fields."
+                    st.rerun()
+                elif not re.match(r"^[^@]+@[^@]+\.[^@]+$", reg_email):
+                    st.session_state.auth_error = "Please enter a valid email address."
                     st.rerun()
                 elif len(reg_password) < 8:
                     st.session_state.auth_error = "Password must be at least 8 characters."
@@ -295,6 +328,178 @@ def show_login_page():
                 st.rerun()
 
         st.markdown('<div style="text-align:center;margin-top:20px;color:rgba(255,255,255,0.25);font-size:0.75rem;">By signing in you acknowledge our <a href="https://github.com/gitdebashish123/expenditure-tracker/blob/main/PRIVACY.md" target="_blank" style="color:#a5b4fc;">Privacy Notice</a></div>', unsafe_allow_html=True)
+
+
+# -- Onboarding Wizard --------------------------------------------------------
+def show_onboarding_wizard():
+    """
+    First-time setup wizard shown to new users after registration.
+    3 steps: income -> fixed bills -> spending caps.
+    Each step can be skipped. Dismissed via Skip All or completing step 3.
+    """
+    _, col, _ = st.columns([1, 3, 1])
+    with col:
+        step = st.session_state.get("onboarding_step", 1)
+
+        # Header
+        st.markdown(
+            f"<div style='text-align:center;margin-bottom:24px;'>"
+            f"<div style='font-size:2rem;'>&#128640;</div>"
+            f"<div style='font-size:1.3rem;font-weight:700;color:{T['text']};margin:8px 0 4px;'>"
+            f"Welcome to SpendSense!</div>"
+            f"<div style='color:{T['sub']};font-size:0.85rem;'>"
+            f"Let's set up your account in 3 quick steps.</div>"
+            f"</div>",
+            unsafe_allow_html=True,
+        )
+
+        # Progress bar
+        bar_html = "".join([
+            f"<div style='flex:1;height:4px;border-radius:2px;"
+            f"background:{'#6366f1' if i < step else T['border']}'></div>"
+            for i in range(1, 4)
+        ])
+        st.markdown(
+            f"<div style='display:flex;gap:8px;margin-bottom:28px;'>{bar_html}</div>",
+            unsafe_allow_html=True,
+        )
+
+        # ----- Step 1: Income -----
+        if step == 1:
+            st.markdown(
+                f"<div style='font-weight:600;color:{T['text']};margin-bottom:8px;'>"
+                f"&#128176; Step 1 of 3 &mdash; Your Monthly Take-home</div>",
+                unsafe_allow_html=True,
+            )
+            st.caption("What's your salary or take-home income this month?")
+            with st.form("onboard_income"):
+                amt  = st.number_input("Amount", min_value=0.0, step=1000.0, value=0.0)
+                note = st.text_input("Note (optional)", placeholder="e.g. June salary")
+                c1, c2 = st.columns(2)
+                with c1: submitted = st.form_submit_button("Save & Continue", use_container_width=True)
+                with c2: skipped   = st.form_submit_button("Skip", use_container_width=True)
+            if submitted and amt > 0:
+                api("POST", "/income", json={"source": "Salary", "amount": amt,
+                                             "note": note or None})
+                st.session_state.onboarding_step = 2
+                st.rerun()
+            elif submitted or skipped:
+                st.session_state.onboarding_step = 2
+                st.rerun()
+
+        # ----- Step 2: Bills -----
+        elif step == 2:
+            st.markdown(
+                f"<div style='font-weight:600;color:{T['text']};margin-bottom:8px;'>"
+                f"&#128203; Step 2 of 3 &mdash; Your Monthly Bills</div>",
+                unsafe_allow_html=True,
+            )
+            st.caption("Add rent, EMI, subscriptions. You can add more later in Settings.")
+
+            # Show bills added so far this session
+            templates = api("GET", "/fixed-templates") or []
+            if templates:
+                st.markdown(
+                    f"<div style='background:{T['card2']};border-radius:10px;padding:10px 14px;"
+                    f"border:1px solid {T['border']};margin-bottom:12px;'>"
+                    f"<div style='color:{T['sub']};font-size:0.75rem;margin-bottom:6px;'>"
+                    f"{len(templates)} bill(s) added</div>"
+                    + "".join(
+                        f"<div style='display:flex;justify-content:space-between;"
+                        f"padding:3px 0;font-size:0.85rem;color:{T['text']};'>"
+                        f"<span>{CATEGORY_ICONS.get(t['category'],'')} {t['name']}</span>"
+                        f"<span style='color:{T['sub']};'>&#8377;{t['amount']:,.0f}</span></div>"
+                        for t in templates
+                    )
+                    + "</div>",
+                    unsafe_allow_html=True,
+                )
+
+            with st.form("onboard_bill", clear_on_submit=True):
+                b1, b2 = st.columns(2)
+                with b1:
+                    name = st.text_input("What do you call it?",
+                                         placeholder="e.g. Rent, Car Loan, Netflix")
+                with b2:
+                    cat = st.selectbox("What type of expense is it?", FIXED_CATEGORIES,
+                                       format_func=lambda x: f"{CATEGORY_ICONS.get(x, '')} {x}")
+                b3, b4 = st.columns(2)
+                with b3:
+                    bill_kind = st.radio(
+                        "Is the amount the same every month?",
+                        ["Yes, always the same", "No, it varies"],
+                        help="Choose 'varies' for bills like electricity, mobile recharge"
+                    )
+                    if bill_kind == "No, it varies":
+                        st.caption("You'll add the actual amount once it's paid.")
+                with b4:
+                    amt = st.number_input(
+                        "How much? (\u20b9)" if bill_kind == "Yes, always the same"
+                        else "Typical amount (\u20b9, or 0 if unknown)",
+                        min_value=0.0, step=100.0
+                    )
+                c1, c2, c3 = st.columns(3)
+                with c1: add_more = st.form_submit_button("\u2795 Add Bill", use_container_width=True)
+                with c2: nxt      = st.form_submit_button("Done & Continue", use_container_width=True)
+                with c3: skipped  = st.form_submit_button("Skip", use_container_width=True)
+
+            if add_more and name:
+                ttype = "fixed" if bill_kind == "Yes, always the same" else "pool"
+                if ttype == "fixed" and amt <= 0:
+                    st.warning("Please enter an amount for fixed bills.")
+                else:
+                    api("POST", "/fixed-templates",
+                        json={"name": name, "category": cat,
+                              "amount": amt, "template_type": ttype})
+                    st.toast(f"Added {name}", icon="📋")
+                    st.rerun()
+            elif nxt or skipped:
+                st.session_state.onboarding_step = 3
+                st.rerun()
+
+        # ----- Step 3: Spending caps -----
+        elif step == 3:
+            st.markdown(
+                f"<div style='font-weight:600;color:{T['text']};margin-bottom:8px;'>"
+                f"&#127919; Step 3 of 3 &mdash; Spending Caps</div>",
+                unsafe_allow_html=True,
+            )
+            st.caption("Set monthly limits for variable spending. Adjust anytime in Settings.")
+            defaults = {"Food": 5000, "Groceries": 8000, "Travel": 3000,
+                        "Shopping": 3000, "Entertainment": 2000, "Medical": 2000}
+            with st.form("onboard_caps"):
+                caps = {}
+                for cat, dflt in defaults.items():
+                    caps[cat] = st.number_input(
+                        f"{CATEGORY_ICONS.get(cat, '')} {cat}",
+                        min_value=0.0, step=500.0, value=float(dflt),
+                    )
+                c1, c2 = st.columns(2)
+                with c1: finished = st.form_submit_button("&#127680; Let's Go!", use_container_width=True)
+                with c2: skipped  = st.form_submit_button("Skip", use_container_width=True)
+            if finished:
+                for cat, lim in caps.items():
+                    if lim > 0:
+                        api("PUT", "/budget", json={"category": cat, "limit_amount": lim})
+                api("POST", "/auth/complete-onboarding")
+                st.session_state.onboarding_complete = True
+                st.session_state.onboarding_step     = 1
+                st.toast("You're all set! Welcome to SpendSense.", icon="🎉")
+                st.rerun()
+            elif skipped:
+                api("POST", "/auth/complete-onboarding")
+                st.session_state.onboarding_complete = True
+                st.session_state.onboarding_step     = 1
+                st.rerun()
+
+        # Skip all
+        st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
+        if st.button("Skip setup, go straight to the app",
+                     use_container_width=True, key="skip_all_wizard"):
+            api("POST", "/auth/complete-onboarding")
+            st.session_state.onboarding_complete = True
+            st.session_state.onboarding_step     = 1
+            st.rerun()
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 def api(method, path, **kwargs):
@@ -397,8 +602,17 @@ if not st.session_state.get("token"):
 me = api("GET", "/auth/me")
 if me and st.session_state.user_email is None:
     # Restore user info if session state was lost (e.g. after hot reload)
-    st.session_state.user_email    = me.get("email")
-    st.session_state.user_is_admin = me.get("is_admin", False)
+    st.session_state.user_email          = me.get("email")
+    st.session_state.user_is_admin       = me.get("is_admin", False)
+# Always sync onboarding_complete from server — not gated on user_email being None
+# so it reflects the real DB value on every page load and after login rerun
+if me:
+    st.session_state.onboarding_complete = me.get("onboarding_complete", True)
+
+# ── Onboarding gate ─────────────────────────────────────────────────────────
+if not st.session_state.get("onboarding_complete", True):
+    show_onboarding_wizard()
+    st.stop()
 
 # ── Header row: title + theme toggle + month selector ─────────────────────────
 all_months = api("GET", "/months") or []

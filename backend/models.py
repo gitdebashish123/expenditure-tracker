@@ -33,6 +33,7 @@ class User(SQLModel, table=True):
     is_admin: bool = Field(default=False)               # True = Sprint 6.3 admin panel access
     created_at: datetime = Field(default_factory=datetime.now)
     last_login: Optional[datetime] = Field(default=None)  # updated on each successful login
+    onboarding_complete: bool = Field(default=False)  # True after wizard is dismissed
 
 
 class FixedExpenseTemplate(SQLModel, table=True):

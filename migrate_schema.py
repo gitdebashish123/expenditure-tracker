@@ -126,6 +126,8 @@ migrations = [
     ("expensetemplate",      "created_at",     "TEXT NOT NULL DEFAULT (datetime('now'))"),
     # PoolEntry — add user_id if missing
     ("poolentry",            "user_id",        "INTEGER REFERENCES user(id)"),
+    # User — add onboarding_complete if missing
+    ("user",                 "onboarding_complete", "INTEGER NOT NULL DEFAULT 0"),
 ]
 
 for table, column, col_def in migrations:
