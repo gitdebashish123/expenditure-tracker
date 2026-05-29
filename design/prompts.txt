@@ -68,4 +68,46 @@ Read design/MULTI_USER_ROADMAP.md and let's prepare a solid prompt to implement 
 Commit 3.2 — Railway/Render Deployment and save under the same folder
 
 Read design/COMMIT_3_2_RAILWAY_DEPLOY_PROMPT.md and 
-proceed with the implementation of Step 1 — Add GET /health Endpoint to backend/main.py
+proceed with Step 1 — Create railway.toml
+
+
+I see the final segment of COMMIT_3_2_RAILWAY_DEPLOY_PROMPT.md
+where it mentions 
+A temporary password (they can change it via Settings once logged in)
+A note that the Anthropic AI parses their expense text — link to PRIVACY.md
+
+are we missing this implementation ? don't modify any files or code block
+
+
+Read design/MULTI_USER_ROADMAP.md and let's prepare a solid prompt to implement sprint4 , 
+covering all commits and save under the design folder
+
+
+
+
+Read design/SPRINT_4_PROMPT.md and 
+proceed with the implementation of Commit 4.1 — Data Export
+
+
+Read design/SPRINT_4_PROMPT.md and 
+proceed with the implementation of Commit 4.2 — Account Management
+
+
+Read design/SPRINT_4_PROMPT.md and 
+proceed with the implementation of Commit 4.3 — Privacy Notice
+
+before we move to sprint 5 & 6 is there something we can do to enhance the UI. Currently it doesn't seems like any other web ui. 
+for e.g. My Account is under settings whereas it should be at the top where 
+options like sign out, change password etc like any other web page.
+change password ,delete account should navigate to another page?
+
+When I open it from mobile , few sections doesn't even visible .
+Suggestions only for a better user interface and customer attraction, 
+no code or file changes
+
+
+
+
+
+Read design/MULTI_USER_ROADMAP.md and let's prepare a solid prompt to implement sprint4 , 
+covering all commits and save under the design folder
