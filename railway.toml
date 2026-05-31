@@ -1,5 +1,5 @@
-# ── SpendSense — Railway Deployment Config ────────────────────────────────────
-# Defines two services: backend (FastAPI) and frontend (Streamlit)
+# ── SanchaySaathi — Railway Deployment Config ─────────────────────────────────
+# Defines two services: backend (FastAPI) and frontend (React/Nginx)
 # Railway reads this file automatically when connected to the GitHub repo
 #
 # Docs: https://docs.railway.app/reference/railway-toml
@@ -11,48 +11,40 @@
 #
 # Local dev:  docker compose up -d
 # Production: git push origin main (after merging develop → main)
+#
+# Streamlit still runs locally alongside React during 2-week validation period:
+#   uv run streamlit run frontend/app.py --server.port 8501
 
 [project]
-name = "spendsense"
+name = "sanchaySaathi"
 
 # ── Backend Service ───────────────────────────────────────────────────────────
 [services.backend]
-# Build from the backend-specific Dockerfile
 dockerfile = "Dockerfile.backend"
 
-# Run schema migration before each deploy — equivalent to the db-init
-# service in docker-compose.yml. Runs once per deploy, must exit 0
-# before the backend container starts receiving traffic.
+# Run schema migration before each deploy
 pre_deploy_command = "uv run python migrate_schema.py"
 
-# Health check — Railway waits for this endpoint to return 200 before
-# marking the deploy live and routing traffic to the new container.
-# GET /health is public (no auth required) — added in Commit 3.1.
 healthcheck_path = "/health"
 healthcheck_timeout = 60
 
-# Port the backend listens on — must match CMD in Dockerfile.backend
-# Railway automatically sets PORT env var but we specify explicitly for clarity
 port = 8000
 
-# Restart policy — restart container if it crashes unexpectedly
-# "on_failure" = only restart on non-zero exit, not on deliberate stop
 restart_policy_type = "on_failure"
 restart_policy_max_retries = 3
 
-# ── Frontend Service ──────────────────────────────────────────────────────────
+# ── Frontend Service (React/Nginx) ────────────────────────────────────────────
+# T2.10: replaced Streamlit (port 8501) with React/Nginx (port 80)
+# VITE_API_BASE must be set in Railway frontend service environment variables:
+#   VITE_API_BASE = https://your-backend.up.railway.app
 [services.frontend]
-# Build from the frontend-specific Dockerfile
 dockerfile = "Dockerfile.frontend"
 
-# Health check — Streamlit exposes a built-in health endpoint at /_stcore/health
-# Returns "ok" when the server is ready to accept browser connections
-# --start-period of 40s is important: Streamlit takes longer to boot than FastAPI
-healthcheck_path = "/_stcore/health"
+# Nginx serves on port 80 — no Streamlit health endpoint anymore
+healthcheck_path = "/"
 healthcheck_timeout = 60
 
-# Port the frontend listens on — must match CMD in Dockerfile.frontend
-port = 8501
+port = 80
 
 restart_policy_type = "on_failure"
 restart_policy_max_retries = 3

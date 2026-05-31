@@ -1,0 +1,76 @@
+Read and understand the full content of parent doc - design/TRACK_2_REACT_MIGRATION_PROMPT.md,
+and now read and understand the full content of child doc react-migration/T2.1-T2.2_scaffold_auth_shell.md
+and implement T2.1 — Project Scaffold + Auth
+
+
+
+Read and understand the full content of parent doc - design/TRACK_2_REACT_MIGRATION_PROMPT.md,
+and now read and understand the full content of child doc react-migration/T2.1-T2.2_scaffold_auth_shell.md
+and implementation of  T2.1 — Project Scaffold + Auth is completed
+and now implement T2.2 — Shell, Navigation & Onboarding Wizard
+
+Perfect for the time being. Now since we have made few additional fixes to
+T2.1 — Project Scaffold + Auth and T2.2 — Shell, Navigation & Onboarding Wizard . Let's update
+the md files again and if required update the remaining md files if there's any 
+cascading dependencies 
+
+
+
+Read and understand the full content of parent doc - design/TRACK_2_REACT_MIGRATION_PROMPT.md,
+and now read and understand the full content of child doc react-migration/T2.1-T2.2_scaffold_auth_shell.md
+and implementation of  T2.1 — Project Scaffold + Auth 
+and T2.2 — Shell, Navigation & Onboarding Wizard are completed.
+now implement react-migration/T2.3_quick_add_tab.md
+
+
+Read and understand the full content of parent doc - design/TRACK_2_REACT_MIGRATION_PROMPT.md,
+and now read and understand the full content of child doc react-migration/T2.1-T2.2_scaffold_auth_shell.md
+and implementation of  T2.1 — Project Scaffold + Auth 
+and T2.2 — Shell, Navigation & Onboarding Wizard 
+and react-migration/T2.3_quick_add_tab.md are completed.
+now implement react-migration/T2.4_fixed_tab.md
+
+Read and understand the full content of parent doc - design/TRACK_2_REACT_MIGRATION_PROMPT.md,
+and now read and understand the full content of child doc react-migration/T2.1-T2.2_scaffold_auth_shell.md
+and implementation of  T2.1 — Project Scaffold + Auth 
+and T2.2 — Shell, Navigation & Onboarding Wizard 
+and react-migration/T2.3_quick_add_tab.md are completed.
+and react-migration/T2.4_fixed_tab.md are completed.
+now implement react-migration/T2.5_overview_dashboard_tab.md
+
+
+Read and understand the full content of parent doc - design/TRACK_2_REACT_MIGRATION_PROMPT.md,
+and now read and understand the full content of child doc react-migration/T2.1-T2.2_scaffold_auth_shell.md
+and implementation of  T2.1 — Project Scaffold + Auth 
+and T2.2 — Shell, Navigation & Onboarding Wizard 
+and react-migration/T2.3_quick_add_tab.md 
+and react-migration/T2.4_fixed_tab.md
+and react-migration/T2.5_overview_dashboard_tab.md are completed.
+now implement react-migration/T2.6_history_tab.md
+
+
+
+
+
+Read and understand the full content of parent doc - design/TRACK_2_REACT_MIGRATION_PROMPT.md,
+and now read and understand the full content of child doc react-migration/T2.1-T2.2_scaffold_auth_shell.md
+and implementation of  T2.1 — Project Scaffold + Auth 
+and T2.2 — Shell, Navigation & Onboarding Wizard 
+and react-migration/T2.3_quick_add_tab.md 
+and react-migration/T2.4_fixed_tab.md
+and react-migration/T2.5_overview_dashboard_tab.md
+and react-migration/T2.6_history_tab.md are completed.
+now implement react-migration/T2.7_settings_tab.md
+
+
+
+Read and understand the full content of parent doc - design/TRACK_2_REACT_MIGRATION_PROMPT.md,
+and now read and understand the full content of child doc react-migration/T2.1-T2.2_scaffold_auth_shell.md
+and implementation of  T2.1 — Project Scaffold + Auth 
+and T2.2 — Shell, Navigation & Onboarding Wizard 
+and react-migration/T2.3_quick_add_tab.md 
+and react-migration/T2.4_fixed_tab.md
+and react-migration/T2.5_overview_dashboard_tab.md
+and react-migration/T2.6_history_tab.md
+and react-migration/T2.7_settings_tab.md are completed.
+now implement react-migration/T2.8_account_admin.md

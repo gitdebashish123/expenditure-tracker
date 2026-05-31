@@ -64,11 +64,12 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "http://localhost:8501",
+        "http://localhost:8501",                              # Streamlit — keep throughout migration
         "https://localhost:8443",
-        "https://frontend-production-22a3.up.railway.app",
+        "http://localhost:5173",                              # Vite dev server (T2.1)
+        "https://frontend-production-22a3.up.railway.app",  # Railway Streamlit + React frontend
     ],
-    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Content-Type", "Authorization"],
     allow_credentials=False,
 )
@@ -276,8 +277,9 @@ class FixedTemplateCreate(BaseModel):
     @field_validator("amount")
     @classmethod
     def positive_amount(cls, v):
-        if v <= 0:
-            raise ValueError("Amount must be greater than 0")
+        # Pool templates may have amount=0 (typical amount unknown until paid)
+        if v < 0:
+            raise ValueError("Amount cannot be negative")
         return round(v, 2)
 
 class FixedTemplateUpdate(BaseModel):

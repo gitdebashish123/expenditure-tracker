@@ -151,4 +151,11 @@ proceed with the implementation of all steps for Commit 6.3 — Admin Panel (Ba
 
 Read design/SPRINT_6_PROMPT.md 
 and 
-proceed with the implementation of all steps for Commit Commit 6.4 — User Acceptance Testing
+proceed with the implementation of all steps for Commit Commit 6.4 — User Acceptance Testing'
+
+
+
+
+Read full content of todo/01-frontend-mobile-whatsapp-enhancements.md file
+and let's prepare a solid prompt to implement Track 2 — React Frontend Migration
+and save under the design folder. Let the streamlit feature be also there for comparison or references
