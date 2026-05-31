@@ -6,6 +6,7 @@ import { fmtInr } from "@/utils/formatInr";
 import { ExpenseRowSwipeable } from "@/components/shared/ExpenseRowSwipeable";
 import type { Expense, ExpenseTemplate } from "@/types";
 import { Loader2, Zap } from "lucide-react";
+import { useToast } from "@/context/ToastContext";
 
 /**
  * QuickAddTab — primary data entry tab
@@ -48,6 +49,7 @@ export function QuickAddTab() {
   const [todayExpenses, setTodayExpenses] = useState<Expense[]>([]);
 
   const inputRef = useRef<HTMLInputElement>(null);
+  const { toast } = useToast();
 
   // Auto-focus the text input when the tab mounts
   // Streamlit can't do this — requires a page refresh workaround
@@ -91,8 +93,14 @@ export function QuickAddTab() {
       setLastResult(data);
       setText("");          // clear input after successful parse
       refreshToday();       // update today's entries list
+      if (data.saved.length > 0) {
+        toast(
+          `${data.saved.length} expense${data.saved.length > 1 ? "s" : ""} saved`,
+          { icon: "⚡" }
+        );
+      }
     } catch {
-      // Error handling: show nothing — user can re-try
+      toast("Failed to parse expenses. Try again.", { type: "error" });
     } finally {
       setParsing(false);
     }
@@ -103,8 +111,9 @@ export function QuickAddTab() {
     try {
       await api.post(`/expense-templates/${id}/log`);
       refreshToday();
+      toast("Logged!", { icon: "⚡" });
     } catch {
-      // silently fail
+      toast("Failed to log shortcut.", { type: "error" });
     } finally {
       setLoadingFav(null);
     }
