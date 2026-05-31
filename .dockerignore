@@ -37,6 +37,7 @@ data/
 
 # ── Local development tools — not needed in production ────────────────────────
 nginx/
+!nginx/react.conf
 tests/
 design/
 .claude/
