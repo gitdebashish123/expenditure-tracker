@@ -67,6 +67,13 @@ export function FixedTab() {
 
   useEffect(() => { load(); }, [load]);
 
+  // Re-fetch when a template is edited in Settings (dispatched by BillsSection)
+  useEffect(() => {
+    const handler = () => load();
+    window.addEventListener("fixedTemplateUpdated", handler);
+    return () => window.removeEventListener("fixedTemplateUpdated", handler);
+  }, [load]);
+
   // Optimistic toggle — UI updates immediately, backend syncs in background
   // Streamlit: PATCH + full st.rerun() = visible flicker on every tick
   const togglePaid = async (id: number) => {
@@ -164,6 +171,7 @@ export function FixedTab() {
                       key={item.id}
                       item={item}
                       onToggle={() => togglePaid(item.id)}
+                      onAmountChange={load}
                     />
                   ))}
                 </div>

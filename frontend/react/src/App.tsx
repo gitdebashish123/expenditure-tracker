@@ -12,8 +12,9 @@ import { AccountPage }     from "@/pages/AccountPage";
  *
  * Provider order:
  *   ThemeProvider  → sets dark/light class on <html>
- *     AuthProvider → manages JWT token + user state
- *       ToastProvider → in-app notification stack (replaces st.toast)
+ *     ToastProvider → in-app notification stack (must wrap AuthProvider so
+ *                     AuthContext can call useToast for inactivity warnings)
+ *       AuthProvider → manages JWT token + user state
  *         BrowserRouter → React Router
  *
  * Routes:
@@ -25,8 +26,8 @@ import { AccountPage }     from "@/pages/AccountPage";
 export default function App() {
   return (
     <ThemeProvider>
-      <AuthProvider>
-        <ToastProvider>
+      <ToastProvider>
+        <AuthProvider>
           <BrowserRouter>
             <Routes>
               <Route path="/login" element={<LoginPage />} />
@@ -50,8 +51,8 @@ export default function App() {
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </BrowserRouter>
-        </ToastProvider>
-      </AuthProvider>
+        </AuthProvider>
+      </ToastProvider>
     </ThemeProvider>
   );
 }

@@ -18,7 +18,7 @@ import { createContext, useContext, useState, useCallback, useRef } from "react"
  *   toast("Info message", { type: "info" });
  */
 
-export type ToastType = "success" | "error" | "info";
+export type ToastType = "success" | "error" | "info" | "warning";
 
 interface Toast {
   id:      number;
@@ -37,6 +37,7 @@ const TYPE_CLASSES: Record<ToastType, string> = {
   success: "bg-emerald-500/15 border-emerald-500/30 text-emerald-300",
   error:   "bg-red-500/15 border-red-500/30 text-red-300",
   info:    "bg-indigo-500/15 border-indigo-500/30 text-indigo-300",
+  warning: "bg-amber-500/15 border-amber-500/30 text-amber-300",
 };
 
 export function ToastProvider({ children }: { children: React.ReactNode }) {

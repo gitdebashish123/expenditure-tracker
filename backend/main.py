@@ -875,6 +875,27 @@ def update_template(
     session.add(tmpl)
     session.commit()
     session.refresh(tmpl)
+
+    # Sync name/amount changes to already-seeded Expense rows for current+future months.
+    # Without this, the Fixed tab keeps showing the old values until next month's seed.
+    if update.name is not None or update.amount is not None:
+        current_month = get_month_key()
+        seeded_rows = session.exec(
+            select(Expense).where(
+                Expense.fixed_template_id == template_id,
+                Expense.month_key >= current_month,
+                Expense.user_id == current_user.id,
+            )
+        ).all()
+        for row in seeded_rows:
+            if update.name is not None:
+                row.vendor = tmpl.name
+            if update.amount is not None:
+                row.amount = tmpl.amount
+            session.add(row)
+        if seeded_rows:
+            session.commit()
+
     return tmpl
 
 
