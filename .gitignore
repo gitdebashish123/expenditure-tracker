@@ -43,3 +43,14 @@ htmlcov/
 nginx/certs/*.crt
 nginx/certs/*.key
 nginx/certs/*.pem
+
+# React frontend build artifacts
+frontend/react/node_modules/
+frontend/react/dist/
+frontend/react/.vite/
+
+# PWA auto-generated service worker (rebuilt on every deploy)
+frontend/react/public/sw.js
+frontend/react/public/workbox-*.js
+frontend/react/public/sw.js.map
+frontend/react/public/workbox-*.js.map

@@ -1,0 +1,170 @@
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ═══════════════════════════════════════════════════════════════
+   DESIGN TOKENS
+   All colours flow from here. Light mode overrides the same vars.
+   ═══════════════════════════════════════════════════════════════ */
+
+:root {
+  /* Backgrounds */
+  --bg:        #0a0a0f;
+  --card:      #111118;
+  --card2:     #1a1a28;
+  --card3:     #22223a;
+
+  /* Text */
+  --text:      #ffffff;
+  --text-sub:  rgba(255, 255, 255, 0.55);
+  --text-muted:rgba(255, 255, 255, 0.30);
+
+  /* Borders */
+  --border:    rgba(255, 255, 255, 0.08);
+  --border-lg: rgba(255, 255, 255, 0.12);
+
+  /* Brand */
+  --accent:    #6366f1;
+  --accent2:   #8b5cf6;
+  --accent-bg: rgba(99, 102, 241, 0.15);
+
+  /* Status */
+  --success:   #34d399;
+  --danger:    #ef4444;
+  --warning:   #f59e0b;
+  --success-bg:rgba(52, 211, 153, 0.10);
+  --danger-bg: rgba(239, 68,  68,  0.10);
+  --warning-bg:rgba(245, 158, 11,  0.10);
+}
+
+/* ── Light mode ───────────────────────────────────────────────── */
+html.light {
+  /* Backgrounds — warm whites, not stark */
+  --bg:        #f4f4f8;
+  --card:      #ffffff;
+  --card2:     #eeeef4;
+  --card3:     #e4e4ee;
+
+  /* Text — deep navy, not pure black */
+  --text:      #1a1a2e;
+  --text-sub:  rgba(26, 26, 46, 0.55);
+  --text-muted:rgba(26, 26, 46, 0.35);
+
+  /* Borders — subtle grey */
+  --border:    rgba(26, 26, 46, 0.10);
+  --border-lg: rgba(26, 26, 46, 0.16);
+
+  /* Status colours stay the same — just slightly desaturated bg */
+  --success-bg:rgba(52, 211, 153, 0.12);
+  --danger-bg: rgba(239, 68,  68,  0.12);
+  --warning-bg:rgba(245, 158, 11,  0.12);
+  --accent-bg: rgba(99, 102, 241, 0.12);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   BASE
+   ═══════════════════════════════════════════════════════════════ */
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html { transition: background-color 0.2s ease; }
+
+body {
+  font-family: 'DM Sans', sans-serif;
+  background-color: var(--bg);
+  color: var(--text);
+  margin: 0;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   TAILWIND CLASS OVERRIDES
+   Map all the opacity-based white/dark utility classes to CSS vars
+   so light mode works without rewriting every component.
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── Backgrounds ─────────────────────────────────────────────── */
+.bg-dark-bg,
+.bg-dark-bg\/95  { background-color: var(--bg)    !important; }
+.bg-dark-card    { background-color: var(--card)   !important; }
+.bg-dark-card2   { background-color: var(--card2)  !important; }
+
+/* ── Text — base ─────────────────────────────────────────────── */
+.text-white { color: var(--text) !important; }
+
+/* ── Text — opacity variants (white/40, white/50 etc.) ────────
+   In dark mode these are rgba(255,255,255,0.x) — readable on dark bg.
+   In light mode we remap to the var(--text-sub/muted) so they stay
+   readable on light bg without touching every component.            */
+.text-white\/20,
+.text-white\/25 { color: var(--text-muted) !important; }
+
+.text-white\/30,
+.text-white\/35,
+.text-white\/40 { color: var(--text-sub)   !important; opacity: 0.7; }
+
+.text-white\/50,
+.text-white\/60,
+.text-white\/70 { color: var(--text-sub)   !important; }
+
+/* ── Borders ─────────────────────────────────────────────────── */
+.border-white\/5,
+.border-white\/7,
+.border-white\/8,
+.border-white\/10 { border-color: var(--border)    !important; }
+
+.border-white\/15,
+.border-white\/20 { border-color: var(--border-lg) !important; }
+
+/* ── Header & nav ────────────────────────────────────────────── */
+header {
+  background-color: var(--card) !important;
+  border-bottom-color: var(--border) !important;
+}
+
+nav.fixed {
+  background-color: var(--card) !important;
+  border-top-color: var(--border) !important;
+}
+
+/* Desktop tab row */
+.desktop-tabs {
+  background-color: var(--bg) !important;
+  border-bottom-color: var(--border) !important;
+}
+
+/* ── Inputs, selects ─────────────────────────────────────────── */
+input:not([type="radio"]):not([type="checkbox"]),
+select,
+textarea {
+  background-color: var(--card2) !important;
+  color: var(--text) !important;
+  border-color: var(--border-lg) !important;
+  transition: background-color 0.15s, color 0.15s, border-color 0.15s;
+}
+
+input::placeholder,
+textarea::placeholder { color: var(--text-muted) !important; }
+
+select option {
+  background-color: var(--card2);
+  color: var(--text);
+}
+
+/* ── Dividers ────────────────────────────────────────────────── */
+hr { border-color: var(--border) !important; }
+
+/* ── Backdrop blur header ────────────────────────────────────── */
+.bg-dark-bg\/90 { background-color: var(--bg) !important; }
+.backdrop-blur-sm { -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
+
+/* ── Status & accent bg helpers ──────────────────────────────── */
+.status-success-bg { background-color: var(--success-bg) !important; }
+.status-danger-bg  { background-color: var(--danger-bg)  !important; }
+.status-warning-bg { background-color: var(--warning-bg) !important; }
+.accent-bg         { background-color: var(--accent-bg)  !important; }
+
+/* ── Scrollbar hide ──────────────────────────────────────────── */
+.scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+.scrollbar-hide::-webkit-scrollbar { display: none; }
