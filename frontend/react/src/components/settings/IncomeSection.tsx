@@ -10,27 +10,55 @@ import { Save } from "lucide-react";
  * Streamlit ref: settings_section("💰", "My Take-home", ...) in with tab5:
  * POST /income { source, amount, note, month_key }
  * Loads existing income for selected month on mount and on month change.
+ *
+ * Source is a dropdown of common income types.
+ * "Other" reveals a free-text field (backward-compatible: if the saved source
+ * doesn't match a preset option it pre-selects "Other" and fills customSource).
  */
+
+const INCOME_SOURCES = [
+  "Salary",
+  "Freelance",
+  "Dividend",
+  "FD/RD Interest",
+  "Rental",
+  "Bonus",
+  "Other",
+] as const;
+
+function getSelectValue(savedSource: string): string {
+  return (INCOME_SOURCES as readonly string[]).includes(savedSource)
+    ? savedSource
+    : "Other";
+}
+
 export function IncomeSection() {
   const { selMonth } = useMonth();
 
-  const [source, setSource] = useState("Salary");
+  const [selectSource, setSelectSource] = useState("Salary");
+  const [customSource, setCustomSource] = useState("");
   const [amount, setAmount] = useState<number>(0);
   const [note,   setNote]   = useState("");
   const [saving, setSaving] = useState(false);
   const [saved,  setSaved]  = useState(false);
 
+  // Derived: the value actually submitted to the API
+  const effectiveSource =
+    selectSource === "Other" ? (customSource.trim() || "Other") : selectSource;
+
   // Load existing income for the selected month
   useEffect(() => {
     api.get<IncomeEntry>(`/income/${selMonth}`)
       .then(r => {
-        setSource(r.data.source ?? "Salary");
+        const saved = r.data.source ?? "Salary";
+        setSelectSource(getSelectValue(saved));
+        setCustomSource(getSelectValue(saved) === "Other" ? saved : "");
         setAmount(r.data.amount ?? 0);
         setNote(r.data.note ?? "");
       })
       .catch(() => {
-        // No income set yet — keep form defaults
-        setSource("Salary");
+        setSelectSource("Salary");
+        setCustomSource("");
         setAmount(0);
         setNote("");
       });
@@ -41,7 +69,7 @@ export function IncomeSection() {
     setSaving(true);
     try {
       await api.post("/income", {
-        source:    source.trim() || "Salary",
+        source:    effectiveSource,
         amount,
         note:      note.trim() || null,
         month_key: selMonth,
@@ -70,22 +98,37 @@ export function IncomeSection() {
 
       <form onSubmit={handleSave} className="space-y-3">
         <div className="grid grid-cols-2 gap-3">
-          <input
-            value={source}
-            onChange={e => setSource(e.target.value)}
-            placeholder="e.g. Infosys Salary, Freelance"
+          {/* Source dropdown */}
+          <select
+            value={selectSource}
+            onChange={e => setSelectSource(e.target.value)}
             className={inputCls}
-          />
+          >
+            {INCOME_SOURCES.map(s => (
+              <option key={s} value={s}>{s}</option>
+            ))}
+          </select>
           <input
             type="number"
             min="0"
-            step="1000"
+            step="1"
             value={amount || ""}
             onChange={e => setAmount(Number(e.target.value))}
             placeholder="Amount (₹)"
             className={inputCls}
           />
         </div>
+
+        {/* Free-text override when "Other" is selected */}
+        {selectSource === "Other" && (
+          <input
+            value={customSource}
+            onChange={e => setCustomSource(e.target.value)}
+            placeholder="Specify income source…"
+            className={`w-full ${inputCls}`}
+          />
+        )}
+
         <input
           value={note}
           onChange={e => setNote(e.target.value)}

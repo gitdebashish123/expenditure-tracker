@@ -187,7 +187,7 @@ export function OnboardingWizard() {
               <input
                 type="number"
                 min="0"
-                step="1000"
+                step="1"
                 value={incomeAmt || ""}
                 onChange={(e) => setIncomeAmt(Number(e.target.value))}
                 placeholder="Amount (₹)"
@@ -266,7 +266,7 @@ export function OnboardingWizard() {
                   <input
                     type="number"
                     min="0"
-                    step="100"
+                    step="1"
                     value={billAmt || ""}
                     onChange={(e) => setBillAmt(Number(e.target.value))}
                     placeholder={
@@ -358,7 +358,7 @@ export function OnboardingWizard() {
                     <input
                       type="number"
                       min="0"
-                      step="500"
+                      step="1"
                       value={val}
                       onChange={(e) =>
                         setCaps((prev) => ({ ...prev, [cat]: Number(e.target.value) }))
