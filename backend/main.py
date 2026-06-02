@@ -615,7 +615,7 @@ def get_expenses(request: Request, month_key: str, session: Session = Depends(ge
         select(Expense).where(
             Expense.month_key == month_key,
             Expense.user_id == current_user.id,
-        ).order_by(Expense.date.desc())
+        ).order_by(Expense.date.desc(), Expense.id.desc())
     ).all()
 
 
@@ -1001,14 +1001,15 @@ def list_budgets(session: Session = Depends(get_session),
 def upsert_income(income: IncomeInput, session: Session = Depends(get_session),
                   current_user: User = Depends(get_current_user)):
     month_key = income.month_key or get_month_key()
+    # Upsert by (month_key, user_id, source) so each source is independent
     existing = session.exec(
         select(IncomeEntry).where(
             IncomeEntry.month_key == month_key,
             IncomeEntry.user_id == current_user.id,
+            IncomeEntry.source == income.source,
         )
     ).first()
     if existing:
-        existing.source = income.source
         existing.amount = income.amount
         existing.note   = income.note
         session.add(existing)
@@ -1021,6 +1022,35 @@ def upsert_income(income: IncomeInput, session: Session = Depends(get_session),
         session.add(entry)
     session.commit()
     return {"month_key": month_key, "source": income.source, "amount": income.amount}
+
+
+@app.get("/income/{month_key}/all")
+def get_all_income(month_key: str, session: Session = Depends(get_session),
+                   current_user: User = Depends(get_current_user)):
+    """Return all income entries for the month as a list."""
+    entries = session.exec(
+        select(IncomeEntry).where(
+            IncomeEntry.month_key == month_key,
+            IncomeEntry.user_id == current_user.id,
+        )
+    ).all()
+    return [{"id": e.id, "source": e.source, "amount": e.amount, "note": e.note} for e in entries]
+
+
+@app.delete("/income/{income_id}")
+def delete_income(income_id: int, session: Session = Depends(get_session),
+                  current_user: User = Depends(get_current_user)):
+    entry = session.exec(
+        select(IncomeEntry).where(
+            IncomeEntry.id == income_id,
+            IncomeEntry.user_id == current_user.id,
+        )
+    ).first()
+    if not entry:
+        raise HTTPException(status_code=404, detail="Income entry not found")
+    session.delete(entry)
+    session.commit()
+    return {"deleted": income_id}
 
 
 @app.get("/income/{month_key}")

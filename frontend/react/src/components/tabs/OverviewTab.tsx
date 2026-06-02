@@ -4,7 +4,6 @@ import { useMonth } from "@/context/MonthContext";
 import { fmtInr } from "@/utils/formatInr";
 import { fmtDate } from "@/utils/formatDate";
 import { CATEGORY_ICONS } from "@/utils/categories";
-import { BalanceSummaryCard } from "@/components/shared/BalanceSummaryCard";
 import { BalanceBreakdown } from "@/components/shared/BalanceBreakdown";
 import { SpendDonut } from "@/components/shared/SpendDonut";
 import { BudgetHealthCard } from "@/components/shared/BudgetHealthCard";
@@ -129,7 +128,7 @@ export function OverviewTab() {
       const [sum, proj, top, momData] = await Promise.all([
         api.get<Summary>(`/summary/${selMonth}`).then(r => r.data),
         api.get<ProjectionItem[]>(`/insights/projection/${selMonth}`).then(r => r.data),
-        api.get<TopSpend[]>(`/insights/top-spends/${selMonth}?limit=10`).then(r => r.data),
+        api.get<TopSpend[]>(`/insights/top-spends/${selMonth}?limit=5`).then(r => r.data),
         api.get<MoMData>(`/insights/mom/${selMonth}`).then(r => r.data),
       ]);
       setSummary(sum);
@@ -171,29 +170,8 @@ export function OverviewTab() {
   return (
     <div className="space-y-6">
 
-      {/* ── Section 1: Balance summary cards ────────────── */}
+      {/* ── Section 1: Monthly breakdown bar ───────────── */}
       <section>
-        <div className="grid grid-cols-3 gap-2 sm:gap-3 mb-4">
-          <BalanceSummaryCard
-            label="Remaining"
-            value={balance.remaining}
-            sub="After all paid expenses"
-            accent
-            highlight={balance.remaining >= 0 ? "success" : "danger"}
-          />
-          <BalanceSummaryCard
-            label="Income"
-            value={balance.total_income}
-            sub={`${fmtInr(balance.variable_total)} variable`}
-          />
-          <BalanceSummaryCard
-            label="Fixed Paid"
-            value={balance.fixed_paid_total}
-            sub={`${fmtInr(balance.fixed_unpaid_total)} pending`}
-          />
-        </div>
-
-        {/* Stacked breakdown bar */}
         <BalanceBreakdown balance={balance} />
       </section>
 

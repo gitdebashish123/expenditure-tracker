@@ -8,20 +8,8 @@ interface Balance {
   remaining: number;
 }
 
-/**
- * BalanceBreakdown — horizontal stacked bar showing monthly allocation
- *
- * Streamlit ref: gauge_html div with custom HTML segments in with tab3:
- * Replaces the fragile inline-HTML approach with a clean flex div.
- *
- * Segments (left to right):
- *   Indigo       → Fixed Paid
- *   Faded indigo → Fixed Pending
- *   Red          → Variable spent
- *   Green        → Remaining (clamped to 0 if negative)
- */
 export function BalanceBreakdown({ balance }: { balance: Balance }) {
-  const inc = Math.max(balance.total_income, 1); // avoid divide-by-zero
+  const inc = Math.max(balance.total_income, 1);
 
   const segments = [
     {
@@ -30,17 +18,17 @@ export function BalanceBreakdown({ balance }: { balance: Balance }) {
       colour: "#6366f1",
     },
     {
-      label:  "Pending",
+      label:  "Fixed Due",
       value:  balance.fixed_unpaid_total,
       colour: "rgba(99,102,241,0.3)",
     },
     {
-      label:  "Variable",
+      label:  "Variable Spent",
       value:  balance.variable_total,
       colour: "#f87171",
     },
     {
-      label:  "Remaining",
+      label:  "Balance Left",
       value:  Math.max(balance.remaining, 0),
       colour: "rgba(52,211,153,0.4)",
     },

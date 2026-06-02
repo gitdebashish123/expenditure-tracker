@@ -1,20 +1,15 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { api } from "@/api/client";
 import { useMonth } from "@/context/MonthContext";
-import type { IncomeEntry } from "@/types";
-import { Save } from "lucide-react";
+import { fmtInr } from "@/utils/formatInr";
+import { Save, Trash2, Plus } from "lucide-react";
 
-/**
- * IncomeSection — monthly take-home income form
- *
- * Streamlit ref: settings_section("💰", "My Take-home", ...) in with tab5:
- * POST /income { source, amount, note, month_key }
- * Loads existing income for selected month on mount and on month change.
- *
- * Source is a dropdown of common income types.
- * "Other" reveals a free-text field (backward-compatible: if the saved source
- * doesn't match a preset option it pre-selects "Other" and fills customSource).
- */
+interface IncomeRow {
+  id: number;
+  source: string;
+  amount: number;
+  note: string | null;
+}
 
 const INCOME_SOURCES = [
   "Salary",
@@ -35,37 +30,42 @@ function getSelectValue(savedSource: string): string {
 export function IncomeSection() {
   const { selMonth } = useMonth();
 
+  const [entries,      setEntries]      = useState<IncomeRow[]>([]);
+  const [loading,      setLoading]      = useState(true);
+
+  // Add-new-source form
+  const [showAddForm,  setShowAddForm]  = useState(false);
   const [selectSource, setSelectSource] = useState("Salary");
   const [customSource, setCustomSource] = useState("");
-  const [amount, setAmount] = useState<number>(0);
-  const [note,   setNote]   = useState("");
-  const [saving, setSaving] = useState(false);
-  const [saved,  setSaved]  = useState(false);
+  const [amount,       setAmount]       = useState<number>(0);
+  const [note,         setNote]         = useState("");
+  const [saving,       setSaving]       = useState(false);
+  const [saved,        setSaved]        = useState(false);
 
-  // Derived: the value actually submitted to the API
   const effectiveSource =
     selectSource === "Other" ? (customSource.trim() || "Other") : selectSource;
 
-  // Load existing income for the selected month
-  useEffect(() => {
-    api.get<IncomeEntry>(`/income/${selMonth}`)
-      .then(r => {
-        const saved = r.data.source ?? "Salary";
-        setSelectSource(getSelectValue(saved));
-        setCustomSource(getSelectValue(saved) === "Other" ? saved : "");
-        setAmount(r.data.amount ?? 0);
-        setNote(r.data.note ?? "");
-      })
-      .catch(() => {
-        setSelectSource("Salary");
-        setCustomSource("");
-        setAmount(0);
-        setNote("");
-      });
+  const loadEntries = useCallback(() => {
+    setLoading(true);
+    api.get<IncomeRow[]>(`/income/${selMonth}/all`)
+      .then(r => setEntries(r.data))
+      .catch(() => setEntries([]))
+      .finally(() => setLoading(false));
   }, [selMonth]);
+
+  useEffect(() => {
+    loadEntries();
+    // Reset add form when month changes
+    setShowAddForm(false);
+    setSelectSource("Salary");
+    setCustomSource("");
+    setAmount(0);
+    setNote("");
+  }, [loadEntries, selMonth]);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!amount || amount <= 0) return;
     setSaving(true);
     try {
       await api.post("/income", {
@@ -76,10 +76,27 @@ export function IncomeSection() {
       });
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
+      setShowAddForm(false);
+      setSelectSource("Salary");
+      setCustomSource("");
+      setAmount(0);
+      setNote("");
+      loadEntries();
     } finally {
       setSaving(false);
     }
   };
+
+  const handleDelete = async (id: number) => {
+    setEntries(prev => prev.filter(e => e.id !== id));
+    try {
+      await api.delete(`/income/${id}`);
+    } catch {
+      loadEntries(); // restore on failure
+    }
+  };
+
+  const totalIncome = entries.reduce((s, e) => s + e.amount, 0);
 
   const inputCls =
     "bg-dark-card2 border border-white/10 rounded-xl px-4 py-3 text-white " +
@@ -87,65 +104,141 @@ export function IncomeSection() {
 
   return (
     <section>
-      {/* Section header */}
       <div className="mb-4">
         <h2 className="font-syne font-bold text-white">💰 My Take-home</h2>
         <p className="text-sm mt-0.5" style={{ color: "var(--text-sub)" }}>
-          Your salary or income credited this month.
+          All income credited this month. Add salary, dividends, bonuses, etc.
         </p>
         <div className="border-b border-white/10 mt-3" />
       </div>
 
-      <form onSubmit={handleSave} className="space-y-3">
-        <div className="grid grid-cols-2 gap-3">
-          {/* Source dropdown */}
-          <select
-            value={selectSource}
-            onChange={e => setSelectSource(e.target.value)}
-            className={inputCls}
-          >
-            {INCOME_SOURCES.map(s => (
-              <option key={s} value={s}>{s}</option>
-            ))}
-          </select>
-          <input
-            type="number"
-            min="0"
-            step="1"
-            value={amount || ""}
-            onChange={e => setAmount(Number(e.target.value))}
-            placeholder="Amount (₹)"
-            className={inputCls}
-          />
-        </div>
+      {/* Existing income entries */}
+      {!loading && entries.length > 0 && (
+        <div className="space-y-2 mb-4">
+          {entries.map(entry => (
+            <div
+              key={entry.id}
+              className="flex items-center justify-between px-4 py-3
+                         bg-dark-card2 border border-white/10 rounded-xl"
+            >
+              <div className="min-w-0">
+                <p className="text-sm text-white font-medium">{entry.source}</p>
+                {entry.note && (
+                  <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>
+                    {entry.note}
+                  </p>
+                )}
+              </div>
+              <div className="flex items-center gap-3 flex-shrink-0">
+                <span className="font-syne font-semibold text-sm text-emerald-400">
+                  +{fmtInr(entry.amount)}
+                </span>
+                <button
+                  onClick={() => handleDelete(entry.id)}
+                  className="w-7 h-7 flex items-center justify-center rounded-lg
+                             hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                  style={{ color: "var(--text-muted)" }}
+                  aria-label={`Remove ${entry.source}`}
+                >
+                  <Trash2 size={12} />
+                </button>
+              </div>
+            </div>
+          ))}
 
-        {/* Free-text override when "Other" is selected */}
-        {selectSource === "Other" && (
+          {/* Total row */}
+          <div className="flex justify-between items-center px-4 py-2
+                          bg-emerald-500/5 border border-emerald-500/20 rounded-xl">
+            <span className="text-xs font-semibold uppercase tracking-widest"
+                  style={{ color: "var(--text-sub)" }}>
+              Total Income
+            </span>
+            <span className="font-syne font-bold text-emerald-400">
+              {fmtInr(totalIncome)}
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* Empty state */}
+      {!loading && entries.length === 0 && (
+        <p className="text-sm mb-4" style={{ color: "var(--text-muted)" }}>
+          No income recorded for {selMonth} yet.
+        </p>
+      )}
+
+      {/* Add income source */}
+      {!showAddForm ? (
+        <button
+          type="button"
+          onClick={() => setShowAddForm(true)}
+          className="flex items-center gap-2 text-sm text-indigo-400 hover:text-indigo-300
+                     transition-colors py-1"
+        >
+          <Plus size={14} /> Add income source
+        </button>
+      ) : (
+        <form onSubmit={handleSave} className="space-y-3 mt-2">
+          <div className="grid grid-cols-2 gap-3">
+            <select
+              value={selectSource}
+              onChange={e => setSelectSource(e.target.value)}
+              className={inputCls}
+            >
+              {INCOME_SOURCES.map(s => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
+            <input
+              type="number"
+              min="0"
+              step="1"
+              value={amount || ""}
+              onChange={e => setAmount(Number(e.target.value))}
+              placeholder="Amount (₹)"
+              className={inputCls}
+              autoFocus
+            />
+          </div>
+
+          {selectSource === "Other" && (
+            <input
+              value={customSource}
+              onChange={e => setCustomSource(e.target.value)}
+              placeholder="Specify income source…"
+              className={`w-full ${inputCls}`}
+            />
+          )}
+
           <input
-            value={customSource}
-            onChange={e => setCustomSource(e.target.value)}
-            placeholder="Specify income source…"
+            value={note}
+            onChange={e => setNote(e.target.value)}
+            placeholder="Note (optional)"
             className={`w-full ${inputCls}`}
           />
-        )}
 
-        <input
-          value={note}
-          onChange={e => setNote(e.target.value)}
-          placeholder="Note (optional, e.g. Includes bonus)"
-          className={`w-full ${inputCls}`}
-        />
-        <button
-          type="submit"
-          disabled={saving}
-          className="flex items-center gap-2 bg-gradient-to-r from-accent to-accent2
-                     text-white font-semibold px-6 py-2.5 rounded-xl text-sm
-                     disabled:opacity-50 transition-opacity"
-        >
-          <Save size={14} />
-          {saving ? "Saving…" : saved ? "✅ Saved!" : "Save"}
-        </button>
-      </form>
+          <div className="flex gap-2">
+            <button
+              type="submit"
+              disabled={saving || !amount || amount <= 0}
+              className="flex items-center gap-2 bg-gradient-to-r from-accent to-accent2
+                         text-white font-semibold px-6 py-2.5 rounded-xl text-sm
+                         disabled:opacity-50 transition-opacity"
+            >
+              <Save size={14} />
+              {saving ? "Saving…" : saved ? "✅ Saved!" : "Save"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowAddForm(false)}
+              className="px-4 py-2.5 rounded-xl text-sm transition-colors
+                         bg-dark-card text-white/50 hover:text-white"
+            >
+              Cancel
+            </button>
+          </div>
+        </form>
+      )}
     </section>
   );
 }

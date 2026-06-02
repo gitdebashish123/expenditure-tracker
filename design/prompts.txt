@@ -159,3 +159,25 @@ proceed with the implementation of all steps for Commit Commit 6.4 — User Acc
 Read full content of todo/01-frontend-mobile-whatsapp-enhancements.md file
 and let's prepare a solid prompt to implement Track 2 — React Frontend Migration
 and save under the design folder. Let the streamlit feature be also there for comparison or references
+
+
+Observation after first migration sprint :
+1. Month is not changing for June. It still displays May after 12:00am and it’s already 1st June 
+but when i checked in the morning I could see the month flipped to June
+2. No options to save reminder for fixed spends or the monthly fixed bills from mobile 
+or May be it’s not visible 
+3. No option to delete or update categories or amount for fixed entries are visible in
+mobile but it's visible in desktop
+4. My take home only shows salary but it can also be sometime dividend or interest from RD, FDs etc 
+5. Webpage session is not getting logged out after hours as well. it must be logged out after 5 minutes inactive
+6. I updated the name of fixed expenses from setting and saved it but it didn’t reflect on fixed tab. 
+It still shows what’s been entered during wizard form. 
+Same issue for value update as well. 
+7. On budget health -
+    - [ ] On track seems good but projected for few categories doesn’t look good
+    - [ ] Rather it should be some valid user short message to warn user when the spends are >= to 80% of target amount 
+    - [ ] When it exceeds target amount there should be some other user message
+- [ ] 
+8.I tried to enter milk amount under fixed in setting as 585 and it shows validation error to enter a valid amount in mobile or desktop. Two nearest values are 500 and 600
+
+Please generate a spec for above observation and save it under .claude/specs

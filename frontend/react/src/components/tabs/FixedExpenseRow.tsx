@@ -73,7 +73,7 @@ export function FixedExpenseRow({ item, onToggle, onAmountChange }: Props) {
       }`}
       style={item.paid ? { color: "var(--text-muted)" } : {}}>
         {item.vendor}
-        {item.note && (
+        {item.note && item.note !== "Auto-seeded fixed expense" && (
           <span className="ml-2 text-xs" style={{ color: "var(--text-muted)" }}>
             · {item.note}
           </span>
