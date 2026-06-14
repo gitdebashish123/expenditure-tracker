@@ -153,3 +153,4 @@ Let's now implement plans/02-react-migration-phase2-bug-fix-v3.md
 
 earlier way of presenting Monthly Breakdown was better only naming convetion changes shoud be
 there
+
