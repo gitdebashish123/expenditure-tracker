@@ -1,4 +1,4 @@
-# ── SanchaySaathi — Railway Deployment Config ─────────────────────────────────
+# ── Wallet Mantra — Railway Deployment Config ──────────────────────────────────
 # Defines two services: backend (FastAPI) and frontend (React/Nginx)
 # Railway reads this file automatically when connected to the GitHub repo
 #
@@ -16,7 +16,7 @@
 #   uv run streamlit run frontend/app.py --server.port 8501
 
 [project]
-name = "sanchaySaathi"
+name = "walletMantra"
 
 # ── Backend Service ───────────────────────────────────────────────────────────
 [services.backend]

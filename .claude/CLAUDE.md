@@ -1,4 +1,4 @@
-# SpendSense — Project Context for Claude
+# Wallet Mantra — Project Context for Claude
 
 ## What This Project Is
 A personal expenditure tracker with natural-language expense input, powered by the Anthropic Claude API.

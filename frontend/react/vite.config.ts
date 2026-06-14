@@ -7,14 +7,14 @@ export default defineConfig({
   plugins: [
     react(),
 
-    // PWA — makes SanchaySaathi installable on iPhone/Android home screen
+    // PWA — makes Wallet Mantra installable on iPhone/Android home screen
     VitePWA({
       registerType: "autoUpdate",
       includeAssets: ["favicon.ico", "icons/*.png"],
       manifest: {
-        name:             "SanchaySaathi",
-        short_name:       "SanchaySaathi",
-        description:      "Your companion for smart daily budgeting",
+        name:             "Wallet Mantra",
+        short_name:       "WalletMantra",
+        description:      "Beyond expense tracking",
         theme_color:      "#0a0a0f",
         background_color: "#0a0a0f",
         display:          "standalone",

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What This Project Is
 
-SanchaySaathi (previously SpendSense) — a personal expenditure tracker with natural-language expense input, powered by the Anthropic Claude API. The user types prompts like `zomato 500, ola 200` and the app auto-categorises, saves, and tracks budgets.
+Wallet Mantra — a personal expenditure tracker with natural-language expense input, powered by the Anthropic Claude API. The user types prompts like `zomato 500, ola 200` and the app auto-categorises, saves, and tracks budgets.
 
 ## Tech Stack
 
