@@ -19,16 +19,19 @@ const STATUS_CONFIG: Record<
   ProjectionItem["status"],
   { dot: string; accent: string; bg: string; label: string }
 > = {
-  over:    { dot: "🔴", accent: "#ef4444", bg: "rgba(239,68,68,0.08)",  label: "Over budget" },
-  danger:  { dot: "🟠", accent: "#f59e0b", bg: "rgba(245,158,11,0.07)", label: ""            },
-  warning: { dot: "🟡", accent: "#eab308", bg: "rgba(234,179,8,0.06)",  label: ""            },
-  safe:    { dot: "🟢", accent: "#34d399", bg: "rgba(52,211,153,0.05)", label: "On track"    },
+  over:    { dot: "🔴", accent: "#ef4444", bg: "rgba(239,68,68,0.08)",  label: ""                               },
+  danger:  { dot: "🟠", accent: "#f59e0b", bg: "rgba(245,158,11,0.07)", label: "🔴 Likely to exceed limit"      },
+  warning: { dot: "🟡", accent: "#eab308", bg: "rgba(234,179,8,0.06)",  label: "⚠️ Slow down — 80% limit near" },
+  safe:    { dot: "🟢", accent: "#34d399", bg: "rgba(52,211,153,0.05)", label: "On track"                       },
 };
 
 export function BudgetHealthCard({ projection: p }: { projection: ProjectionItem }) {
   const cfg    = STATUS_CONFIG[p.status] ?? STATUS_CONFIG.safe;
   const barW   = Math.min(p.pct_spent, 100);
-  const label  = cfg.label || `Projected ${fmtInr(p.projected)}`;
+  const label  =
+    p.status === "over"
+      ? `🚫 Limit exceeded — ${fmtInr(p.spent - p.limit)} over`
+      : cfg.label || `Projected ${fmtInr(p.projected)}`;
   const daysInfo =
     p.days_left > 0
       ? `${p.days_left}d left · ${fmtInr(p.daily_rate)}/day`

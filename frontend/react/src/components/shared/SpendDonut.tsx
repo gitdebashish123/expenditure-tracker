@@ -55,6 +55,7 @@ export function SpendDonut({ categories }: Props) {
               fontSize: 12,
             }}
             labelStyle={{ color: "white" }}
+            itemStyle={{ color: "white" }}
           />
         </PieChart>
       </ResponsiveContainer>

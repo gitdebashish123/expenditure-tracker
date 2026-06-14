@@ -96,7 +96,7 @@ export function CapsSection() {
                 <input
                   type="number"
                   min="0"
-                  step="500"
+                  step="1"
                   value={updates[b.category] ?? ""}
                   onChange={e =>
                     setUpdates(prev => ({

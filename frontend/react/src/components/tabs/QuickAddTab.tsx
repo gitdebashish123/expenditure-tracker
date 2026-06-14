@@ -31,7 +31,11 @@ interface ParseResult {
   balance: { remaining: number };
 }
 
-export function QuickAddTab() {
+interface Props {
+  onExpenseAdded?: () => void;
+}
+
+export function QuickAddTab({ onExpenseAdded }: Props = {}) {
   const { selMonth } = useMonth();
   const today = new Date().toISOString().slice(0, 10);
 
@@ -94,6 +98,7 @@ export function QuickAddTab() {
       setText("");          // clear input after successful parse
       refreshToday();       // update today's entries list
       if (data.saved.length > 0) {
+        onExpenseAdded?.();
         toast(
           `${data.saved.length} expense${data.saved.length > 1 ? "s" : ""} saved`,
           { icon: "⚡" }
@@ -111,6 +116,7 @@ export function QuickAddTab() {
     try {
       await api.post(`/expense-templates/${id}/log`);
       refreshToday();
+      onExpenseAdded?.();
       toast("Logged!", { icon: "⚡" });
     } catch {
       toast("Failed to log shortcut.", { type: "error" });

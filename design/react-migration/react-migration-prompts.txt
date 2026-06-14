@@ -74,3 +74,83 @@ and react-migration/T2.5_overview_dashboard_tab.md
 and react-migration/T2.6_history_tab.md
 and react-migration/T2.7_settings_tab.md are completed.
 now implement react-migration/T2.8_account_admin.md
+
+
+Read and understand the full content of parent doc - design/TRACK_2_REACT_MIGRATION_PROMPT.md,
+and now read and understand the full content of child doc react-migration/T2.1-T2.2_scaffold_auth_shell.md
+and implementation of  T2.1 — Project Scaffold + Auth 
+and T2.2 — Shell, Navigation & Onboarding Wizard 
+and react-migration/T2.3_quick_add_tab.md 
+and react-migration/T2.4_fixed_tab.md
+and react-migration/T2.5_overview_dashboard_tab.md
+and react-migration/T2.6_history_tab.md
+and react-migration/T2.7_settings_tab.md
+and react-migration/react-migration/T2.8_account_admin.md are completed.
+now implement react-migration/T2.8_account_admin.md
+
+
+
+
+
+Observation after first migration sprint :
+1. Month is not changing for June. It still displays May after 12:00am and it’s already 1st June 
+but when i checked in the morning I could see the month flipped to June
+2. No options to save reminder for fixed spends or the monthly fixed bills from mobile 
+or May be it’s not visible 
+3. No option to delete or update categories or amount for fixed entries are visible in
+mobile but it's visible in desktop
+4. My take home only shows salary but it can also be sometime dividend or interest from RD, FDs etc 
+5. Webpage session is not getting logged out after hours as well. it must be logged out after 5 minutes inactive
+6. I updated the name of fixed expenses from setting and saved it but it didn’t reflect on fixed tab. 
+It still shows what’s been entered during wizard form. 
+Same issue for value update as well. 
+7. On budget health -
+    - [ ] On track seems good but projected for few categories doesn’t look good
+    - [ ] Rather it should be some valid user short message to warn user when the spends are >= to 80% of target amount 
+    - [ ] When it exceeds target amount there should be some other user message
+- [ ] 
+8.I tried to enter milk amount under fixed in setting as 585 and it shows validation error to enter a valid amount in mobile or desktop. Two nearest values are 500 and 600
+
+Please generate a spec for above observation and save it under .claude/specs
+
+
+Read .claude/specs/post_migration_sprint1_bugs.md and generates an implementation 
+plan and save it under .claude/plans/01-sprint7-react-migration-phase2-v2.md
+
+
+
+
+Observation after first phase bug fix :
+
+- [ ] Forgot password option is missing in login page
+- [ ] Dividend , bonus are additional income, it should get added to the main income
+- [ ] On hovering over pie chart under spend by categories, amount is not being visible as it’s coming up as black text box
+- [ ] Under monthly breakdown section it should be
+    - [ ] Fixed paid
+    - [ ] Fixed remaining 
+    - [ ] Variable already paid
+    - [ ] Total remaining 
+- [ ] Top spends this month 
+    - [ ] Let’s keep to top 5 only
+- [ ] Under fixed tab
+    - [ ] Don’t show “auto seeded fixed expense” for all the list items. For e.g. now it’s Rent and then followed by a lighter auto seeded fixed expense
+- [ ] Today/History tab
+    - [ ] entries should be in descending order , now it’s ascending, meaning latest spending should come first
+
+Please generate a spec for above observation and save it under .claude/specs
+
+Let's add another observation to the same spec doc
+currently remaining,income and fixed paid cards are visible only under 
+overview ,so someone has to always go to overview tab to see this INFO
+whereas it should be seen as common for cards under today and fixed tabs
+and bit animated like flip card and display the amount. what do you Suggest?
+
+
+Read .claude/specs/react-migration-phase2-bug-fix.md and generates an implementation 
+plan and save it under .claude/plans/02-react-migration-phase2-bug-fix-v3.md
+
+Let's now implement plans/02-react-migration-phase2-bug-fix-v3.md
+
+earlier way of presenting Monthly Breakdown was better only naming convetion changes shoud be
+there
+

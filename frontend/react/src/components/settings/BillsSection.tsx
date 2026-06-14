@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import { api } from "@/api/client";
 import { CATEGORY_ICONS, FIXED_CATEGORIES } from "@/utils/categories";
 import type { FixedExpenseTemplate } from "@/types";
-import { ChevronDown, ChevronUp, Trash2, Save, Plus } from "lucide-react";
+import { ChevronDown, ChevronUp, Trash2, Save, Plus, Check } from "lucide-react";
 
 /**
  * BillsSection — fixed template management + add new bill form
@@ -42,6 +42,8 @@ function TemplateEditRow({
         amount:  amt,
         due_day: dueDay > 0 ? dueDay : null,
       });
+      // Signal FixedTab to re-fetch — backend has already synced seeded expense rows
+      window.dispatchEvent(new CustomEvent("fixedTemplateUpdated"));
       onSaved();
     } finally {
       setSaving(false);
@@ -53,46 +55,55 @@ function TemplateEditRow({
     "text-xs focus:border-accent focus:outline-none transition-colors";
 
   return (
-    <div className="flex items-center gap-2 px-3 py-2">
+    // Mobile: name spans full width; amount + due-day on row 2; icons right-aligned
+    // Desktop (sm+): original single flex row
+    <div className="grid grid-cols-[1fr_auto] gap-x-2 gap-y-2
+                    sm:flex sm:items-center sm:gap-2 px-3 py-2">
+      {/* Name — full width on mobile, flex-1 on desktop */}
       <input
         value={name}
         onChange={e => setName(e.target.value)}
-        className={`flex-1 ${inputCls}`}
+        className={`col-span-2 sm:flex-1 min-w-0 ${inputCls}`}
       />
+      {/* Amount — col 1 on mobile */}
       <input
         type="number"
         min="0"
-        step="100"
+        step="1"
         value={amt}
         onChange={e => setAmt(Number(e.target.value))}
-        className={`w-24 ${inputCls}`}
+        className={`${inputCls}`}
       />
+      {/* Due-day — col 2 on mobile (full width in its cell), w-28 on desktop */}
       <select
         value={dueDay}
         onChange={e => setDueDay(Number(e.target.value))}
-        className={`w-28 ${inputCls}`}
+        className={`sm:w-28 ${inputCls}`}
       >
         <option value={0}>No reminder</option>
         {Array.from({ length: 28 }, (_, i) => i + 1).map(d => (
           <option key={d} value={d}>{d}th of month</option>
         ))}
       </select>
-      <button
-        onClick={handleSave}
-        disabled={saving}
-        className="text-indigo-400 hover:text-indigo-200 disabled:opacity-40 transition-colors"
-        aria-label="Save"
-      >
-        <Save size={13} />
-      </button>
-      <button
-        onClick={onDelete}
-        className="hover:text-red-400 transition-colors"
-        style={{ color: "var(--text-muted)" }}
-        aria-label="Delete"
-      >
-        <Trash2 size={13} />
-      </button>
+      {/* Action icons — right-aligned below on mobile, inline on desktop */}
+      <div className="flex gap-2 items-center justify-end col-start-2 sm:contents">
+        <button
+          onClick={handleSave}
+          disabled={saving}
+          className="text-indigo-400 hover:text-indigo-200 disabled:opacity-40 transition-colors"
+          aria-label="Save"
+        >
+          {saving ? <Check size={13} /> : <Save size={13} />}
+        </button>
+        <button
+          onClick={onDelete}
+          className="hover:text-red-400 transition-colors"
+          style={{ color: "var(--text-muted)" }}
+          aria-label="Delete"
+        >
+          <Trash2 size={13} />
+        </button>
+      </div>
     </div>
   );
 }
@@ -321,7 +332,7 @@ export function BillsSection() {
               <input
                 type="number"
                 min="0"
-                step="100"
+                step="1"
                 value={newAmt || ""}
                 onChange={e => setNewAmt(Number(e.target.value))}
                 placeholder={

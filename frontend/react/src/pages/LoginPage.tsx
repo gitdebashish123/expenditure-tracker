@@ -25,6 +25,7 @@ export function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [showForgotMsg, setShowForgotMsg] = useState(false);
 
   const emailValid = /^[^@]+@[^@]+\.[^@]+$/.test(email);
 
@@ -32,6 +33,7 @@ export function LoginPage() {
     setMode(next);
     setError(null);
     setSuccess(null);
+    setShowForgotMsg(false);
   };
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -183,6 +185,33 @@ export function LoginPage() {
               {loading ? "Creating…" : "Create Account"}
             </button>
           </form>
+        )}
+
+        {/* Forgot password — login mode only */}
+        {mode === "login" && (
+          <>
+            <button
+              type="button"
+              onClick={() => setShowForgotMsg(v => !v)}
+              className="mt-2 w-full text-sm text-indigo-400/70 hover:text-indigo-300 transition-colors py-1"
+            >
+              Forgot password?
+            </button>
+            {showForgotMsg && (
+              <div className="mt-1 p-3 rounded-xl bg-indigo-500/10 border border-indigo-500/30
+                              text-indigo-300 text-sm flex items-start justify-between gap-2">
+                <span>To reset your password, please contact your administrator.</span>
+                <button
+                  type="button"
+                  onClick={() => setShowForgotMsg(false)}
+                  className="text-indigo-400/60 hover:text-indigo-300 flex-shrink-0 leading-none"
+                  aria-label="Dismiss"
+                >
+                  ×
+                </button>
+              </div>
+            )}
+          </>
         )}
 
         {/* Mode toggle */}

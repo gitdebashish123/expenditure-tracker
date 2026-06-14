@@ -266,8 +266,11 @@ export function HistoryTab() {
         (e.note?.toLowerCase().includes(q) ?? false)
       );
     }
-    // Sort descending by date
-    return [...list].sort((a, b) => b.date.localeCompare(a.date));
+    // Sort descending by date, then by id (latest entry first within same day)
+    return [...list].sort((a, b) => {
+      const byDate = b.date.localeCompare(a.date);
+      return byDate !== 0 ? byDate : b.id - a.id;
+    });
   }, [expenses, showFixed, searchQuery]);
 
   // ── Derived: grouped by date ──────────────────────────────────────────────

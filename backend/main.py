@@ -67,7 +67,8 @@ app.add_middleware(
         "http://localhost:8501",                              # Streamlit — keep throughout migration
         "https://localhost:8443",
         "http://localhost:5173",                              # Vite dev server (T2.1)
-        "https://frontend-production-22a3.up.railway.app",  # Railway Streamlit + React frontend
+        #"https://frontend-production-9697.up.railway.app",  # Railway Streamlit + React frontend
+        "https://app.wallet-mantra.com",  # cloudflare domain
     ],
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Content-Type", "Authorization"],
@@ -615,7 +616,7 @@ def get_expenses(request: Request, month_key: str, session: Session = Depends(ge
         select(Expense).where(
             Expense.month_key == month_key,
             Expense.user_id == current_user.id,
-        ).order_by(Expense.date.desc())
+        ).order_by(Expense.date.desc(), Expense.id.desc())
     ).all()
 
 
@@ -875,6 +876,27 @@ def update_template(
     session.add(tmpl)
     session.commit()
     session.refresh(tmpl)
+
+    # Sync name/amount changes to already-seeded Expense rows for current+future months.
+    # Without this, the Fixed tab keeps showing the old values until next month's seed.
+    if update.name is not None or update.amount is not None:
+        current_month = get_month_key()
+        seeded_rows = session.exec(
+            select(Expense).where(
+                Expense.fixed_template_id == template_id,
+                Expense.month_key >= current_month,
+                Expense.user_id == current_user.id,
+            )
+        ).all()
+        for row in seeded_rows:
+            if update.name is not None:
+                row.vendor = tmpl.name
+            if update.amount is not None:
+                row.amount = tmpl.amount
+            session.add(row)
+        if seeded_rows:
+            session.commit()
+
     return tmpl
 
 
@@ -980,14 +1002,15 @@ def list_budgets(session: Session = Depends(get_session),
 def upsert_income(income: IncomeInput, session: Session = Depends(get_session),
                   current_user: User = Depends(get_current_user)):
     month_key = income.month_key or get_month_key()
+    # Upsert by (month_key, user_id, source) so each source is independent
     existing = session.exec(
         select(IncomeEntry).where(
             IncomeEntry.month_key == month_key,
             IncomeEntry.user_id == current_user.id,
+            IncomeEntry.source == income.source,
         )
     ).first()
     if existing:
-        existing.source = income.source
         existing.amount = income.amount
         existing.note   = income.note
         session.add(existing)
@@ -1000,6 +1023,35 @@ def upsert_income(income: IncomeInput, session: Session = Depends(get_session),
         session.add(entry)
     session.commit()
     return {"month_key": month_key, "source": income.source, "amount": income.amount}
+
+
+@app.get("/income/{month_key}/all")
+def get_all_income(month_key: str, session: Session = Depends(get_session),
+                   current_user: User = Depends(get_current_user)):
+    """Return all income entries for the month as a list."""
+    entries = session.exec(
+        select(IncomeEntry).where(
+            IncomeEntry.month_key == month_key,
+            IncomeEntry.user_id == current_user.id,
+        )
+    ).all()
+    return [{"id": e.id, "source": e.source, "amount": e.amount, "note": e.note} for e in entries]
+
+
+@app.delete("/income/{income_id}")
+def delete_income(income_id: int, session: Session = Depends(get_session),
+                  current_user: User = Depends(get_current_user)):
+    entry = session.exec(
+        select(IncomeEntry).where(
+            IncomeEntry.id == income_id,
+            IncomeEntry.user_id == current_user.id,
+        )
+    ).first()
+    if not entry:
+        raise HTTPException(status_code=404, detail="Income entry not found")
+    session.delete(entry)
+    session.commit()
+    return {"deleted": income_id}
 
 
 @app.get("/income/{month_key}")
