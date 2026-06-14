@@ -67,7 +67,7 @@ app.add_middleware(
         "http://localhost:8501",                              # Streamlit — keep throughout migration
         "https://localhost:8443",
         "http://localhost:5173",                              # Vite dev server (T2.1)
-        "https://frontend-production-22a3.up.railway.app",  # Railway Streamlit + React frontend
+        "https://frontend-production-9697.up.railway.app",  # Railway Streamlit + React frontend
     ],
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Content-Type", "Authorization"],
