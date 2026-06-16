@@ -69,7 +69,7 @@ def get_budget_insight(category: str, spent: float, limit: float, month: str) ->
 Generate a SHORT, friendly 1-sentence warning or tip (max 15 words). Be helpful, not preachy. Use ₹ symbol."""
 
     message = client.messages.create(
-        model="claude-sonnet-4-20250514",
+        model="claude-sonnet-4-5-20250929",
         max_tokens=100,
         messages=[{"role": "user", "content": prompt}],
     )
