@@ -41,7 +41,7 @@ Return ONLY a valid JSON array, no explanation, no markdown. Example:
 [{{"vendor": "Zomato", "amount": 500, "category": "Food", "note": null}}, {{"vendor": "Ola", "amount": 200, "category": "Travel", "note": null}}]"""
 
     message = client.messages.create(
-        model="claude-sonnet-4-20250514",
+        model="claude-sonnet-4-5-20250929",
         max_tokens=1024,
         messages=[{"role": "user", "content": prompt}],
     )
