@@ -9,7 +9,7 @@ import { ProfileDropdown } from "./ProfileDropdown";
  * Streamlit ref: col_title / col_theme / col_logout / col_month block in frontend/app.py
  *
  * Layout:
- *   Left:   SanchaySaathi logo + tagline
+ *   Left:   Wallet Mantra logo + tagline
  *   Centre: MonthSelector (hidden on mobile — shown below header row)
  *   Right:  Theme toggle + ProfileDropdown
  *
@@ -27,10 +27,10 @@ export function Header() {
           {/* Logo */}
           <div className="flex-shrink-0">
             <h1 className="font-syne font-bold text-white text-lg leading-none tracking-tight">
-              💸 SanchaySaathi
+              💸 Wallet Mantra
             </h1>
             <p className="text-xs mt-0.5" style={{ color: 'var(--text-sub)' }}>
-              Your companion for smart daily budgeting
+              Beyond expense tracking
             </p>
           </div>
 

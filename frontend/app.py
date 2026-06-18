@@ -56,7 +56,7 @@ THEME = {
 T = THEME[st.session_state.theme]
 is_dark = st.session_state.theme == "dark"
 
-st.set_page_config(page_title="SpendSense", page_icon="\U0001f4b8", layout="wide",
+st.set_page_config(page_title="Wallet Mantra", page_icon="\U0001f4b8", layout="wide",
                    initial_sidebar_state="collapsed")
 
 st.markdown(f"""
@@ -179,7 +179,7 @@ def show_login_page():
         st.markdown("""
         <div style="text-align:center;margin-bottom:32px;margin-top:40px;">
             <div style="font-size:2.5rem;">\U0001f4b8</div>
-            <div class="login-title" style="text-align:center;">SpendSense</div>
+            <div class="login-title" style="text-align:center;">Wallet Mantra</div>
             <div class="login-subtitle" style="text-align:center;">Your personal salary tracker</div>
         </div>
         """, unsafe_allow_html=True)
@@ -346,7 +346,7 @@ def show_onboarding_wizard():
             f"<div style='text-align:center;margin-bottom:24px;'>"
             f"<div style='font-size:2rem;'>&#128640;</div>"
             f"<div style='font-size:1.3rem;font-weight:700;color:{T['text']};margin:8px 0 4px;'>"
-            f"Welcome to SpendSense!</div>"
+            f"Welcome to Wallet Mantra!</div>"
             f"<div style='color:{T['sub']};font-size:0.85rem;'>"
             f"Let's set up your account in 3 quick steps.</div>"
             f"</div>",
@@ -484,7 +484,7 @@ def show_onboarding_wizard():
                 api("POST", "/auth/complete-onboarding")
                 st.session_state.onboarding_complete = True
                 st.session_state.onboarding_step     = 1
-                st.toast("You're all set! Welcome to SpendSense.", icon="\U0001f389")
+                st.toast("You're all set! Welcome to Wallet Mantra.", icon="\U0001f389")
                 st.rerun()
             elif skipped:
                 api("POST", "/auth/complete-onboarding")
@@ -624,7 +624,7 @@ col_title, col_theme, col_logout, col_month = st.columns([3, 0.5, 0.7, 1])
 with col_title:
     st.markdown(f"""
     <div class="app-header">
-        <div class="app-title">\U0001f4b8 SpendSense</div>
+        <div class="app-title">\U0001f4b8 Wallet Mantra</div>
         <div class="app-subtitle">Personal Expenditure Tracker</div>
     </div>
     """, unsafe_allow_html=True)
@@ -701,7 +701,7 @@ if summary:
     rem_color   = "#34d399" if rem >= 0 else "#f87171"
     title_icon = '\U0001f7e2' if rem >= 0 else '\U0001f534'
     rem_str = fmt_inr(rem)
-    st.markdown(f"<script>document.title = '{title_icon} {rem_str} left\u00b7SpendSense';</script>", unsafe_allow_html=True)
+    st.markdown(f"<script>document.title = '{title_icon} {rem_str} left\u00b7Wallet Mantra';</script>", unsafe_allow_html=True)
     total_income   = bal.get("total_income", 0)
     income_display = f"\u20b9{total_income:,.0f}" if total_income > 0 else "Not set"
 
@@ -1498,7 +1498,7 @@ with tab5:
                     st.rerun()
 
 
-    st.markdown('<div style="margin-top:40px;padding-top:16px;border-top:1px solid rgba(255,255,255,0.07);text-align:center;color:rgba(255,255,255,0.25);font-size:0.78rem;">SpendSense &middot; <a href="https://github.com/gitdebashish123/expenditure-tracker/blob/main/PRIVACY.md" target="_blank" style="color:#a5b4fc;">Privacy Notice</a> &middot; Your data is private and isolated to your account</div>', unsafe_allow_html=True)
+    st.markdown('<div style="margin-top:40px;padding-top:16px;border-top:1px solid rgba(255,255,255,0.07);text-align:center;color:rgba(255,255,255,0.25);font-size:0.78rem;">Wallet Mantra &middot; <a href="https://github.com/gitdebashish123/expenditure-tracker/blob/main/PRIVACY.md" target="_blank" style="color:#a5b4fc;">Privacy Notice</a> &middot; Your data is private and isolated to your account</div>', unsafe_allow_html=True)
 
     # 1. MY INCOME
     settings_section("\U0001f4b0", "My Take-home", f"Your salary or income credited this month. Currently editing {month_label}.")
@@ -1748,7 +1748,7 @@ with tab5:
                 st.download_button(
                     label=f"\u2b07\ufe0f Download {fmt_month(sel_month)}",
                     data=r_month.content,
-                    file_name=f"spendsense_{sel_month}.csv",
+                    file_name=f"walletMantra_{sel_month}.csv",
                     mime="text/csv",
                     key="dl_month",
                     use_container_width=True,
@@ -1772,7 +1772,7 @@ with tab5:
                 st.download_button(
                     label="\u2b07\ufe0f Download Full History",
                     data=r_all.content,
-                    file_name=f"spendsense_all_{today_str}.csv",
+                    file_name=f"walletMantra_all_{today_str}.csv",
                     mime="text/csv",
                     key="dl_all",
                     use_container_width=True,

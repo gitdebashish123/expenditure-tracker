@@ -14,7 +14,7 @@ import { Download, Loader2 } from "lucide-react";
  * (Streamlit st.download_button had no loading state).
  *
  * Uses blob response type + createObjectURL for programmatic download.
- * CSV filenames use the app name SanchaySaathi (not SpendSense).
+ * CSV filenames use the app name Wallet Mantra.
  */
 export function ExportSection() {
   const { selMonth } = useMonth();
@@ -64,7 +64,7 @@ export function ExportSection() {
           onClick={() =>
             download(
               `/export/csv/${selMonth}`,
-              `sanchaySaathi_${selMonth}.csv`,
+              `walletMantra_${selMonth}.csv`,
               setLoadingMonth
             )
           }
@@ -84,7 +84,7 @@ export function ExportSection() {
           onClick={() =>
             download(
               "/export/csv/all",
-              `sanchaySaathi_all_${today}.csv`,
+              `walletMantra_all_${today}.csv`,
               setLoadingAll
             )
           }

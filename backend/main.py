@@ -51,7 +51,7 @@ def get_rate_limit_key(request: Request):
 limiter = Limiter(key_func=get_rate_limit_key)
 
 app = FastAPI(
-    title="SpendSense API",
+    title="Wallet Mantra API",
     version="2.0.0",
     description="Personal expenditure tracker - JWT authenticated, per-user data isolation",
     docs_url="/docs",
@@ -186,7 +186,7 @@ def health_check():
     """
     return {
         "status": "ok",
-        "app": "SpendSense",
+        "app": "Wallet Mantra",
         "version": "2.0.0",
         "timestamp": datetime.utcnow().isoformat(),
     }
@@ -1245,7 +1245,7 @@ def export_all_csv(
 
     output.seek(0)
     today = date.today().isoformat()
-    filename = f"spendsense_all_{today}.csv"
+    filename = f"walletMantra_all_{today}.csv"
     return StreamingResponse(
         iter([output.getvalue()]),
         media_type="text/csv",
@@ -1293,7 +1293,7 @@ def export_month_csv(
         ])
 
     output.seek(0)
-    filename = f"spendsense_{month_key}.csv"
+    filename = f"walletMantra_{month_key}.csv"
     return StreamingResponse(
         iter([output.getvalue()]),
         media_type="text/csv",

@@ -96,10 +96,10 @@ export function LoginPage() {
         <div className="text-center mb-8">
           <div className="text-5xl mb-3">💸</div>
           <h1 className="font-syne text-2xl font-bold text-white tracking-tight">
-            SanchaySaathi
+            Wallet Mantra
           </h1>
           <p className="text-sm text-white/40 mt-1">
-            Your companion for smart daily budgeting
+            Beyond expense tracking
           </p>
         </div>
 

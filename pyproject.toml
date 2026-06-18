@@ -1,5 +1,5 @@
 [project]
-name = "spendsense"
+name = "wallet-mantra"
 version = "1.0.0"
 description = "Natural-language personal expenditure tracker powered by Claude AI"
 requires-python = ">=3.12,<3.14"
@@ -24,7 +24,7 @@ dependencies = [
 ]
 
 [project.scripts]
-spendsense-api = "backend.main:app"
+wallet-mantra-api = "backend.main:app"
 
 [build-system]
 requires = ["hatchling"]

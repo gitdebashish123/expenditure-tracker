@@ -147,7 +147,7 @@ export function OnboardingWizard() {
           <div className="text-center mb-6">
             <div className="text-4xl mb-3">🚀</div>
             <h2 className="font-syne text-xl font-bold text-white tracking-tight">
-              Welcome to SanchaySaathi!
+              Welcome to Wallet Mantra!
             </h2>
             <p className="text-white/40 text-sm mt-1">
               Let's set up your account in 3 quick steps.
