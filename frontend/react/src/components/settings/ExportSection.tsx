@@ -31,11 +31,23 @@ export function ExportSection() {
     try {
       const { data } = await api.get(url, { responseType: "blob" });
       const href = URL.createObjectURL(data);
-      const a    = document.createElement("a");
-      a.href     = href;
-      a.download = filename;
-      a.click();
-      URL.revokeObjectURL(href);
+      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+
+      if (isIOS) {
+        // iOS Safari does not honour the download attribute on blob: URLs.
+        // Opening in a new tab lets the user Save to Files via share sheet.
+        window.open(href, "_blank");
+        // Delay revoke so the new tab has time to read the blob
+        setTimeout(() => URL.revokeObjectURL(href), 5000);
+      } else {
+        const a = document.createElement("a");
+        a.href = href;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(href);
+      }
     } finally {
       setLoading(false);
     }
@@ -99,6 +111,12 @@ export function ExportSection() {
           Download Full History
         </button>
       </div>
+
+      {/iPad|iPhone|iPod/.test(navigator.userAgent) && (
+        <p className="text-xs mt-2 text-center" style={{ color: "var(--text-muted)" }}>
+          On iPhone/iPad, the file opens in a new tab — tap Share → Save to Files
+        </p>
+      )}
     </section>
   );
 }

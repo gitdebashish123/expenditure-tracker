@@ -1,0 +1,54 @@
+1. No option to add a new category's monthly limit under Spending Caps
+Confirmed in CapsSection.tsx: it only renders an input for each row already in your budgets array, fetched from GET /budgets. Those rows exist because the onboarding wizard or config.yaml seeded them once for the admin user. There's no "+ Add category" control anywhere in this section, even though the backend's PUT /budget endpoint will happily upsert a brand-new category with no extra work. The fix is purely additive on the frontend: compare the hardcoded VAR_CATEGORIES (and maybe FIXED_CATEGORIES) list against whatever's already in budgets, and surface the remainder as addable rows — a dropdown or "+" button that lets you pick one of the missing categories and set its first limit, which then calls the same PUT /budget you already have.
+2. Spend by Category / Budget Health only show categories with a cap set
+This is a real bug, not just a budget-health quirk. In backend/main.py, get_summary() builds the categories list by looping over limits.items() (i.e., get_budget_limits()), not over actual spend. So if you log an expense under a category that has no BudgetLimit row, it contributes to totals and balance but is completely invisible in the donut chart and Top Spends-adjacent sections that key off summary.categories. Budget Health makes sense to gate on limits (no threshold, no health card), but Spend by Category shouldn't — it should be built from get_monthly_spent_by_category() (actual expense data) and then optionally enriched with limit/pct info where a cap exists. Practically: change the donut's data source to the union of "categories with spend" ∪ "categories with a limit," not just the latter.
+3. Mobile download not working
+ExportSection.tsx uses the classic blob-URL + synthetic <a> + .click() pattern. This is the most common cause of "downloads silently do nothing" on mobile: many mobile browsers (especially Chrome/Safari inside webviews, or when the app is opened via a PWA/installed shortcut) block URL.createObjectURL + programmatic anchor clicks, or they open the blob in a new tab that immediately closes without saving anything, particularly when Content-Disposition: attachment collides with how the mobile OS handles blob URLs (no real file path to hand to "Save to Files"). A few directions worth testing rather than assuming one fix: try opening the blob URL via window.open(href, '_blank') instead of a synthetic click, since some mobile browsers only honor file-save dialogs from an actual user-gesture-triggered navigation; check whether the Web Share API (navigator.share with a File object) is a better fit for mobile since it goes through the OS-level share sheet rather than a fake click; and verify what's actually happening on the device — open dev tools over USB or use Safari's remote inspector to see whether the click event is firing and what the network response looks like, since "nothing happens" usually means the blob is being created but never reaching disk.
+4. No date range filter for export
+Confirmed — backend only exposes /export/csv/{month_key} (single month) and /export/csv/all (everything). There's no /export/csv?from=...&to=... style endpoint. This is a reasonably small backend addition (a new route accepting start_date/end_date query params, filtering Expense.date between them) paired with a date-range picker in ExportSection.tsx replacing or sitting alongside the current two buttons.
+5. Add custom categories
+You actually already have the building blocks: VAR_CATEGORIES/FIXED_CATEGORIES in categories.ts, and the backend accepts free-text categories everywhere (ManualExpense.category, BudgetUpdate.category are plain strings, no enum/FK constraint). So "custom categories" isn't blocked by validation — it's blocked by the UI never asking for arbitrary text. The cleanest path: let the category list itself become partly user-extensible — store custom categories per user (a new small table, or just infer them from distinct Expense.category values already in the DB) so they show up consistently across Quick Add, Spending Caps, and the icon map (with a fallback 📦 for anything without a custom icon, which CapsSection.tsx already does). This ties directly back into fixing #1, since both need the same underlying "what categories exist for this user" concept rather than relying on a hardcoded constant plus whatever happens to have a budget row.
+If it's helpful, I can sketch a rough priority order: #2 is the one I'd call an actual bug (silent data loss in a visualization) versus #1/#5 which are the same missing feature (category management UI) and #3/#4 which are export polish. Want me to draft a more detailed technical approach for any one of these, like the exact shape of a "manage categories" feature, before you queue it into Sprint 6 or a separate fix branch?
+
+############# Item A — Mobile download iOS fix ##########
+Implement Item A from .claude/plans/04-spending-caps-export-custom-categories.md only.
+Scope strictly to frontend/react/src/components/settings/ExportSection.tsx as described in the plan.
+Do not touch any other item (B–F) or any other file.
+Before editing, re-read the current file to confirm the line numbers in the plan still match. If they've drifted, adjust to the actual current content rather than guessing.
+After editing, show me a diff and stop — do not commit, do not move to the next item.
+###########################################################
+
+############# Item B — Backend: uncapped spending in summary ##########
+Implement Item B from .claude/plans/04-spending-caps-export-custom-categories.md only.
+Scope strictly to backend/main.py, the categories-building loop the plan describes (originally lines 946–955 — re-verify current line numbers first since Item A's commit may have shifted nothing here, but check anyway).
+Do not touch BudgetHealthCard, the projection endpoint, or CapsSection — the plan explicitly says these should remain unaffected. If your change would affect them, stop and tell me before proceeding.
+Show me a diff and stop. No commit yet.
+###########################################################
+
+
+############# Item C — CapsSection add-new-cap UI
+ ##########
+Implement Item C from .claude/plans/04-spending-caps-export-custom-categories.md only.
+Scope strictly to frontend/react/src/components/settings/CapsSection.tsx.
+Re-verify against the current file first — Items A and B don't touch this file, but confirm the insertion point (after the closing </form> tag) still matches.
+No backend changes — the plan confirms PUT /budget already supports this as an upsert; don't modify it.
+Show me a diff and stop.
+###########################################################
+
+
+############# Item D — Date range CSV export
+ ##########
+Implement Item D from .claude/plans/04-spending-caps-export-custom-categories.md only.
+This touches both backend/main.py (new /export/csv/range endpoint) and frontend/react/src/components/settings/ExportSection.tsx.
+Important: ExportSection.tsx was already modified in Item A. Re-read the current state of the file before editing — don't apply the plan's snippet assuming the pre-Item-A version of the file.
+Confirm the route ordering note in the plan (range must be defined before {month_key}) and verify against the actual current route definitions in main.py before inserting.
+Show me a diff of both files and stop.
+###########################################################
+
+
+############# Item E — Custom categories Phase 1 (the big one)
+ ##########
+Implement Item E from .claude/plans/04-spending-caps-export-custom-categories.md, but only the backend portion first: the UserCategory model in backend/models.py, the migration DDL in migrate_schema.py, and the three new endpoints in backend/main.py.
+Do not touch any frontend files yet.
+Show me a diff of all backend changes and stop. Do not run the migration yet — just show me the code.
+###########################################################
