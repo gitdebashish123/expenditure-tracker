@@ -38,6 +38,7 @@ No backend changes — the plan confirms PUT /budget already supports this as an
 Show me a diff and stop.
 ###########################################################
 
+"feat: add new category cap from Settings UI (Item C)".
 
 ############# Item D — Date range CSV export
  ##########

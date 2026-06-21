@@ -1207,8 +1207,53 @@ def budget_projection(month_key: str, session: Session = Depends(get_session),
 
 
 # ── Data Export ─────────────────────────────────────────────────────────────
-# NOTE: /export/csv/all MUST be defined before /export/csv/{month_key}
-# to prevent FastAPI treating the literal string "all" as a month_key value.
+# NOTE: /export/csv/all and /export/csv/range MUST be defined before /export/csv/{month_key}
+# to prevent FastAPI treating the literal strings "all" / "range" as month_key values.
+
+@app.get("/export/csv/range")
+@limiter.limit("20/hour")
+def export_range_csv(
+    request: Request,
+    from_date: str,
+    to_date: str,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    """Export expenses for a date range (both YYYY-MM-DD, inclusive)."""
+    if from_date > to_date:
+        raise HTTPException(status_code=400, detail="from_date must be ≤ to_date")
+
+    expenses = session.exec(
+        select(Expense)
+        .where(
+            Expense.user_id == current_user.id,
+            Expense.date >= from_date,
+            Expense.date <= to_date,
+        )
+        .order_by(Expense.date)
+    ).all()
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["month", "date", "vendor", "category", "amount", "note", "type", "paid"])
+    for e in expenses:
+        writer.writerow([
+            e.month_key,
+            e.date.isoformat() if e.date else "",
+            e.vendor, e.category, e.amount,
+            e.note or "",
+            "fixed" if e.is_fixed else "variable",
+            "yes" if e.paid else "no",
+        ])
+
+    output.seek(0)
+    filename = f"walletMantra_{from_date}_to_{to_date}.csv"
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
+
 
 @app.get("/export/csv/all")
 @limiter.limit("20/hour")
