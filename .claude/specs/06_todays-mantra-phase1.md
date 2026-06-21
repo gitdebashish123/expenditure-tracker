@@ -1,6 +1,6 @@
 # Spec: Today's Mantra — Phase 1 (on-demand daily insight)
 **Date**: 2026-06-22
-**Status**: Open — awaiting implementation
+**Status**: Implemented — 2026-06-22 (all 4 plan steps completed and committed; see `.claude/plans/06-todays-mantra-phase1.md`)
 
 ## Context
 

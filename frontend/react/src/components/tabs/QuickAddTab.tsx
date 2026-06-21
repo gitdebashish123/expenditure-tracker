@@ -35,6 +35,33 @@ interface Props {
   onExpenseAdded?: () => void;
 }
 
+function TodaysMantraCard() {
+  const { selMonth } = useMonth();
+  const [mantra, setMantra] = useState<string | null>(null);
+
+  useEffect(() => {
+    api.get<{ mantra: string }>(`/insights/mantra/${selMonth}`)
+      .then(r => setMantra(r.data.mantra))
+      .catch(() => {}); // fail silently — card simply doesn't render
+  }, [selMonth]);
+
+  if (!mantra) return null;
+
+  return (
+    <section>
+      <div className="bg-dark-card border border-white/10 rounded-2xl p-4">
+        <p className="text-xs font-syne font-bold uppercase tracking-widest mb-2"
+           style={{ color: 'var(--text-sub)' }}>
+          🪷 From Tara
+        </p>
+        <p className="text-white text-sm leading-relaxed">
+          {mantra}
+        </p>
+      </div>
+    </section>
+  );
+}
+
 export function QuickAddTab({ onExpenseAdded }: Props = {}) {
   const { selMonth } = useMonth();
   const today = new Date().toISOString().slice(0, 10);
@@ -139,6 +166,8 @@ export function QuickAddTab({ onExpenseAdded }: Props = {}) {
 
   return (
     <div className="space-y-6">
+
+      <TodaysMantraCard />
 
       {/* ── Section 1: NL Input Form ───────────────────── */}
       <section>
