@@ -27,6 +27,7 @@ Do not touch BudgetHealthCard, the projection endpoint, or CapsSection — the p
 Show me a diff and stop. No commit yet.
 ###########################################################
 
+Commit as "fix: include uncapped categories in spend summary (Item B)".
 
 ############# Item C — CapsSection add-new-cap UI
  ##########
