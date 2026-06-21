@@ -9,6 +9,15 @@
 
 6 items total — 2 require backend changes (Items B and D), 1 requires both backend and frontend (Item D), and 2 are frontend-only (Items A and C). Items E and F are the largest (new DB table) and depend on each other. Item F depends on E.
 
+**Status update (2026-06-22): Items E and F are SKIPPED for now.** Custom
+categories (Phase 1: DB + backend + frontend, Phase 2: AI parser wiring)
+are deferred indefinitely — not cancelled, just not part of the current
+implementation pass. Items A–D remain in scope and are unaffected by this
+decision; none of them depend on E or F. See the note directly above each
+of Items E and F below for what this means in practice, and see
+`.claude/specs/05_overview-page-ux-improvements.md` Issue 5, which assumed
+Item E would ship and needs re-evaluating as a result of this deferral.
+
 Ordered smallest-blast-radius first: isolated frontend fix → backend one-liner → frontend UI extension → backend new endpoint + frontend → DB migration + full stack feature → AI parser wiring.
 
 ---
@@ -353,6 +362,11 @@ Add `loadingRange` to the `useState` imports. The existing `download` helper (af
 ---
 
 ## Item E — Custom categories Phase 1: DB + backend + frontend
+
+**⏸ SKIPPED (2026-06-22) — deferred indefinitely, not implemented.** Plan
+content below is kept as-is for whenever this is picked back up; do not
+implement without re-confirming it's back in scope.
+
 **Scope**: Backend + Frontend (largest blast radius — schema migration + new table + new settings section)
 **Files**:
 - `backend/models.py` — new `UserCategory` table
@@ -529,6 +543,11 @@ Or rebuild Docker: `docker compose up -d --build`.
 ---
 
 ## Item F — Custom categories Phase 2: AI parser uses dynamic category list
+
+**⏸ SKIPPED (2026-06-22) — deferred indefinitely along with Item E, which
+this depends on.** Plan content below is kept as-is for whenever this is
+picked back up.
+
 **Scope**: Backend-only (depends on Item E being complete)
 **Files**:
 - `backend/ai_parser.py`
@@ -588,10 +607,12 @@ No schema change, no frontend change. `get_budget_insight` in `ai_parser.py` doe
 | B | Summary includes uncapped spending | ~30min | Yes (1 fn) | Low | — |
 | C | CapsSection add-new-cap UI | ~2h | No | Low | — |
 | D | Date range CSV export | ~3h | Yes (new endpoint) | Low | — |
-| E | Custom categories Phase 1 | ~1–2 days | Yes (new table) | Medium | — |
-| F | Custom categories Phase 2 (AI) | ~3h | Yes (parser) | Low | E |
+| E | ~~Custom categories Phase 1~~ | ~1–2 days | Yes (new table) | Medium | — | **SKIPPED 2026-06-22** |
+| F | ~~Custom categories Phase 2 (AI)~~ | ~3h | Yes (parser) | Low | E | **SKIPPED 2026-06-22** |
 
-Items A, B, C can be done in any order. D can be done independently. E requires running `migrate_schema.py` after. F must come after E.
+Items A, B, C can be done in any order. D can be done independently.
+Items E and F are deferred indefinitely (see Overview) — not part of the
+current implementation pass.
 
 ---
 
@@ -602,5 +623,7 @@ Items A, B, C can be done in any order. D can be done independently. E requires 
 - Item B: log an expense to an uncapped category → it appears in Spend by Category donut
 - Item C: add a new cap → it appears in the grid immediately, saves without page reload
 - Item D: range download works on desktop; iOS opens in new tab
-- Item E: after `uv run python migrate_schema.py`, add a custom category in Settings → appears in HistoryTab edit dropdown
-- Item F: type "HP petrol 800" in QuickAdd → AI returns `"Petrol"` category (if "Petrol" is a user custom category)
+- Items E and F: **not applicable — skipped for this implementation pass.**
+  Revisit their Definition of Done criteria (migration + custom category in
+  HistoryTab dropdown; AI parser recognising custom categories) only if and
+  when these items are picked back up.

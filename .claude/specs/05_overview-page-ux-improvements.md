@@ -108,45 +108,39 @@ follow-up, not required for this fix.
 
 ---
 
-## Issue 3 — Month-over-Month table: ₹0 and "no data" render identically
+## Issue 3 — Month-over-Month table "—" ambiguity (investigated and found NOT to need a fix)
 
-**Symptom**: Empty cells in the Month-over-Month table (e.g. April/May 2026
-for categories with no history) show as a bare "—", with no way to tell
-whether that means "no expenses logged that month" vs "category didn't
-exist / wasn't tracked yet".
+**Status: Closed, no code change — 2026-06-22.**
 
-**Root cause**:
-`frontend/react/src/components/shared/MoMTable.tsx`:
-```tsx
-{v > 0 ? fmtInr(v) : "—"}
-```
-Any value of exactly 0 (genuine zero spend) and any genuinely-missing month
-(`monthData[m] ?? 0` defaulting to 0 when the key doesn't exist) both
-collapse to the same `v > 0` false branch and render as "—". There's no
-distinction in the data model passed to the component between "tracked,
-spent nothing" and "not tracked this month".
+**Original symptom**: Empty cells in the Month-over-Month table (e.g.
+April/May 2026 for categories with no history) show as a bare "—", with no
+way to tell whether that means "no expenses logged that month" vs
+"category didn't exist / wasn't tracked yet".
 
-**Affected file(s)**:
-- `frontend/react/src/components/shared/MoMTable.tsx`
-- Likely also `backend/main.py` (`/insights/mom/{month_key}` endpoint) if
-  the distinction needs to be sourced from the backend — needs
-  investigation at implementation time to confirm whether the backend
-  currently differentiates "no data" from "zero spend" at all.
+**Why this turned out not to be a real issue**: The original write-up
+assumed two distinct states (a genuine ₹0 spend month, and a no-data month)
+were colliding into the same "—" display. Re-verifying against the actual
+backend during planning (`.claude/plans/05-overview-page-ux-improvements.md`)
+showed this premise doesn't hold:
 
-**Fix approach**: Investigate whether the backend response already
-distinguishes a missing month from a zero-spend month. If it does, surface
-the distinction in the UI (e.g. a lighter "—" with a tooltip "No data" vs a
-"₹0" with normal styling). If the backend doesn't currently distinguish
-them, this becomes a two-part fix (backend + frontend) — flag this in the
-plan rather than assuming frontend-only.
+- `GET /insights/mom/{month_key}` in `backend/main.py` builds its response
+  exclusively from real `Expense` rows — a category only gets an entry for
+  a given month if at least one expense exists for it that month. There is
+  no "tracked, spent nothing" state in the data at all.
+- A literal ₹0 expense cannot be created in this app — `ManualExpense`'s
+  `positive_amount` validator rejects any `amount <= 0`.
 
-**Acceptance criteria**:
-- A category with genuine ₹0 spend in a tracked month is visually
-  distinguishable from a category with no data that month (tooltip, label,
-  or styling difference).
+So every "—" the frontend shows already means exactly one thing
+unambiguously: no expenses were logged that month. There was never a second
+state being collapsed into it. The frontend's
+`frontend/react/src/components/shared/MoMTable.tsx` rendering
+(`v > 0 ? fmtInr(v) : "—"`) is already correct as-is.
 
-**Priority**: Low — ambiguous but not misleading in a damaging way; mostly
-a clarity nice-to-have.
+**Decision**: No code change (Option A — confirmed by user 2026-06-22).
+This entry is kept in the spec, rather than deleted, so the investigation
+and reasoning aren't lost if the question resurfaces later.
+
+**Priority**: N/A — closed, not actionable.
 
 ---
 
@@ -191,6 +185,14 @@ threshold before implementation.
 
 ## Issue 5 — Top Spends: generic 📦 icon flattens distinct entries
 
+**Status update (2026-06-22): blocked indefinitely.** This issue's only
+planned resolution path — Item E in
+`.claude/plans/04-spending-caps-export-custom-categories.md` (custom
+categories) — has been skipped indefinitely, not just delayed within the
+current sprint. See that plan's Overview section for the skip note. This
+issue should be treated as open and unresolved, not as "handled elsewhere,"
+until custom categories are explicitly picked back up.
+
 **Symptom**: In the Top Spends list, multiple distinct top entries
 (e.g. "SBI" and "Beena", both categorised "Miscellaneous") render with the
 same generic 📦 fallback icon, making two of the five biggest expenses
@@ -211,18 +213,30 @@ a bug — but it's a real readability gap.
 - `frontend/react/src/components/tabs/OverviewTab.tsx`
 - `frontend/react/src/utils/categories.ts`
 
-**Fix approach**: This resolves naturally once custom categories ship (see
-`.claude/plans/04-spending-caps-export-custom-categories.md`, Item E) —
-once users can create and assign icons to finer-grained categories instead
-of dumping everything into "Miscellaneous", top spends will differentiate
-better automatically. No standalone fix recommended ahead of that work;
-noting it here as supporting motivation, not a new task.
+**Fix approach (revised — original approach no longer applies)**: The
+original fix approach assumed Item E would ship soon and resolve this as a
+side effect. Since Item E is now deferred indefinitely, two paths forward:
 
-**Acceptance criteria**: N/A — tracked as a benefit of existing planned
-work (Item E), not a new acceptance-testable item.
+- **Option A — wait.** Leave this unresolved until/unless custom
+  categories are picked back up. No code change now. Lowest effort, but the
+  readability gap persists indefinitely with no committed timeline.
+- **Option B — small interim fix, independent of custom categories.**
+  Without a full custom-categories system, a lighter-weight improvement is
+  possible: derive a distinct icon or colour per *vendor* (not category)
+  using a deterministic hash of the vendor name (e.g. pick from a small
+  fixed palette of icons/colours based on a hash of `item.vendor`), so
+  "SBI" and "Beena" — both "Miscellaneous" — at least render visually
+  distinct from each other even though they share a category icon. This is
+  a self-contained frontend-only change, doesn't touch the backend or wait
+  on Item E, and would need its own small spec/plan if pursued.
 
-**Priority**: Low — informational only, no action needed independent of
-Item E.
+**Acceptance criteria**: N/A while blocked. If Option B is chosen, new
+acceptance criteria would need to be written for that specific approach.
+
+**Priority**: Low — informational only; now explicitly blocked rather than
+"resolved by upcoming work." Revisit if vendor-level visual distinction
+(Option B) becomes worth doing on its own, independent of full custom
+categories.
 
 ---
 
@@ -240,9 +254,11 @@ as a numbered issue above.
 ---
 
 ## Files NOT modified by this spec
-- `backend/main.py` — Issue 3 may require backend investigation, but no
-  confirmed backend change is in scope until that investigation happens
-  during planning/implementation.
+- `backend/main.py` — investigated for Issue 3; confirmed no backend
+  change is needed (see Issue 3, closed).
+- `frontend/react/src/components/shared/MoMTable.tsx` — investigated for
+  Issue 3; confirmed no frontend change is needed either (see Issue 3,
+  closed). Still in scope for Issue 4.
 - `frontend/react/src/components/shared/BalanceBreakdown.tsx` — the
   near-invisible "Fixed Due" segment was discussed in review but is
   edge-case-dependent (only visible when that value is small relative to
@@ -256,9 +272,11 @@ as a numbered issue above.
 |---|-------|----------|--------|-------|
 | 2 | Budget Health danger-tier emoji mismatch | Medium | ~10 min | `BudgetHealthCard.tsx` |
 | 1 | Summary cards: touch fallback + affordance | Medium | ~1–2h | `SummaryFlipCard.tsx`, `index.css` |
-| 3 | MoM table: ₹0 vs no-data ambiguity | Low | ~1–3h (depends on backend investigation) | `MoMTable.tsx`, possibly `backend/main.py` |
 | 4 | MoM trend % misleading at small baselines | Low | ~1h (pending threshold decision) | `MoMTable.tsx` |
 | 5 | Top Spends generic icon | Low | N/A — resolved by existing Item E | — |
+| 3 | ~~MoM table: ₹0 vs no-data ambiguity~~ | — | — | **Closed, no fix needed** — see Issue 3 |
 
-Note: Issue 2 and Issue 1 are both Medium priority now and roughly similar
-effort — fine to batch in the same session, in either order.
+Note: Issue 2 and Issue 1 are both Medium priority and roughly similar
+effort — fine to batch in the same session, in either order. Issue 3 is
+closed and no longer part of implementation; kept in the table only for
+traceability against the original numbering.
