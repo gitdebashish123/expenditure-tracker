@@ -20,7 +20,7 @@ const STATUS_CONFIG: Record<
   { dot: string; accent: string; bg: string; label: string }
 > = {
   over:    { dot: "🔴", accent: "#ef4444", bg: "rgba(239,68,68,0.08)",  label: ""                               },
-  danger:  { dot: "🟠", accent: "#f59e0b", bg: "rgba(245,158,11,0.07)", label: "🔴 Likely to exceed limit"      },
+  danger:  { dot: "🟠", accent: "#f59e0b", bg: "rgba(245,158,11,0.07)", label: "🟠 Likely to exceed limit"      },
   warning: { dot: "🟡", accent: "#eab308", bg: "rgba(234,179,8,0.06)",  label: "⚠️ Slow down — 80% limit near" },
   safe:    { dot: "🟢", accent: "#34d399", bg: "rgba(52,211,153,0.05)", label: "On track"                       },
 };
