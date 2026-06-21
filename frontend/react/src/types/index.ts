@@ -121,6 +121,10 @@ export interface DueReminder {
   days_overdue: number;
 }
 
+export interface DailyMantra {
+  mantra: string;
+}
+
 export interface AdminStats {
   total_users: number;
   active_users: number;
