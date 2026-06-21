@@ -18,6 +18,8 @@ Before editing, re-read the current file to confirm the line numbers in the plan
 After editing, show me a diff and stop — do not commit, do not move to the next item.
 ###########################################################
 
+That looks correct. Commit this with message "fix: iOS Safari blob download fallback (Item A)" and stop there.
+
 ############# Item B — Backend: uncapped spending in summary ##########
 Implement Item B from .claude/plans/04-spending-caps-export-custom-categories.md only.
 Scope strictly to backend/main.py, the categories-building loop the plan describes (originally lines 946–955 — re-verify current line numbers first since Item A's commit may have shifted nothing here, but check anyway).

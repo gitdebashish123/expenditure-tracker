@@ -943,9 +943,11 @@ def get_summary(request: Request, month_key: str, session: Session = Depends(get
     ).all()
     fixed_paid = sum(1 for e in fixed_exps if e.paid)
 
+    all_cats = set(spent_by_cat.keys()) | set(limits.keys())
     categories = []
-    for cat, limit in limits.items():
+    for cat in sorted(all_cats):
         spent = spent_by_cat.get(cat, 0)
+        limit = limits.get(cat, 0)
         categories.append({
             "category": cat,
             "spent": spent,

@@ -3,7 +3,7 @@ import { api } from "@/api/client";
 import { useMonth } from "@/context/MonthContext";
 import { fmtInr } from "@/utils/formatInr";
 import { fmtDate } from "@/utils/formatDate";
-import { CATEGORY_ICONS } from "@/utils/categories";
+import { CATEGORY_ICONS, FIXED_CATEGORIES } from "@/utils/categories";
 import { BalanceBreakdown } from "@/components/shared/BalanceBreakdown";
 import { SpendDonut } from "@/components/shared/SpendDonut";
 import { BudgetHealthCard } from "@/components/shared/BudgetHealthCard";
@@ -48,6 +48,12 @@ interface MoMData {
 // ── Sub-components ─────────────────────────────────────────────────────────────
 
 const RANK_COLOURS = ["#f59e0b", "#94a3b8", "#b45309", "#6366f1", "#6366f1"];
+
+const DONUT_FILTERS = [
+  { value: "variable" as const, label: "Day-to-day"  },
+  { value: "fixed"    as const, label: "Fixed Bills"  },
+  { value: "all"      as const, label: "All"          },
+];
 
 function TopSpendRow({ rank, item }: { rank: number; item: TopSpend }) {
   const icon = CATEGORY_ICONS[item.category] ?? "📦";
@@ -121,6 +127,7 @@ export function OverviewTab() {
   const [topSpends,   setTopSpends]   = useState<TopSpend[]>([]);
   const [mom,         setMom]         = useState<MoMData | null>(null);
   const [loading,     setLoading]     = useState(true);
+  const [donutFilter, setDonutFilter] = useState<"variable" | "fixed" | "all">("variable");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -178,13 +185,40 @@ export function OverviewTab() {
       {/* ── Section 2: Spend donut (bonus — not in Streamlit) */}
       {summary.categories.length > 0 && (
         <section>
-          <h2
-            className="text-xs font-syne font-bold uppercase tracking-widest mb-3"
-            style={{ color: "var(--text-sub)" }}
-          >
-            Spend by Category
-          </h2>
-          <SpendDonut categories={summary.categories} />
+          <div className="mb-3 space-y-2">
+            <h2
+              className="text-xs font-syne font-bold uppercase tracking-widest"
+              style={{ color: "var(--text-sub)" }}
+            >
+              Spend by Category
+            </h2>
+            <div className="flex gap-1.5">
+              {DONUT_FILTERS.map(f => (
+                <button
+                  key={f.value}
+                  onClick={() => setDonutFilter(f.value)}
+                  className="text-xs px-3 py-1 rounded-lg border transition-colors"
+                  style={{
+                    background:   donutFilter === f.value ? "var(--accent-bg)"  : "transparent",
+                    borderColor:  donutFilter === f.value ? "var(--accent)"     : "var(--border-lg)",
+                    color:        donutFilter === f.value ? "var(--accent)"     : "var(--text)",
+                    fontWeight:   donutFilter === f.value ? 600 : 400,
+                  }}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <SpendDonut
+            categories={summary.categories.filter(c =>
+              donutFilter === "all"
+                ? true
+                : donutFilter === "fixed"
+                  ? FIXED_CATEGORIES.includes(c.category)
+                  : !FIXED_CATEGORIES.includes(c.category)
+            )}
+          />
         </section>
       )}
 
