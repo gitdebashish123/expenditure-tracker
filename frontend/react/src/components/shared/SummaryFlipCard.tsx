@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { fmtInr } from "@/utils/formatInr";
 
 interface Props {
@@ -7,10 +8,22 @@ interface Props {
 }
 
 export function SummaryFlipCard({ label, value, colour }: Props) {
+  const [flipped, setFlipped] = useState(false);
+
   return (
     <div
-      className="flip-card flex-1 rounded-2xl cursor-default"
+      className={`flip-card flex-1 rounded-2xl cursor-pointer${flipped ? " flip-card-flipped" : ""}`}
       style={{ height: "80px" }}
+      onClick={() => setFlipped(f => !f)}
+      role="button"
+      tabIndex={0}
+      aria-label={`${label}: tap to reveal amount`}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          setFlipped(f => !f);
+        }
+      }}
     >
       <div className="flip-card-inner rounded-2xl">
         {/* Front — label */}
@@ -28,6 +41,12 @@ export function SummaryFlipCard({ label, value, colour }: Props) {
             className="w-8 h-0.5 rounded-full mt-1.5"
             style={{ backgroundColor: colour, opacity: 0.6 }}
           />
+          <span
+            className="text-[8px] mt-1.5 opacity-50"
+            style={{ color: "var(--text-muted)" }}
+          >
+            tap to reveal
+          </span>
         </div>
 
         {/* Back — amount */}
