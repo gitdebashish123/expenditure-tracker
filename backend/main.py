@@ -22,7 +22,7 @@ from backend.models import (
     Expense, BudgetLimit, IncomeEntry, FixedExpenseTemplate, ExpenseTemplate, PoolEntry,
     User, create_db, get_session, engine
 )
-from backend.ai_parser import parse_expense_input
+from backend.ai_parser import parse_expense_input, generate_daily_mantra
 from backend.budget_rules import (
     get_month_key, check_budget_warnings, get_balance_summary,
     seed_fixed_expenses, get_monthly_spent_by_category, get_budget_limits
@@ -1204,6 +1204,58 @@ def budget_projection(month_key: str, session: Session = Depends(get_session),
                 ),
             })
     return sorted(projections, key=lambda x: x["pct_projected"], reverse=True)
+
+
+# ── Mantra cache (in-memory, per-process, resets on restart) ────────────────
+# Keyed by (user_id, date_string) — avoids calling Claude on every page load.
+# Not a DB table by design for Phase 1 — revisit only if this proves
+# insufficient in practice.
+_mantra_cache: dict[tuple[int, str], str] = {}
+
+
+@app.get("/insights/mantra/{month_key}")
+def daily_mantra(month_key: str, session: Session = Depends(get_session),
+                 current_user: User = Depends(get_current_user)):
+    import calendar
+    from datetime import date as dt
+
+    today = dt.today()
+    cache_key = (current_user.id, today.isoformat())
+    if cache_key in _mantra_cache:
+        return {"mantra": _mantra_cache[cache_key]}
+
+    year, month = map(int, month_key.split("-"))
+    days_in_month = calendar.monthrange(year, month)[1]
+    days_left = max(days_in_month - today.day, 0) if month_key == today.strftime("%Y-%m") else 0
+
+    balance = get_balance_summary(session, month_key, user_id=current_user.id)
+    spent_by_cat = get_monthly_spent_by_category(session, month_key, user_id=current_user.id)
+
+    top_category = None
+    top_category_spent = 0.0
+    if spent_by_cat:
+        top_category = max(spent_by_cat, key=spent_by_cat.get)
+        top_category_spent = spent_by_cat[top_category]
+
+    remaining = balance["remaining"]
+    daily_budget = remaining / days_left if days_left > 0 else remaining
+
+    context = {
+        "remaining": remaining,
+        "days_left": days_left,
+        "daily_budget": daily_budget,
+        "total_income": balance["total_income"],
+        "top_category": top_category,
+        "top_category_spent": top_category_spent,
+    }
+
+    try:
+        mantra = generate_daily_mantra(context)
+    except Exception:
+        raise HTTPException(status_code=502, detail="Mantra generation failed")
+
+    _mantra_cache[cache_key] = mantra
+    return {"mantra": mantra}
 
 
 # ── Data Export ─────────────────────────────────────────────────────────────
