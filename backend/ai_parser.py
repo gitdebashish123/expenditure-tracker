@@ -74,3 +74,40 @@ Generate a SHORT, friendly 1-sentence warning or tip (max 15 words). Be helpful,
         messages=[{"role": "user", "content": prompt}],
     )
     return message.content[0].text.strip()
+
+
+def generate_daily_mantra(context: dict) -> str:
+    """
+    Generate a single warm, personal daily insight from precomputed
+    balance/spending numbers. Distinct from get_budget_insight, which is
+    scoped to single-category budget-breach warnings only.
+
+    Expected context keys:
+        remaining: float
+        days_left: int
+        daily_budget: float       # remaining / days_left, 0 if days_left == 0
+        total_income: float
+        top_category: str | None
+        top_category_spent: float
+    """
+    prompt = f"""A user's financial snapshot for the rest of this month:
+- Remaining balance: ₹{context['remaining']:.0f}
+- Days left in month: {context['days_left']}
+- Daily budget if spread evenly: ₹{context['daily_budget']:.0f}/day
+- Total income this month: ₹{context['total_income']:.0f}
+- Top spending category so far: {context.get('top_category') or 'N/A'} (₹{context.get('top_category_spent', 0):.0f})
+
+Generate ONE warm, encouraging, specific insight sentence (max 30 words).
+Rules:
+- No guilt, no judgment, no financial jargon.
+- Reference at least one concrete number from above.
+- Be specific and personal, not a generic motivational quote.
+- Use ₹ symbol for amounts.
+- Return ONLY the sentence, no preamble, no quotation marks."""
+
+    message = client.messages.create(
+        model="claude-sonnet-4-5-20250929",
+        max_tokens=150,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    return message.content[0].text.strip()
