@@ -123,6 +123,14 @@ export interface DueReminder {
 
 export interface DailyMantra {
   mantra: string;
+  context: {
+    remaining: number;
+    days_left: number;
+    top_category: string | null;
+    top_category_spent: number;
+    top_category_prev_month_spent: number | null;
+    fixed_unpaid_total: number;
+  };
 }
 
 export interface AdminStats {
