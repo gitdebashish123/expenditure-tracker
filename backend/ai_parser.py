@@ -135,3 +135,42 @@ Rules:
         messages=[{"role": "user", "content": prompt}],
     )
     return message.content[0].text.strip()
+
+
+def generate_monthly_story(context: dict) -> str:
+    """
+    Generate a single factual sentence summarising the month.
+    Distinct from generate_daily_mantra — no motivational language,
+    no Tara branding, past-tense for completed items.
+
+    Expected context keys:
+        month_label: str             # e.g. "June 2026"
+        remaining: float
+        fixed_completion_pct: float  # fixed_paid / (fixed_paid + fixed_unpaid) * 100
+        top_category: str | None
+        top_category_spent: float
+        variable_total: float
+        days_left: int
+    """
+    prompt = f"""Financial month summary for {context['month_label']}:
+- Remaining balance: ₹{context['remaining']:.0f}
+- Fixed bills completion: {context['fixed_completion_pct']:.0f}%
+- Top spending category: {context.get('top_category') or 'N/A'} (₹{context.get('top_category_spent', 0):.0f})
+- Total variable spend: ₹{context['variable_total']:.0f}
+- Days left in month: {context['days_left']}
+
+Write ONE factual sentence (max 35 words) summarising this month's finances.
+Rules:
+- Factual and neutral — not motivational or encouraging.
+- Past-tense for completed items, forward-looking for projections.
+- Do NOT start the sentence with "I".
+- Reference at least one concrete number.
+- Use ₹ symbol when referencing specific amounts.
+- Return ONLY the sentence, no preamble, no quotation marks."""
+
+    message = client.messages.create(
+        model="claude-sonnet-4-5-20250929",
+        max_tokens=120,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    return message.content[0].text.strip()

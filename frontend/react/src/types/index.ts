@@ -66,6 +66,17 @@ export interface Pool {
   entry_count: number;
 }
 
+export interface PeaceOfMind {
+  score: number;
+  label: string;
+  breakdown: {
+    bills:    number;
+    buffer:   number;
+    pace:     number;
+    tracking: number;
+  };
+}
+
 export interface Summary {
   balance: {
     remaining: number;
@@ -73,10 +84,12 @@ export interface Summary {
     fixed_paid_total: number;
     fixed_unpaid_total: number;
     variable_total: number;
+    savings_total?: number;
   };
   categories: Array<{ category: string; spent: number }>;
   warnings: Array<{ level: "warning" | "danger"; message: string }>;
   fixed_progress: { paid: number; total: number };
+  peace_of_mind?: PeaceOfMind;
 }
 
 export interface BudgetLimit {
@@ -131,6 +144,14 @@ export interface DailyMantra {
     top_category_prev_month_spent: number | null;
     fixed_unpaid_total: number;
   };
+}
+
+export interface MonthlyStory {
+  story: string;
+}
+
+export interface TinyWin {
+  win: string;
 }
 
 export interface AdminStats {

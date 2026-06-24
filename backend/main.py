@@ -22,10 +22,11 @@ from backend.models import (
     Expense, BudgetLimit, IncomeEntry, FixedExpenseTemplate, ExpenseTemplate, PoolEntry,
     User, create_db, get_session, engine
 )
-from backend.ai_parser import parse_expense_input, generate_daily_mantra
+from backend.ai_parser import parse_expense_input, generate_daily_mantra, generate_monthly_story
 from backend.budget_rules import (
     get_month_key, check_budget_warnings, get_balance_summary,
-    seed_fixed_expenses, get_monthly_spent_by_category, get_budget_limits
+    seed_fixed_expenses, get_monthly_spent_by_category, get_budget_limits,
+    compute_peace_of_mind,
 )
 from backend.auth import (
     hash_password, verify_password,
@@ -818,17 +819,17 @@ def get_due_reminders(month_key: str, session: Session = Depends(get_session),
                if exp.fixed_template_id else None
         if tmpl and tmpl.user_id != current_user.id:
             continue
-        if tmpl and tmpl.due_day:
-            days_overdue = today.day - tmpl.due_day
-            if days_overdue >= 0:
-                reminders.append({
-                    "expense_id": exp.id,
-                    "vendor": exp.vendor,
-                    "amount": exp.amount,
-                    "category": exp.category,
-                    "due_day": tmpl.due_day,
-                    "days_overdue": days_overdue,
-                })
+        due_day = tmpl.due_day if tmpl else None
+        # Negative = due in future; 0 = due today; positive = overdue
+        days_overdue = (today.day - due_day) if due_day else 0
+        reminders.append({
+            "expense_id": exp.id,
+            "vendor":     exp.vendor,
+            "amount":     exp.amount,
+            "category":   exp.category,
+            "due_day":    due_day,
+            "days_overdue": days_overdue,
+        })
     return sorted(reminders, key=lambda x: x["days_overdue"], reverse=True)
 
 
@@ -957,10 +958,11 @@ def get_summary(request: Request, month_key: str, session: Session = Depends(get
         })
 
     return {
-        "balance": balance,
-        "warnings": warnings,
-        "categories": categories,
+        "balance":       balance,
+        "warnings":      warnings,
+        "categories":    categories,
         "fixed_progress": {"paid": fixed_paid, "total": len(fixed_exps)},
+        "peace_of_mind": compute_peace_of_mind(balance),
     }
 
 
@@ -1219,6 +1221,10 @@ _mantra_cache: dict[tuple[int, str], dict] = {}
 # out of scope": no new mantra_history table at this stage).
 _mantra_last_type: dict[int, str] = {}
 
+# Per-month story cache — keyed by (user_id, month_key). Past months never
+# change once generated, so no TTL needed; resets only on process restart.
+_story_cache: dict[tuple[int, str], str] = {}
+
 
 @app.get("/insights/mantra/{month_key}")
 def daily_mantra(month_key: str, session: Session = Depends(get_session),
@@ -1303,6 +1309,98 @@ def daily_mantra(month_key: str, session: Session = Depends(get_session),
     }
     _mantra_cache[cache_key] = result
     return result
+
+
+@app.get("/insights/story/{month_key}")
+def monthly_story(month_key: str, session: Session = Depends(get_session),
+                  current_user: User = Depends(get_current_user)):
+    cache_key = (current_user.id, month_key)
+    if cache_key in _story_cache:
+        return {"story": _story_cache[cache_key]}
+
+    import calendar
+    from datetime import date as dt
+
+    balance      = get_balance_summary(session, month_key, user_id=current_user.id)
+    spent_by_cat = get_monthly_spent_by_category(session, month_key, user_id=current_user.id)
+
+    top_category       = None
+    top_category_spent = 0.0
+    if spent_by_cat:
+        top_category       = max(spent_by_cat, key=spent_by_cat.get)
+        top_category_spent = spent_by_cat[top_category]
+
+    year, month    = map(int, month_key.split("-"))
+    days_in_month  = calendar.monthrange(year, month)[1]
+    today          = dt.today()
+    days_left      = max(days_in_month - today.day, 0) \
+                     if month_key == today.strftime("%Y-%m") else 0
+
+    fixed_total          = balance["fixed_paid_total"] + balance["fixed_unpaid_total"]
+    fixed_completion_pct = (balance["fixed_paid_total"] / fixed_total * 100) \
+                           if fixed_total > 0 else 100.0
+
+    month_label = f"{calendar.month_name[month]} {year}"
+
+    context = {
+        "month_label":         month_label,
+        "remaining":           balance["remaining"],
+        "fixed_completion_pct": fixed_completion_pct,
+        "top_category":        top_category,
+        "top_category_spent":  top_category_spent,
+        "variable_total":      balance["variable_total"],
+        "days_left":           days_left,
+    }
+
+    try:
+        story = generate_monthly_story(context)
+    except Exception:
+        raise HTTPException(status_code=502, detail="Story generation failed")
+
+    _story_cache[cache_key] = story
+    return {"story": story}
+
+
+@app.get("/insights/tiny-win/{month_key}")
+def tiny_win(month_key: str, session: Session = Depends(get_session),
+             current_user: User = Depends(get_current_user)):
+    import calendar
+    from datetime import date as dt
+
+    balance      = get_balance_summary(session, month_key, user_id=current_user.id)
+    spent_by_cat = get_monthly_spent_by_category(session, month_key, user_id=current_user.id)
+
+    year, month   = map(int, month_key.split("-"))
+    days_in_month = calendar.monthrange(year, month)[1]
+    today         = dt.today()
+    days_left     = max(days_in_month - today.day, 0) \
+                    if month_key == today.strftime("%Y-%m") else 0
+
+    # Condition 1: all bills cleared with days to spare
+    if balance["fixed_unpaid_total"] == 0 and days_left > 5:
+        return {"win": f"All bills cleared with {days_left} days to spare."}
+
+    # Condition 2: food spend down from last month
+    prev_month = month - 1
+    prev_year  = year
+    if prev_month <= 0:
+        prev_month += 12
+        prev_year  -= 1
+    prev_month_key = f"{prev_year:04d}-{prev_month:02d}"
+    prev_spent     = get_monthly_spent_by_category(session, prev_month_key,
+                                                   user_id=current_user.id)
+    food_curr = spent_by_cat.get("Food", 0)
+    food_prev = prev_spent.get("Food", 0)
+    if food_prev > 0 and food_curr < food_prev:
+        return {"win": "Food spending is down from last month."}
+
+    # Condition 3: healthy remaining buffer
+    if balance["total_income"] > 0 and \
+       (balance["remaining"] / balance["total_income"]) > 0.15:
+        return {"win": "You're keeping over 15% of income available — solid buffer."}
+
+    # Fallback
+    return {"win": "You've been tracking consistently. That itself is progress."}
 
 
 # ── Data Export ─────────────────────────────────────────────────────────────

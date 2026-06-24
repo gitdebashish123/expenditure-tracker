@@ -8,6 +8,7 @@ import { OnboardingWizard }     from "@/components/onboarding/OnboardingWizard";
 import { ErrorBoundary }        from "@/components/shared/ErrorBoundary";
 import { SummaryStrip }         from "@/components/shared/SummaryStrip";
 import { SummaryFlipCard }      from "@/components/shared/SummaryFlipCard";
+import { HeroBalanceCard }      from "@/components/shared/HeroBalanceCard";
 import { QuickAddTab }          from "@/components/tabs/QuickAddTab";
 import { FixedTab }             from "@/components/tabs/FixedTab";
 import { OverviewTab }          from "@/components/tabs/OverviewTab";
@@ -73,7 +74,15 @@ function DashboardShell({ tab, onTabChange, isAdmin }: {
       <Header />
       <BottomNav activeTab={TAB_PATH_MAP[tab]} onTabChange={onTabChange} />
 
-      {showSummary && balance && (
+      {/* Today tab: hero card replaces strip/flip-cards */}
+      {tab === "today" && balance && (
+        <div className="max-w-2xl mx-auto px-4 pt-4">
+          <HeroBalanceCard balance={balance} />
+        </div>
+      )}
+
+      {/* Fixed / Overview tabs: keep existing strip + flip-cards */}
+      {(tab === "fixed" || tab === "overview") && balance && (
         <>
           {/* Mobile: compact count-up strip */}
           <div

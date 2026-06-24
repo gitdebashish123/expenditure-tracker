@@ -118,6 +118,8 @@ def get_balance_summary(session: Session, month_key: str, user_id: int) -> dict:
         )
     ).all()
     variable_total = sum(e.amount for e in variable)
+    savings_total  = sum(e.amount for e in variable
+                         if e.category in ("Savings", "Investments"))
 
     total_spent = fixed_paid_total + pool_paid_total + variable_total
     remaining   = total_income - total_spent
@@ -131,9 +133,87 @@ def get_balance_summary(session: Session, month_key: str, user_id: int) -> dict:
         "pool_paid_total": pool_paid_total,
         "pool_unpaid_total": pool_unpaid_total,
         "variable_total": variable_total,
+        "savings_total":  savings_total,
         "total_spent": total_spent,
         "remaining": remaining,
         "savings_rate": ((total_income - total_spent) / total_income * 100) if total_income > 0 else 0,
+    }
+
+
+def compute_peace_of_mind(balance: dict) -> dict:
+    """
+    Compute Peace of Mind Score (0–100) from a get_balance_summary() dict.
+    Formula weights confirmed by user on 2026-06-25.
+
+    Sub-signals:
+        bills    (35 pts) — fixed bills completion ratio
+        buffer   (30 pts) — remaining / total_income ratio
+        pace     (20 pts) — variable spend vs 40% of income threshold
+        tracking (15 pts) — placeholder; always 15 until streak tracking built
+    """
+    fixed_paid   = balance["fixed_paid_total"]
+    fixed_unpaid = balance["fixed_unpaid_total"]
+    fixed_total  = fixed_paid + fixed_unpaid
+    total_income = balance["total_income"]
+    remaining    = balance["remaining"]
+    variable_total = balance["variable_total"]
+
+    # Bills sub-signal (35 pts)
+    if fixed_total == 0 or fixed_unpaid == 0:
+        bills_pts = 35
+    else:
+        bills_pts = round(35 * (fixed_paid / fixed_total))
+
+    # Remaining buffer sub-signal (30 pts)
+    if total_income > 0:
+        buf = remaining / total_income
+        if buf >= 0.20:
+            buffer_pts = 30
+        elif buf >= 0.10:
+            buffer_pts = 20
+        elif buf >= 0.05:
+            buffer_pts = 10
+        else:
+            buffer_pts = 0
+    else:
+        buffer_pts = 0
+
+    # Spending pace sub-signal (20 pts) — 40% of income is the variable budget threshold
+    variable_budget = total_income * 0.4
+    if variable_budget > 0:
+        pace = variable_total / variable_budget
+        if pace <= 0.80:
+            pace_pts = 20
+        elif pace <= 1.00:
+            pace_pts = 10
+        else:
+            pace_pts = 0
+    else:
+        pace_pts = 0
+
+    # Tracking consistency (15 pts) — placeholder until streak tracking is built
+    tracking_pts = 15
+
+    score = bills_pts + buffer_pts + pace_pts + tracking_pts
+
+    if score >= 80:
+        label = "Great going!"
+    elif score >= 60:
+        label = "On track, keep it up."
+    elif score >= 40:
+        label = "A few areas need attention."
+    else:
+        label = "Let's get back on track."
+
+    return {
+        "score": score,
+        "label": label,
+        "breakdown": {
+            "bills":    bills_pts,
+            "buffer":   buffer_pts,
+            "pace":     pace_pts,
+            "tracking": tracking_pts,
+        },
     }
 
 

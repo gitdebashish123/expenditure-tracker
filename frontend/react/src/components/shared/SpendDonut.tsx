@@ -17,11 +17,73 @@ const CHART_COLOURS = [
 
 interface Props {
   categories: Array<{ category: string; spent: number }>;
+  sidebar?: boolean;
 }
 
-export function SpendDonut({ categories }: Props) {
+export function SpendDonut({ categories, sidebar = false }: Props) {
   const data = categories.filter(c => c.spent > 0).slice(0, 8);
   if (data.length === 0) return null;
+
+  const tooltipStyle = {
+    background: "#1a1a28",
+    border: "1px solid rgba(255,255,255,0.1)",
+    borderRadius: 12,
+    color: "white",
+    fontSize: 12,
+  };
+
+  if (sidebar) {
+    return (
+      <div className="flex gap-3 items-center">
+        {/* Donut — compact */}
+        <div className="w-28 flex-shrink-0">
+          <ResponsiveContainer width="100%" height={120}>
+            <PieChart>
+              <Pie
+                data={data}
+                dataKey="spent"
+                nameKey="category"
+                cx="50%"
+                cy="50%"
+                innerRadius={32}
+                outerRadius={54}
+                paddingAngle={2}
+                strokeWidth={0}
+              >
+                {data.map((_, i) => (
+                  <Cell key={i} fill={CHART_COLOURS[i % CHART_COLOURS.length]} />
+                ))}
+              </Pie>
+              <Tooltip
+                formatter={(v: number) => [fmtInr(v), "Spent"]}
+                contentStyle={tooltipStyle}
+                labelStyle={{ color: "white" }}
+                itemStyle={{ color: "white" }}
+              />
+            </PieChart>
+          </ResponsiveContainer>
+        </div>
+        {/* Category list */}
+        <div className="flex-1 min-w-0 space-y-1.5">
+          {data.map((c, i) => (
+            <div key={c.category} className="flex items-center gap-1.5 text-xs min-w-0">
+              <span
+                className="w-2 h-2 rounded-full flex-shrink-0"
+                style={{ background: CHART_COLOURS[i % CHART_COLOURS.length] }}
+              />
+              <span className="flex-1 truncate" style={{ color: "var(--text-sub)" }}>
+                {CATEGORY_ICONS[c.category] ?? "📦"} {c.category}
+              </span>
+              <span className="flex-shrink-0 font-syne font-semibold text-right"
+                    style={{ color: "var(--text)" }}>
+                {fmtInr(c.spent)}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-dark-card border border-white/10 rounded-2xl p-4">
@@ -39,21 +101,12 @@ export function SpendDonut({ categories }: Props) {
             strokeWidth={0}
           >
             {data.map((_, i) => (
-              <Cell
-                key={i}
-                fill={CHART_COLOURS[i % CHART_COLOURS.length]}
-              />
+              <Cell key={i} fill={CHART_COLOURS[i % CHART_COLOURS.length]} />
             ))}
           </Pie>
           <Tooltip
             formatter={(v: number) => [fmtInr(v), "Spent"]}
-            contentStyle={{
-              background: "#1a1a28",
-              border: "1px solid rgba(255,255,255,0.1)",
-              borderRadius: 12,
-              color: "white",
-              fontSize: 12,
-            }}
+            contentStyle={tooltipStyle}
             labelStyle={{ color: "white" }}
             itemStyle={{ color: "white" }}
           />
