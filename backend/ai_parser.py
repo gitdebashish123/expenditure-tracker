@@ -74,3 +74,64 @@ Generate a SHORT, friendly 1-sentence warning or tip (max 15 words). Be helpful,
         messages=[{"role": "user", "content": prompt}],
     )
     return message.content[0].text.strip()
+
+
+def generate_daily_mantra(context: dict, preferred_angle: str = "forecast") -> str:
+    """
+    Generate a single warm, personal daily insight from precomputed
+    balance/spending numbers. Distinct from get_budget_insight, which is
+    scoped to single-category budget-breach warnings only.
+
+    Expected context keys:
+        remaining: float
+        days_left: int
+        daily_budget: float       # remaining / days_left, 0 if days_left == 0
+        total_income: float
+        top_category: str | None
+        top_category_spent: float
+        top_category_prev_month_spent: float | None  # None = no prior-month data; omit from prompt
+        fixed_unpaid_total: float # sum of fixed expenses not yet marked paid
+    """
+    angle_hint = {
+        "forecast":    "Today, lean toward a forecast/pacing angle (daily budget, days left).",
+        "comparison":  "Today, lean toward comparing this month to last month for the top category.",
+        "commitments": "Today, lean toward highlighting that fixed commitments are fully covered.",
+    }.get(preferred_angle, "")
+
+    # Only include the comparison line when real prior-month data exists.
+    # Sending None or 0 would mislead the model into thinking ₹0 was spent last month.
+    comparison_line = ""
+    if context.get("top_category_prev_month_spent") is not None:
+        comparison_line = (
+            f"- Same category last month: ₹{context['top_category_prev_month_spent']:.0f}\n"
+        )
+
+    prompt = f"""A user's financial snapshot for the rest of this month:
+- Remaining balance: ₹{context['remaining']:.0f}
+- Days left in month: {context['days_left']}
+- Daily budget if spread evenly: ₹{context['daily_budget']:.0f}/day
+- Total income this month: ₹{context['total_income']:.0f}
+- Top spending category so far: {context.get('top_category') or 'N/A'} (₹{context.get('top_category_spent', 0):.0f})
+{comparison_line}- Remaining unpaid fixed commitments: ₹{context.get('fixed_unpaid_total', 0):.0f}
+
+Generate ONE warm, encouraging, specific insight sentence (max 30 words).
+Rules:
+- No guilt, no judgment, no financial jargon.
+- Reference at least one concrete number from above.
+- Be specific and personal, not a generic motivational quote.
+- Only make a comparison to last month if the "Same category last month"
+  figure is provided above — never imply a trend you don't have a number for.
+- If remaining unpaid fixed commitments is ₹0, this is worth highlighting
+  as a positive — e.g. everything left to spend is discretionary. Only
+  mention this when it's true and feels like the most relevant thing to
+  say; don't force it into every sentence.
+- Use ₹ symbol for amounts.
+{angle_hint}
+- Return ONLY the sentence, no preamble, no quotation marks."""
+
+    message = client.messages.create(
+        model="claude-sonnet-4-5-20250929",
+        max_tokens=150,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    return message.content[0].text.strip()

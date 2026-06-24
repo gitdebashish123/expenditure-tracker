@@ -4,7 +4,7 @@ import { useMonth } from "@/context/MonthContext";
 import { CATEGORY_ICONS } from "@/utils/categories";
 import { fmtInr } from "@/utils/formatInr";
 import { ExpenseRowSwipeable } from "@/components/shared/ExpenseRowSwipeable";
-import type { Expense, ExpenseTemplate } from "@/types";
+import type { Expense, ExpenseTemplate, DailyMantra } from "@/types";
 import { Loader2, Zap } from "lucide-react";
 import { useToast } from "@/context/ToastContext";
 
@@ -33,6 +33,76 @@ interface ParseResult {
 
 interface Props {
   onExpenseAdded?: () => void;
+}
+
+function TodaysMantraCard() {
+  const { selMonth } = useMonth();
+  const [data, setData] = useState<DailyMantra | null>(null);
+  const [showWhy, setShowWhy] = useState(false);
+
+  useEffect(() => {
+    api.get<DailyMantra>(`/insights/mantra/${selMonth}`)
+      .then(r => setData(r.data))
+      .catch(() => {}); // fail silently — card simply doesn't render
+  }, [selMonth]);
+
+  if (!data) return null;
+
+  const ctx = data.context;
+  const fmtRs = (v: number) => `₹${Math.round(v).toLocaleString("en-IN")}`;
+
+  return (
+    <section>
+      <div
+        className="rounded-2xl p-4 border"
+        style={{
+          background: 'var(--card)',
+          borderColor: 'var(--accent)',
+          boxShadow: '0 0 24px -8px var(--accent2)',
+        }}
+      >
+        <p className="text-xs font-syne font-bold uppercase tracking-widest mb-2"
+           style={{ color: 'var(--accent)' }}>
+          🪷 Today's Mantra
+        </p>
+        <div className="h-px w-12 mb-3" style={{ background: 'var(--accent)', opacity: 0.4 }} />
+        <p className="text-sm leading-relaxed italic" style={{ color: 'var(--text)' }}>
+          {data.mantra}
+        </p>
+
+        {/* "Why?" toggle */}
+        <button
+          onClick={() => setShowWhy(v => !v)}
+          className="mt-3 text-xs font-syne font-semibold uppercase tracking-wider transition-opacity hover:opacity-80"
+          style={{ color: 'var(--accent)' }}
+        >
+          {showWhy ? "▲ Hide" : "▼ Why?"}
+        </button>
+
+        {showWhy && (
+          <div
+            className="mt-3 rounded-xl p-3 space-y-1 text-xs"
+            style={{ background: 'var(--card2, rgba(255,255,255,0.05))', color: 'var(--text-sub)' }}
+          >
+            <p><span className="font-semibold">Remaining:</span> {fmtRs(ctx.remaining)}</p>
+            <p><span className="font-semibold">Days left:</span> {ctx.days_left}</p>
+            {ctx.top_category && (
+              <p>
+                <span className="font-semibold">Top category:</span>{" "}
+                {ctx.top_category} ({fmtRs(ctx.top_category_spent)})
+                {ctx.top_category_prev_month_spent != null && (
+                  <> · last month {fmtRs(ctx.top_category_prev_month_spent)}</>
+                )}
+              </p>
+            )}
+            {ctx.fixed_unpaid_total > 0 && (
+              <p><span className="font-semibold">Fixed bills pending:</span> {fmtRs(ctx.fixed_unpaid_total)}</p>
+            )}
+          </div>
+        )}
+      </div>
+    </section>
+  );
 }
 
 export function QuickAddTab({ onExpenseAdded }: Props = {}) {
@@ -139,6 +209,8 @@ export function QuickAddTab({ onExpenseAdded }: Props = {}) {
 
   return (
     <div className="space-y-6">
+
+      <TodaysMantraCard />
 
       {/* ── Section 1: NL Input Form ───────────────────── */}
       <section>

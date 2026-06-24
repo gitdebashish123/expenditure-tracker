@@ -217,11 +217,18 @@ export function LoginPage() {
         {/* Mode toggle */}
         <button
           onClick={() => switchMode(mode === "login" ? "register" : "login")}
-          className="mt-4 w-full text-sm text-white/40 hover:text-white/70 transition-colors py-2"
+          className="mt-4 w-full text-sm py-2 transition-colors"
+          style={{ color: "var(--text-muted)" }}
         >
-          {mode === "login"
-            ? "Don't have an account? Create one"
-            : "Already have an account? Sign In"}
+          {mode === "login" ? (
+            <>Don't have an account?{" "}
+              <span className="text-indigo-400 hover:text-indigo-300 font-medium">Create one</span>
+            </>
+          ) : (
+            <>Already have an account?{" "}
+              <span className="text-indigo-400 hover:text-indigo-300 font-medium">Sign In</span>
+            </>
+          )}
         </button>
 
         {/* Privacy notice — matches Streamlit footer */}

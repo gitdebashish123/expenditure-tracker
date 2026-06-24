@@ -12,7 +12,7 @@ Wallet Mantra — a personal expenditure tracker with natural-language expense i
 - **Package manager**: `uv` — always use `uv run`, `uv add`, `uv sync`. Never use `pip` directly.
 - **Backend**: FastAPI + Uvicorn, SQLite via SQLModel
 - **Auth**: JWT (HS256, 8h default), bcrypt passwords via `backend/auth.py`
-- **AI**: Anthropic Claude API (`claude-sonnet-4-20250514`) for expense parsing
+- **AI**: Anthropic Claude API (`claude-sonnet-4-5-20250929`) for expense parsing and budget insights
 - **Frontend (primary)**: React 18 + TypeScript + Vite + TailwindCSS, served by Nginx in Docker, port 80
 - **Frontend (legacy)**: Streamlit `frontend/app.py` — kept during migration, not the active UI
 - **Config**: `config.yaml` — salary, fixed expenses, budget limits, vendor→category mappings
@@ -93,7 +93,7 @@ On startup, the backend: auto-migrates `user.onboarding_complete` column if miss
 
 ### React Frontend (`frontend/react/src/`)
 
-Provider tree (outermost → innermost): `ThemeProvider → AuthProvider → ToastProvider → BrowserRouter`
+Provider tree (outermost → innermost): `ThemeProvider → AuthProvider → ToastProvider → MonthProvider → BrowserRouter`
 
 Pages:
 - `/login` → `LoginPage` (public)
@@ -108,9 +108,23 @@ Path alias: `@` → `src/` (configured in `vite.config.ts` and `tsconfig.json`).
 
 PWA: configured in `vite.config.ts` via `vite-plugin-pwa`. `/summary/*` uses NetworkFirst caching; `/expenses/*` uses StaleWhileRevalidate.
 
+Key frontend modules:
+- `src/types/index.ts` — all TypeScript interfaces mirroring FastAPI response shapes; add new types here when adding endpoints
+- `src/context/MonthContext.tsx` — provides `selMonth` (YYYY-MM string) and `isCurrent` boolean across all tabs via `useMonth()` hook; updates on tab-focus if the calendar month rolls over
+- `src/hooks/useInactivityTimer.ts` — auto-logout hook wired into `DashboardPage`
+- `src/utils/` — `formatInr.ts` (₹ formatter), `formatDate.ts`, `categories.ts` (category→colour/icon map)
+- `src/components/layout/` — `Header`, `BottomNav`, `ProtectedRoute`, `ProfileDropdown`
+- `src/components/shared/` — reusable cards/charts (`BalanceSummaryCard`, `SpendDonut`, `BudgetHealthCard`, etc.)
+- `src/components/tabs/` — one file per dashboard tab
+- `src/components/settings/` — sub-sections rendered inside `SettingsTab`
+
 ### Docker Compose
 
 Three services: `db-init` (runs `migrate_schema.py` then exits) → `backend` (FastAPI) → `frontend` (React built by Vite, served by Nginx). DB persisted in a named Docker volume `spendsense_data`.
+
+### Railway deployment
+
+`railway.toml` is at the repo root. The React bundle is baked at Docker build time with `VITE_API_BASE` set to the public Railway backend URL — rebuild the Docker image whenever that URL changes.
 
 ## Coding Conventions
 

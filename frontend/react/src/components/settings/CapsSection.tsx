@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "@/api/client";
 import { useMonth } from "@/context/MonthContext";
-import { CATEGORY_ICONS } from "@/utils/categories";
+import { CATEGORY_ICONS, VAR_CATEGORIES } from "@/utils/categories";
 import { fmtInr } from "@/utils/formatInr";
 import type { BudgetLimit, Summary } from "@/types";
 import { Save } from "lucide-react";
@@ -23,8 +23,11 @@ export function CapsSection() {
   const [budgets,  setBudgets]  = useState<BudgetLimit[]>([]);
   const [catSpent, setCatSpent] = useState<Record<string, number>>({});
   const [updates,  setUpdates]  = useState<Record<string, number>>({});
-  const [saving,   setSaving]   = useState(false);
-  const [saved,    setSaved]    = useState(false);
+  const [saving,     setSaving]     = useState(false);
+  const [saved,      setSaved]      = useState(false);
+  const [newCat,     setNewCat]     = useState("");
+  const [newLimit,   setNewLimit]   = useState<number>(0);
+  const [addingSave, setAddingSave] = useState(false);
 
   useEffect(() => {
     // Load budget limits
@@ -44,6 +47,9 @@ export function CapsSection() {
       })
       .catch(() => {});
   }, [selMonth]);
+
+  const cappedCats    = new Set(budgets.map(b => b.category));
+  const availableCats = VAR_CATEGORIES.filter(c => !cappedCats.has(c));
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -124,6 +130,56 @@ export function CapsSection() {
           {saving ? "Saving…" : saved ? "✅ Saved!" : "Save Spending Caps"}
         </button>
       </form>
+
+      {availableCats.length > 0 && (
+        <div className="mt-6 pt-4 border-t border-white/10">
+          <p className="text-sm text-white mb-3">➕ Add a category cap</p>
+          <div className="flex gap-3">
+            <select
+              value={newCat}
+              onChange={e => setNewCat(e.target.value)}
+              className="flex-1 bg-dark-card2 border border-white/10 rounded-xl px-3 py-2
+                         text-white text-sm focus:border-accent focus:outline-none"
+            >
+              <option value="">Select category…</option>
+              {availableCats.map(c => (
+                <option key={c} value={c}>{CATEGORY_ICONS[c] ?? "📦"} {c}</option>
+              ))}
+            </select>
+            <input
+              type="number"
+              min="0"
+              step="1"
+              placeholder="₹ limit"
+              value={newLimit || ""}
+              onChange={e => setNewLimit(Number(e.target.value))}
+              className="w-28 bg-dark-card2 border border-white/10 rounded-xl px-3 py-2
+                         text-white text-sm focus:border-accent focus:outline-none"
+            />
+            <button
+              type="button"
+              disabled={!newCat || newLimit <= 0 || addingSave}
+              onClick={async () => {
+                setAddingSave(true);
+                try {
+                  await api.put("/budget", { category: newCat, limit_amount: newLimit });
+                  const r = await api.get<BudgetLimit[]>("/budgets");
+                  setBudgets(r.data);
+                  setUpdates(Object.fromEntries(r.data.map(b => [b.category, b.limit_amount])));
+                  setNewCat("");
+                  setNewLimit(0);
+                } finally {
+                  setAddingSave(false);
+                }
+              }}
+              className="px-4 py-2 bg-accent rounded-xl text-white text-sm font-semibold
+                         disabled:opacity-40 transition-opacity"
+            >
+              {addingSave ? "…" : "Add"}
+            </button>
+          </div>
+        </div>
+      )}
     </section>
   );
 }

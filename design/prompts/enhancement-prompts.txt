@@ -1,0 +1,14 @@
+There few observations :
+
+1.No option to add monhtly limit for any new category under  Spending Caps.
+It seems those have been filled earlier or as part of first time wizard
+
+2.Spend by Category and Budget Health show only whatever category have been entered under Spending Caps.
+Budget Health is understood because we're setting threshold
+
+
+3. Mobile download is not downloading file
+4. Date range filter missing while downloading
+5. There should be an option to add new categories if user wants to add it under some custom categories
+
+share your suggestions. Don't modify any code or files

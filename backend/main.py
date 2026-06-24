@@ -22,7 +22,7 @@ from backend.models import (
     Expense, BudgetLimit, IncomeEntry, FixedExpenseTemplate, ExpenseTemplate, PoolEntry,
     User, create_db, get_session, engine
 )
-from backend.ai_parser import parse_expense_input
+from backend.ai_parser import parse_expense_input, generate_daily_mantra
 from backend.budget_rules import (
     get_month_key, check_budget_warnings, get_balance_summary,
     seed_fixed_expenses, get_monthly_spent_by_category, get_budget_limits
@@ -943,9 +943,11 @@ def get_summary(request: Request, month_key: str, session: Session = Depends(get
     ).all()
     fixed_paid = sum(1 for e in fixed_exps if e.paid)
 
+    all_cats = set(spent_by_cat.keys()) | set(limits.keys())
     categories = []
-    for cat, limit in limits.items():
+    for cat in sorted(all_cats):
         spent = spent_by_cat.get(cat, 0)
+        limit = limits.get(cat, 0)
         categories.append({
             "category": cat,
             "spent": spent,
@@ -1204,9 +1206,153 @@ def budget_projection(month_key: str, session: Session = Depends(get_session),
     return sorted(projections, key=lambda x: x["pct_projected"], reverse=True)
 
 
+# ── Mantra cache (in-memory, per-process, resets on restart) ────────────────
+# Keyed by (user_id, date_string) — avoids calling Claude on every page load.
+# Not a DB table by design for Phase 1 — revisit only if this proves
+# insufficient in practice.
+_mantra_cache: dict[tuple[int, str], dict] = {}
+
+# Tracks which "angle" was used in the most recent mantra per user, so
+# consecutive days don't always lead with the same angle when more than
+# one is available. In-memory only, same lifecycle as _mantra_cache —
+# resets on restart. Not persisted by design (see spec 07's "Explicitly
+# out of scope": no new mantra_history table at this stage).
+_mantra_last_type: dict[int, str] = {}
+
+
+@app.get("/insights/mantra/{month_key}")
+def daily_mantra(month_key: str, session: Session = Depends(get_session),
+                 current_user: User = Depends(get_current_user)):
+    import calendar
+    from datetime import date as dt
+
+    today = dt.today()
+    cache_key = (current_user.id, today.isoformat())
+    if cache_key in _mantra_cache:
+        return _mantra_cache[cache_key]
+
+    year, month = map(int, month_key.split("-"))
+    days_in_month = calendar.monthrange(year, month)[1]
+    days_left = max(days_in_month - today.day, 0) if month_key == today.strftime("%Y-%m") else 0
+
+    balance = get_balance_summary(session, month_key, user_id=current_user.id)
+    spent_by_cat = get_monthly_spent_by_category(session, month_key, user_id=current_user.id)
+
+    top_category = None
+    top_category_spent = 0.0
+    if spent_by_cat:
+        top_category = max(spent_by_cat, key=spent_by_cat.get)
+        top_category_spent = spent_by_cat[top_category]
+
+    # Previous month-key (same rollover logic as month_over_month())
+    prev_month = month - 1
+    prev_year = year
+    if prev_month <= 0:
+        prev_month += 12
+        prev_year -= 1
+    prev_month_key = f"{prev_year:04d}-{prev_month:02d}"
+
+    top_category_prev_month_spent = None
+    if top_category:
+        prev_spent_by_cat = get_monthly_spent_by_category(
+            session, prev_month_key, user_id=current_user.id
+        )
+        if top_category in prev_spent_by_cat:
+            top_category_prev_month_spent = prev_spent_by_cat[top_category]
+
+    remaining = balance["remaining"]
+    daily_budget = remaining / days_left if days_left > 0 else remaining
+
+    available_angles = ["forecast"]  # always available
+    if top_category_prev_month_spent is not None:
+        available_angles.append("comparison")
+    if balance["fixed_unpaid_total"] == 0:
+        available_angles.append("commitments")
+
+    last_angle = _mantra_last_type.get(current_user.id)
+    preferred_angles = [a for a in available_angles if a != last_angle] or available_angles
+    chosen_angle = preferred_angles[0]
+
+    context = {
+        "remaining": remaining,
+        "days_left": days_left,
+        "daily_budget": daily_budget,
+        "total_income": balance["total_income"],
+        "top_category": top_category,
+        "top_category_spent": top_category_spent,
+        "top_category_prev_month_spent": top_category_prev_month_spent,
+        "fixed_unpaid_total": balance["fixed_unpaid_total"],
+    }
+
+    try:
+        mantra = generate_daily_mantra(context, preferred_angle=chosen_angle)
+    except Exception:
+        raise HTTPException(status_code=502, detail="Mantra generation failed")
+
+    _mantra_last_type[current_user.id] = chosen_angle
+    result = {
+        "mantra": mantra,
+        "context": {
+            "remaining": remaining,
+            "days_left": days_left,
+            "top_category": top_category,
+            "top_category_spent": top_category_spent,
+            "top_category_prev_month_spent": top_category_prev_month_spent,
+            "fixed_unpaid_total": balance["fixed_unpaid_total"],
+        },
+    }
+    _mantra_cache[cache_key] = result
+    return result
+
+
 # ── Data Export ─────────────────────────────────────────────────────────────
-# NOTE: /export/csv/all MUST be defined before /export/csv/{month_key}
-# to prevent FastAPI treating the literal string "all" as a month_key value.
+# NOTE: /export/csv/all and /export/csv/range MUST be defined before /export/csv/{month_key}
+# to prevent FastAPI treating the literal strings "all" / "range" as month_key values.
+
+@app.get("/export/csv/range")
+@limiter.limit("20/hour")
+def export_range_csv(
+    request: Request,
+    from_date: str,
+    to_date: str,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    """Export expenses for a date range (both YYYY-MM-DD, inclusive)."""
+    if from_date > to_date:
+        raise HTTPException(status_code=400, detail="from_date must be ≤ to_date")
+
+    expenses = session.exec(
+        select(Expense)
+        .where(
+            Expense.user_id == current_user.id,
+            Expense.date >= from_date,
+            Expense.date <= to_date,
+        )
+        .order_by(Expense.date)
+    ).all()
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["month", "date", "vendor", "category", "amount", "note", "type", "paid"])
+    for e in expenses:
+        writer.writerow([
+            e.month_key,
+            e.date.isoformat() if e.date else "",
+            e.vendor, e.category, e.amount,
+            e.note or "",
+            "fixed" if e.is_fixed else "variable",
+            "yes" if e.paid else "no",
+        ])
+
+    output.seek(0)
+    filename = f"walletMantra_{from_date}_to_{to_date}.csv"
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
+
 
 @app.get("/export/csv/all")
 @limiter.limit("20/hour")

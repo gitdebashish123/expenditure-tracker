@@ -21,6 +21,10 @@ export function ExportSection() {
 
   const [loadingMonth, setLoadingMonth] = useState(false);
   const [loadingAll,   setLoadingAll]   = useState(false);
+  const [showRange,    setShowRange]    = useState(false);
+  const [fromDate,     setFromDate]     = useState(() => new Date().toISOString().slice(0, 10));
+  const [toDate,       setToDate]       = useState(() => new Date().toISOString().slice(0, 10));
+  const [loadingRange, setLoadingRange] = useState(false);
 
   const download = async (
     url:        string,
@@ -31,11 +35,23 @@ export function ExportSection() {
     try {
       const { data } = await api.get(url, { responseType: "blob" });
       const href = URL.createObjectURL(data);
-      const a    = document.createElement("a");
-      a.href     = href;
-      a.download = filename;
-      a.click();
-      URL.revokeObjectURL(href);
+      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+
+      if (isIOS) {
+        // iOS Safari does not honour the download attribute on blob: URLs.
+        // Opening in a new tab lets the user Save to Files via share sheet.
+        window.open(href, "_blank");
+        // Delay revoke so the new tab has time to read the blob
+        setTimeout(() => URL.revokeObjectURL(href), 5000);
+      } else {
+        const a = document.createElement("a");
+        a.href = href;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(href);
+      }
     } finally {
       setLoading(false);
     }
@@ -99,6 +115,72 @@ export function ExportSection() {
           Download Full History
         </button>
       </div>
+
+      {/* Custom range toggle */}
+      <button
+        onClick={() => setShowRange(v => !v)}
+        className="mt-3 text-xs w-full text-center py-1.5 rounded-lg border transition-colors"
+        style={{
+          borderColor: showRange ? "var(--accent)"    : "var(--border-lg)",
+          color:       showRange ? "var(--accent)"    : "var(--text)",
+          background:  showRange ? "var(--accent-bg)" : "transparent",
+          fontWeight:  showRange ? 600 : 400,
+        }}
+      >
+        {showRange ? "▲ Hide date range" : "▼ Custom date range"}
+      </button>
+
+      {showRange && (
+        <div className="mt-3 space-y-3">
+          <div className="flex gap-3 items-center">
+            <div className="flex-1">
+              <label className="text-xs mb-1 block" style={{ color: "var(--text-sub)" }}>From</label>
+              <input
+                type="date"
+                value={fromDate}
+                onChange={e => setFromDate(e.target.value)}
+                className="w-full bg-dark-card2 border border-white/10 rounded-xl
+                           px-3 py-2 text-white text-sm focus:border-accent focus:outline-none"
+              />
+            </div>
+            <div className="flex-1">
+              <label className="text-xs mb-1 block" style={{ color: "var(--text-sub)" }}>To</label>
+              <input
+                type="date"
+                value={toDate}
+                onChange={e => setToDate(e.target.value)}
+                className="w-full bg-dark-card2 border border-white/10 rounded-xl
+                           px-3 py-2 text-white text-sm focus:border-accent focus:outline-none"
+              />
+            </div>
+          </div>
+          <button
+            onClick={() =>
+              download(
+                `/export/csv/range?from_date=${fromDate}&to_date=${toDate}`,
+                `walletMantra_${fromDate}_to_${toDate}.csv`,
+                setLoadingRange
+              )
+            }
+            disabled={loadingRange || fromDate > toDate}
+            className="w-full flex items-center justify-center gap-2 bg-gradient-to-r
+                       from-accent to-accent2 text-white font-semibold py-3 rounded-xl
+                       text-sm disabled:opacity-50 transition-opacity"
+          >
+            {loadingRange ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
+            Download {fromDate} → {toDate}
+          </button>
+          {fromDate > toDate && (
+            <p className="text-xs text-red-400 text-center">"From" must be before "To"</p>
+          )}
+        </div>
+      )}
+
+      {/iPad|iPhone|iPod/.test(navigator.userAgent) && (
+        <p className="text-xs mt-2 text-center" style={{ color: "var(--text-muted)" }}>
+          On iPhone/iPad, the file opens in a new tab — tap Share → Save to Files
+        </p>
+      )}
     </section>
   );
 }
