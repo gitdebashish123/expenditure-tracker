@@ -10,6 +10,7 @@ import { SpendDonut } from "@/components/shared/SpendDonut";
 import { SignalCard, SpendingSignalsModal } from "@/components/shared/SpendingSignalsModal";
 import { useToast } from "@/context/ToastContext";
 import type { Summary, ProjectionItem, DueReminder, MonthlyStory, TinyWin, PeaceOfMind } from "@/types";
+import { InsightsScenarioA, InsightsScenarioB, InsightsScenarioC, InsightsScenarioD } from "@/components/shared/InsightsSection";
 
 /**
  * OverviewTab — full financial dashboard for the selected month
@@ -42,8 +43,9 @@ interface TopSpend {
 }
 
 interface MoMData {
-  months:     string[];
-  categories: Record<string, Record<string, number>>;
+  months:      string[];
+  categories:  Record<string, Record<string, number>>;
+  days_tracked: Record<string, number>;
 }
 
 // ── Sub-components ─────────────────────────────────────────────────────────────
@@ -171,6 +173,12 @@ function OverviewSkeleton() {
   );
 }
 
+const COMPARATIVE_TERMS = ["% from", "last month", "compared to", "jumped", "increased by", "decreased by"];
+function isSafeInsight(text: string, isFirstMonth: boolean): boolean {
+  if (!isFirstMonth) return true;
+  return !COMPARATIVE_TERMS.some(term => text.toLowerCase().includes(term));
+}
+
 // ── Main component ─────────────────────────────────────────────────────────────
 
 export function OverviewTab({ onTabChange }: { onTabChange?: (path: string) => void }) {
@@ -252,19 +260,22 @@ export function OverviewTab({ onTabChange }: { onTabChange?: (path: string) => v
   }
 
   const { balance } = summary;
+  const isFirstMonth = prevSummary === null;
+
+  const isConsecutiveMonth = (current: string, prior: string): boolean => {
+    const [cy, cm] = current.split("-").map(Number);
+    const [py, pm] = prior.split("-").map(Number);
+    const expectedPriorMonth = cm === 1 ? 12 : cm - 1;
+    const expectedPriorYear  = cm === 1 ? cy - 1 : cy;
+    return py === expectedPriorYear && pm === expectedPriorMonth;
+  };
 
   return (
     <div className="space-y-6">
 
-      {/* ── Section 0: Financial Snapshot ────────────────── */}
+      {/* ── Section 0: KPI tiles ─────────────────────────── */}
       <section>
-        <h2
-          className="text-xs font-syne font-bold uppercase tracking-widest mb-3"
-          style={{ color: "var(--text-sub)" }}
-        >
-          Financial Snapshot
-        </h2>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-3 gap-3">
           {[
             {
               label:    "Remaining",
@@ -288,13 +299,6 @@ export function OverviewTab({ onTabChange }: { onTabChange?: (path: string) => v
               subtitle: balance.fixed_unpaid_total === 0
                 ? "All bills cleared ✓"
                 : `Out of ${fmtInr(balance.fixed_paid_total + balance.fixed_unpaid_total)}`,
-            },
-            {
-              label:    balance.fixed_unpaid_total === 0 ? "All Bills Clear ✓" : "Pending Bills",
-              value:    balance.fixed_unpaid_total,
-              icon:     balance.fixed_unpaid_total === 0 ? "🎉" : "⏳",
-              colour:   balance.fixed_unpaid_total === 0 ? "#34d399" : "#f87171",
-              subtitle: undefined as string | undefined,
             },
           ].map(tile => (
             <div
@@ -331,6 +335,22 @@ export function OverviewTab({ onTabChange }: { onTabChange?: (path: string) => v
             className="rounded-2xl border p-5 flex items-start gap-4 overflow-hidden"
             style={{ background: "var(--card)", borderColor: "var(--border-lg)" }}
           >
+            {/* Dynamic month badge */}
+            <div
+              className="flex-shrink-0 flex flex-col items-center justify-center rounded-xl border px-3 py-2 text-center"
+              style={{ background: "var(--card2)", borderColor: "var(--border-lg)", minWidth: 52 }}
+            >
+              <p
+                className="text-[10px] font-syne font-bold uppercase tracking-widest"
+                style={{ color: "var(--accent)" }}
+              >
+                {new Date(selMonth + "-01").toLocaleString("en-IN", { month: "short" })}
+              </p>
+              <p className="text-sm font-bold leading-tight" style={{ color: "var(--text)" }}>
+                {selMonth.split("-")[0]}
+              </p>
+            </div>
+
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-1.5 mb-2">
                 <span style={{ color: "#f59e0b" }}>✦</span>
@@ -345,16 +365,6 @@ export function OverviewTab({ onTabChange }: { onTabChange?: (path: string) => v
                 {story}
               </p>
             </div>
-            {/* Decorative illustration */}
-            <div
-              className="hidden sm:flex flex-col items-center justify-center flex-shrink-0
-                         text-4xl leading-none select-none opacity-50"
-              style={{ width: 72, height: 72 }}
-              aria-hidden="true"
-            >
-              <span>📅</span>
-              <span className="text-xl mt-1">✨</span>
-            </div>
           </div>
         </section>
       )}
@@ -366,7 +376,7 @@ export function OverviewTab({ onTabChange }: { onTabChange?: (path: string) => v
         <section className="h-full flex flex-col gap-3">
           <BalanceBreakdown balance={balance} />
 
-          {monthlyInsight && (
+          {monthlyInsight && isSafeInsight(monthlyInsight, isFirstMonth) && (
             <div
               className="flex-1 rounded-2xl border p-4"
               style={{ borderColor: "var(--border)", background: "var(--card)" }}
@@ -739,185 +749,55 @@ export function OverviewTab({ onTabChange }: { onTabChange?: (path: string) => v
         </section>
       )}
 
-      {/* ── Section 9: What Changed? ─────────────────────── */}
+      {/* ── Section 9: Tracking summary / What Changed? ─── */}
       {mom && (() => {
-        const SAVINGS_CATS = new Set(["Savings", "Investments"]);
-
-        // ── Scenario 2: first month — no prior data, show spending highlights ──
-        if (mom.months.length < 2) {
-          const highlights = [...summary.categories]
-            .filter(c => c.spent > 0)
-            .sort((a, b) => b.spent - a.spent)
-            .slice(0, 3);
-          if (highlights.length === 0) return null;
-          return (
-            <section>
-              <h2
-                className="text-xs font-syne font-bold uppercase tracking-widest mb-1"
-                style={{ color: "var(--text-sub)" }}
-              >
-                Spending Highlights
-              </h2>
-              <p className="text-xs mb-3" style={{ color: "var(--text-muted)" }}>
-                Your first month — no prior comparison yet
-              </p>
-              <div className="space-y-0">
-                {highlights.map(({ category, spent }) => (
-                  <div key={category} className="flex items-center gap-3 py-2.5 border-b"
-                       style={{ borderColor: "var(--border-lg)" }}>
-                    <span className="text-lg w-5 flex-shrink-0 text-center">
-                      {CATEGORY_ICONS[category] ?? "📦"}
-                    </span>
-                    <span className="flex-1 text-sm" style={{ color: "var(--text)" }}>
-                      {category}
-                    </span>
-                    <span className="text-sm font-syne font-semibold"
-                          style={{ color: "var(--text)" }}>
-                      {fmtInr(spent)}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </section>
-          );
-        }
-
         const curr = mom.months[mom.months.length - 1];
-        const prev = mom.months[mom.months.length - 2];
-        const prevLabel = new Date(prev + "-01").toLocaleString("en-IN", { month: "short" });
+        const prev = mom.months.length >= 2 ? mom.months[mom.months.length - 2] : null;
+        const isFirstMonth    = !prev;
+        const isConsecutive   = prev ? isConsecutiveMonth(curr, prev) : false;
+        const currDaysTracked = mom.days_tracked?.[curr] ?? 0;
+        const prevDaysTracked = prev ? (mom.days_tracked?.[prev] ?? 0) : 0;
+        const isQualityData   = prevDaysTracked >= 10;
 
-        const changes = Object.entries(mom.categories)
-          .map(([cat, byMonth]) => ({
-            cat,
-            currAmt: byMonth[curr] ?? 0,
-            prevAmt: byMonth[prev] ?? 0,
-            delta:   (byMonth[curr] ?? 0) - (byMonth[prev] ?? 0),
-          }))
-          .filter(c => c.prevAmt > 0 || c.currAmt > 0)
-          .sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta))
-          .slice(0, 4);
+        const scenario =
+          isFirstMonth                   ? "A" :
+          isConsecutive && isQualityData ? "B" :
+          isConsecutive                  ? "D" :
+          "C";
 
-        if (changes.length === 0) return null;
-
-        // ── Scenario 3: exactly 1 prior month — ₹ delta only, no percentage ──
-        if (mom.months.length === 2) {
-          return (
-            <section>
-              <h2
-                className="text-xs font-syne font-bold tracking-widest mb-1"
-                style={{ color: "var(--text-sub)" }}
-              >
-                📊 What changed?
-              </h2>
-              <p className="text-xs mb-3" style={{ color: "var(--text-muted)" }}>
-                vs {prevLabel}
-              </p>
-              <div className="space-y-0">
-                {changes.map(({ cat, delta, prevAmt, currAmt }) => {
-                  const isUp = delta > 0;
-                  const isSavingsCat = SAVINGS_CATS.has(cat);
-                  const isPositive = isSavingsCat ? isUp : !isUp;
-                  const dotColour = isPositive ? "#34d399" : "#f87171";
-                  const icon = isUp ? "↑" : "↓";
-                  const label = currAmt > 0 && prevAmt === 0
-                    ? "New this month"
-                    : `${icon} ${fmtInr(Math.abs(delta))}`;
-
-                  return (
-                    <div key={cat} className="flex items-center gap-3 py-2.5 border-b"
-                         style={{ borderColor: "var(--border-lg)" }}>
-                      <span className="text-lg w-5 flex-shrink-0 text-center"
-                            style={{ color: currAmt > 0 && prevAmt === 0 ? "var(--text-muted)" : dotColour }}>
-                        {currAmt > 0 && prevAmt === 0 ? "✦" : icon}
-                      </span>
-                      <span className="flex-1 text-sm" style={{ color: "var(--text)" }}>
-                        {cat}
-                      </span>
-                      <div className="text-right">
-                        <span className="text-sm font-syne font-semibold"
-                              style={{ color: currAmt > 0 && prevAmt === 0 ? "var(--text-muted)" : dotColour }}>
-                          {label}
-                        </span>
-                        <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-                          {fmtInr(currAmt)} this month
-                        </p>
-                      </div>
-                    </div>
-                  );
-                })}
-                <button
-                  onClick={() => toast("Full breakdown coming soon.")}
-                  className="text-xs mt-2 w-full text-right transition-opacity hover:opacity-70"
-                  style={{ color: "var(--accent)" }}
-                >
-                  View all →
-                </button>
-              </div>
-            </section>
-          );
-        }
-
-        const fmtMoM = (rawPct: number | null, prevAmt: number): string => {
-          if (prevAmt === 0) return "New this month";
-          if (rawPct === null) return "—";
-          if (Math.abs(rawPct) > 300) return rawPct > 0 ? "↑ New high" : "↓ Major drop";
-          return `${rawPct > 0 ? "↑" : "↓"} ${Math.abs(Math.round(rawPct))}%`;
-        };
-
-        // ── Scenario 1: 2+ prior months — full comparison with percentage ──
         return (
           <section>
-            <h2
-              className="text-xs font-syne font-bold uppercase tracking-widest mb-1"
-              style={{ color: "var(--text-sub)" }}
-            >
-              What Changed?
-            </h2>
-            <p className="text-xs mb-3" style={{ color: "var(--text-muted)" }}>
-              vs {prevLabel}
-            </p>
-            <div className="space-y-0">
-              {changes.map(({ cat, delta, prevAmt, currAmt }) => {
-                const isUp = delta > 0;
-                const isSavingsCat = SAVINGS_CATS.has(cat);
-                const isPositive = isSavingsCat ? isUp : !isUp;
-                const dotColour = isPositive ? "#34d399" : "#f87171";
-                const rawPct = prevAmt > 0 ? Math.round((delta / prevAmt) * 100) : null;
-                const momStr = fmtMoM(rawPct, prevAmt);
-                const label = prevAmt === 0
-                  ? momStr
-                  : `${momStr} (${fmtInr(Math.abs(delta))})`;
-
-                return (
-                  <div key={cat} className="flex items-center gap-3 py-2.5 border-b"
-                       style={{ borderColor: "var(--border-lg)" }}>
-                    <span className="text-lg w-5 flex-shrink-0 text-center"
-                          style={{ color: dotColour }}>
-                      {isUp ? "↑" : "↓"}
-                    </span>
-                    <span className="flex-1 text-sm" style={{ color: "var(--text)" }}>
-                      {cat}
-                    </span>
-                    <div className="text-right">
-                      <span className="text-sm font-syne font-semibold"
-                            style={{ color: dotColour }}>
-                        {label}
-                      </span>
-                      <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-                        {fmtInr(currAmt)} this month
-                      </p>
-                    </div>
-                  </div>
-                );
-              })}
-              <button
-                onClick={() => toast("Full breakdown coming soon.")}
-                className="text-xs mt-2 w-full text-right transition-opacity hover:opacity-70"
-                style={{ color: "var(--accent)" }}
+            <div className="flex items-center justify-between mb-3">
+              <h2
+                className="text-xs font-syne font-bold tracking-widest"
+                style={{ color: "var(--text-sub)" }}
               >
-                View all →
-              </button>
+                {scenario === "A" ? "🌱 Getting started"     :
+                 scenario === "B" ? "📊 What changed?"       :
+                 scenario === "C" ? "📅 Spending highlights"  :
+                                    "📋 Tracking summary"}
+              </h2>
+              {scenario === "B" && prev && (
+                <span className="text-xs" style={{ color: "var(--text-muted)" }}>
+                  vs {new Date(prev + "-01").toLocaleString("en-IN", { month: "short" })}
+                </span>
+              )}
             </div>
+
+            {scenario === "A" && <InsightsScenarioA summary={summary} />}
+            {scenario === "B" && prev && (
+              <InsightsScenarioB
+                mom={mom}
+                summary={summary}
+                curr={curr}
+                prev={prev}
+                onViewAll={() => toast("See all transactions in the History tab →")}
+              />
+            )}
+            {scenario === "C" && prev && <InsightsScenarioC summary={summary} prev={prev} />}
+            {scenario === "D" && (
+              <InsightsScenarioD currDays={currDaysTracked} prevDays={prevDaysTracked} />
+            )}
           </section>
         );
       })()}

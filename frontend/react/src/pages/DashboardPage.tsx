@@ -81,8 +81,8 @@ function DashboardShell({ tab, onTabChange, isAdmin }: {
         </div>
       )}
 
-      {/* Fixed / Overview tabs: keep existing strip + flip-cards */}
-      {(tab === "fixed" || tab === "overview") && balance && (
+      {/* Fixed tab: summary strip + flip-cards (Overview has its own KPI tiles) */}
+      {tab === "fixed" && balance && (
         <>
           {/* Mobile: compact count-up strip */}
           <div

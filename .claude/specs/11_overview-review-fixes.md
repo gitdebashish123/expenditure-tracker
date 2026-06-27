@@ -54,10 +54,14 @@ The canonical 12-section IA from the review doc is **fully present** in the curr
 - If the Monthly Breakdown insight row (⚡ row beneath the stacked bar) is the only "Insight" content, it is incorrectly positioned — it lives inside the Monthly Breakdown card, not as a standalone section between positions 4 and 6.
 - The spec intent is a **standalone Insight card** at position 5 with its own section heading ("✨ Insight") and one AI-generated observation sentence distinct from the breakdown percentage note.
 
-**What to build** (if not already present as standalone):
-- A full-width card between "Spend by Category" and "Peace of Mind".
+**Current position (confirmed from code, 2026-06-27)**:
+The Insight card lives inside Section 1 (Monthly Breakdown left column), as the last child of a `flex flex-col gap-3` container. It uses `flex-1` so it fills remaining height to match the Spend by Category card on the right. This is its correct and final position — do not move it.
+
+**What to build** (if not already present):
+- An Insight card inside the Monthly Breakdown column, below `<BalanceBreakdown />`.
 - Heading: "✨ Insight"
 - Body: one sentence from a new backend endpoint `/insights/monthly-insight/{month_key}` that generates an AI observation.
+- Card uses `flex-1` so it stretches to fill remaining column height.
 - If the endpoint returns null or errors, hide the card entirely (no empty states).
 - Cache the response identically to the story endpoint (keyed by `(user_id, month_key)`, invalidated on expense mutation via `_invalidate_month_caches`).
 
@@ -119,10 +123,10 @@ const isFirstMonth = prevSummary === null;
 
 **Affected files**:
 - `backend/main.py` — new endpoint + cache + prompt branching on `is_first_month`
-- `frontend/react/src/components/tabs/OverviewTab.tsx` — new standalone card at position 5 + `isSafeInsight` guard
+- `frontend/react/src/components/tabs/OverviewTab.tsx` — Insight card inside Monthly Breakdown column + `isSafeInsight` guard
 
 **Acceptance criteria**:
-- A distinct "✨ Insight" card appears between Spend by Category and Peace of Mind.
+- A distinct "✨ Insight" card appears inside the Monthly Breakdown column, below `<BalanceBreakdown />`, using `flex-1` to fill remaining height.
 - **First-month users**: insight is encouraging, forward-looking, contains no percentage comparison to prior months.
 - **Returning users**: insight may include comparative language only when both current and prior values are non-zero.
 - If the frontend detects a first-month user and the insight string contains comparative language despite the backend guard, the card is hidden.

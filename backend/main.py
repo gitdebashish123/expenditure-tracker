@@ -5,6 +5,7 @@ from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from fastapi.middleware.cors import CORSMiddleware
 from sqlmodel import Session, select, func
+from sqlalchemy import distinct
 from pydantic import BaseModel, field_validator
 import bleach
 from typing import Optional
@@ -965,12 +966,20 @@ def get_summary(request: Request, month_key: str, session: Session = Depends(get
             "remaining": max(limit - spent, 0),
         })
 
+    expense_count = session.exec(
+        select(func.count(Expense.id)).where(
+            Expense.user_id == current_user.id,
+            Expense.month_key == month_key,
+        )
+    ).one() or 0
+
     return {
         "balance":       balance,
         "warnings":      warnings,
         "categories":    categories,
         "fixed_progress": {"paid": fixed_paid, "total": len(fixed_exps)},
         "peace_of_mind": compute_peace_of_mind(balance),
+        "expense_count": expense_count,
     }
 
 
@@ -1115,6 +1124,16 @@ def month_over_month(month_key: str, session: Session = Depends(get_session),
             y -= 1
         months.append(f"{y:04d}-{m:02d}")
 
+    days_tracked = {}
+    for m in months:
+        count = session.exec(
+            select(func.count(distinct(Expense.date))).where(
+                Expense.user_id == current_user.id,
+                Expense.month_key == m,
+            )
+        ).one() or 0
+        days_tracked[m] = count
+
     expenses = session.exec(
         select(Expense).where(
             Expense.month_key.in_(months),
@@ -1136,7 +1155,7 @@ def month_over_month(month_key: str, session: Session = Depends(get_session),
     ).all()
     income_map = {i.month_key: i.amount for i in incomes}
 
-    return {"months": months, "categories": data, "income": income_map}
+    return {"months": months, "categories": data, "income": income_map, "days_tracked": days_tracked}
 
 
 @app.get("/insights/top-spends/{month_key}")
@@ -1403,17 +1422,27 @@ def monthly_insight(month_key: str, session: Session = Depends(get_session),
     prev_month_key = f"{prev_year:04d}-{prev_month_num:02d}"
     prev_balance   = get_balance_summary(session, prev_month_key, user_id=current_user.id)
 
-    variable_pct = (
+    is_first_month = (prev_balance is None or prev_balance.get("variable_total", 0) == 0)
+
+    variable_pct  = (
         round(balance["variable_total"] / balance["total_income"] * 100)
         if balance["total_income"] else 0
     )
-    fixed_total = balance["fixed_paid_total"] + balance["fixed_unpaid_total"]
+    fixed_total   = balance["fixed_paid_total"] + balance["fixed_unpaid_total"]
+    savings_total = balance.get("savings_total", 0)
+    savings_pct   = round(savings_total / balance["total_income"] * 100) if balance["total_income"] else 0
+    bills_status  = "all" if balance["fixed_unpaid_total"] == 0 else "unpaid bills remain"
 
     context = {
+        "is_first_month":         is_first_month,
+        "month_key":              month_key,
         "variable_total":         balance["variable_total"],
         "variable_pct_of_income": variable_pct,
         "top_category":           top_category,
         "top_category_spent":     top_category_spent,
+        "savings_total":          savings_total,
+        "savings_pct":            savings_pct,
+        "bills_status":           bills_status,
         "prev_variable_total":    prev_balance["variable_total"] if prev_balance else None,
         "fixed_paid_total":       balance["fixed_paid_total"],
         "fixed_total":            fixed_total,

@@ -86,6 +86,7 @@ export interface Summary {
   warnings: Array<{ level: "warning" | "danger"; message: string }>;
   fixed_progress: { paid: number; total: number };
   peace_of_mind?: PeaceOfMind;
+  expense_count?: number;
 }
 
 export interface BudgetLimit {
