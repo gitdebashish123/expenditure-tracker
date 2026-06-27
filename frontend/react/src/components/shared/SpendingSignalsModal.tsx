@@ -8,9 +8,15 @@ function getSignalState(ratio: number, spent: number, limit: number) {
   return                   { badge: "On track",                          colour: "#34d399", bg: "#0e2419" };
 }
 
+function getSignalStat(spent: number, budget: number): string {
+  if (budget <= 0) return "—";
+  const ratio = spent / budget;
+  if (ratio > 1) return `${Math.round((ratio - 1) * 100)}% over budget`;
+  return `${Math.round(ratio * 100)}% of budget`;
+}
+
 export function SignalCard({ p }: { p: ProjectionItem }) {
   const ratio = p.limit > 0 ? p.spent / p.limit : 0;
-  const pct   = Math.round(ratio * 100);
   const sig   = getSignalState(ratio, p.spent, p.limit);
   const icon  = CATEGORY_ICONS[p.category] ?? "📦";
   const dailyRate =
@@ -38,8 +44,8 @@ export function SignalCard({ p }: { p: ProjectionItem }) {
           </p>
         </div>
         <div className="text-right flex-shrink-0">
-          <p className="font-syne font-bold text-lg" style={{ color: sig.colour }}>
-            {pct}%
+          <p className="font-syne font-bold text-sm leading-snug" style={{ color: sig.colour }}>
+            {getSignalStat(p.spent, p.limit)}
           </p>
           {dailyRate && (
             <p className="text-[10px]" style={{ color: "var(--text-sub)" }}>

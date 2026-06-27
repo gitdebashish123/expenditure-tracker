@@ -174,3 +174,40 @@ Rules:
         messages=[{"role": "user", "content": prompt}],
     )
     return message.content[0].text.strip()
+
+
+def generate_monthly_insight(context: dict) -> str:
+    """
+    Generate one concise behavioural observation sentence (max 20 words).
+
+    Expected context keys:
+        variable_total: float
+        variable_pct_of_income: int
+        top_category: str | None
+        top_category_spent: float
+        prev_variable_total: float | None
+        fixed_paid_total: float
+        fixed_total: float
+    """
+    prev_var = (
+        f"₹{context['prev_variable_total']:.0f}"
+        if context.get("prev_variable_total") is not None
+        else "N/A"
+    )
+    prompt = (
+        "You are a financial assistant. Generate exactly ONE concise observation sentence "
+        "(maximum 20 words) about this user's financial behaviour this month. "
+        "Do not restate totals already visible on the dashboard. "
+        "Focus on a pattern, trend, or notable behaviour.\n\n"
+        f"Variable spending: ₹{context['variable_total']:.0f} ({context['variable_pct_of_income']}% of income)\n"
+        f"Top category: {context.get('top_category') or 'N/A'} at ₹{context.get('top_category_spent', 0):.0f}\n"
+        f"Prior month variable: {prev_var}\n"
+        f"Bills paid: ₹{context['fixed_paid_total']:.0f} of ₹{context['fixed_total']:.0f}\n\n"
+        "Respond with a single sentence only. No preamble, no punctuation beyond the sentence itself."
+    )
+    message = client.messages.create(
+        model="claude-sonnet-4-5-20250929",
+        max_tokens=60,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    return message.content[0].text.strip()

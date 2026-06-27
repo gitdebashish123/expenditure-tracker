@@ -22,7 +22,7 @@ from backend.models import (
     Expense, BudgetLimit, IncomeEntry, FixedExpenseTemplate, ExpenseTemplate, PoolEntry,
     User, create_db, get_session, engine
 )
-from backend.ai_parser import parse_expense_input, generate_daily_mantra, generate_monthly_story
+from backend.ai_parser import parse_expense_input, generate_daily_mantra, generate_monthly_story, generate_monthly_insight
 from backend.budget_rules import (
     get_month_key, check_budget_warnings, get_balance_summary,
     seed_fixed_expenses, get_monthly_spent_by_category, get_budget_limits,
@@ -1236,10 +1236,14 @@ _mantra_last_type: dict[int, str] = {}
 # change once generated, so no TTL needed; resets only on process restart.
 _story_cache: dict[tuple[int, str], str] = {}
 
+# Per-month insight cache — same lifecycle as _story_cache.
+_insight_cache: dict[tuple[int, str], str] = {}
+
 
 def _invalidate_month_caches(user_id: int, month_key: str) -> None:
     _story_cache.pop((user_id, month_key), None)
     _mantra_cache.pop((user_id, month_key), None)
+    _insight_cache.pop((user_id, month_key), None)
 
 
 @app.get("/insights/mantra/{month_key}")
@@ -1375,6 +1379,52 @@ def monthly_story(month_key: str, session: Session = Depends(get_session),
 
     _story_cache[cache_key] = story
     return {"story": story}
+
+
+@app.get("/insights/monthly-insight/{month_key}")
+def monthly_insight(month_key: str, session: Session = Depends(get_session),
+                    current_user: User = Depends(get_current_user)):
+    cache_key = (current_user.id, month_key)
+    if cache_key in _insight_cache:
+        return {"insight": _insight_cache[cache_key]}
+
+    balance      = get_balance_summary(session, month_key, user_id=current_user.id)
+    spent_by_cat = get_monthly_spent_by_category(session, month_key, user_id=current_user.id)
+
+    top_category       = max(spent_by_cat, key=spent_by_cat.get) if spent_by_cat else None
+    top_category_spent = spent_by_cat[top_category] if top_category else 0.0
+
+    year, month_num = map(int, month_key.split("-"))
+    prev_month_num  = month_num - 1
+    prev_year       = year
+    if prev_month_num <= 0:
+        prev_month_num += 12
+        prev_year      -= 1
+    prev_month_key = f"{prev_year:04d}-{prev_month_num:02d}"
+    prev_balance   = get_balance_summary(session, prev_month_key, user_id=current_user.id)
+
+    variable_pct = (
+        round(balance["variable_total"] / balance["total_income"] * 100)
+        if balance["total_income"] else 0
+    )
+    fixed_total = balance["fixed_paid_total"] + balance["fixed_unpaid_total"]
+
+    context = {
+        "variable_total":         balance["variable_total"],
+        "variable_pct_of_income": variable_pct,
+        "top_category":           top_category,
+        "top_category_spent":     top_category_spent,
+        "prev_variable_total":    prev_balance["variable_total"] if prev_balance else None,
+        "fixed_paid_total":       balance["fixed_paid_total"],
+        "fixed_total":            fixed_total,
+    }
+
+    try:
+        insight = generate_monthly_insight(context)
+        _insight_cache[cache_key] = insight
+        return {"insight": insight}
+    except Exception:
+        return {"insight": None}
 
 
 @app.get("/insights/tiny-win/{month_key}")

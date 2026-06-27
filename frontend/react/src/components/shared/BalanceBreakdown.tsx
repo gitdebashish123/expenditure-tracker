@@ -13,24 +13,28 @@ export function BalanceBreakdown({ balance }: { balance: Balance }) {
 
   const segments = [
     {
-      label:  "Fixed Paid",
-      value:  balance.fixed_paid_total,
-      colour: "#6366f1",
+      label:      "Fixed Paid",
+      shortLabel: "Bills",
+      value:      balance.fixed_paid_total,
+      colour:     "#6366f1",
     },
     {
-      label:  "Fixed Due",
-      value:  balance.fixed_unpaid_total,
-      colour: "rgba(99,102,241,0.3)",
+      label:      "Fixed Due",
+      shortLabel: "Due",
+      value:      balance.fixed_unpaid_total,
+      colour:     "rgba(99,102,241,0.3)",
     },
     {
-      label:  "Variable Spent",
-      value:  balance.variable_total,
-      colour: "#f87171",
+      label:      "Variable Spent",
+      shortLabel: "Variable",
+      value:      balance.variable_total,
+      colour:     "#f87171",
     },
     {
-      label:  "Balance Left",
-      value:  Math.max(balance.remaining, 0),
-      colour: "rgba(52,211,153,0.4)",
+      label:      "Balance Left",
+      shortLabel: "Balance",
+      value:      Math.max(balance.remaining, 0),
+      colour:     "rgba(52,211,153,0.4)",
     },
   ];
 
@@ -48,14 +52,28 @@ export function BalanceBreakdown({ balance }: { balance: Balance }) {
         {segments.map(s => {
           const pct = Math.min((s.value / inc) * 100, 100);
           if (pct < 0.5) return null;
+          const pctRounded = Math.round(pct);
+          const text = pct >= 12
+            ? `${s.shortLabel} ${pctRounded}%`
+            : pct >= 5
+            ? `${pctRounded}%`
+            : "";
           return (
             <div
               key={s.label}
-              className="flex items-center justify-center text-white text-[10px]
-                         font-semibold transition-all duration-700 overflow-hidden"
-              style={{ width: `${pct}%`, background: s.colour, minWidth: 0 }}
+              className="flex items-center justify-center transition-all duration-700 overflow-hidden"
+              style={{
+                width:      `${pct}%`,
+                background: s.colour,
+                minWidth:   0,
+                fontSize:   10,
+                color:      "#fff",
+                whiteSpace: "nowrap",
+                textOverflow: "ellipsis",
+                fontWeight: 600,
+              }}
             >
-              {pct > 8 ? `${Math.round(pct)}%` : ""}
+              {text}
             </div>
           );
         })}
@@ -73,7 +91,7 @@ export function BalanceBreakdown({ balance }: { balance: Balance }) {
               className="w-2.5 h-2.5 rounded-sm flex-shrink-0"
               style={{ background: s.colour }}
             />
-            {s.label} {fmtInr(s.value)}
+            {s.shortLabel} {fmtInr(s.value)}
           </span>
         ))}
       </div>

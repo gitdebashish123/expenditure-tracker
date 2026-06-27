@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
-import { Activity } from "lucide-react";
+import { Activity, ChevronDown } from "lucide-react";
 import { api } from "@/api/client";
 import { useMonth } from "@/context/MonthContext";
 import { fmtInr } from "@/utils/formatInr";
@@ -186,6 +186,7 @@ export function OverviewTab({ onTabChange }: { onTabChange?: (path: string) => v
   const [tinyWin,      setTinyWin]      = useState<string | null>(null);
   const [prevSummary,  setPrevSummary]  = useState<Summary | null>(null);
   const [pom,          setPom]          = useState<PeaceOfMind | null>(null);
+  const [monthlyInsight, setMonthlyInsight] = useState<string | null>(null);
   const [loading,           setLoading]          = useState(true);
   const [donutFilter,       setDonutFilter]       = useState<"variable" | "fixed" | "all">("variable");
   const [showPomBreakdown,  setShowPomBreakdown]  = useState(false);
@@ -197,7 +198,7 @@ export function OverviewTab({ onTabChange }: { onTabChange?: (path: string) => v
     const prevDate = new Date(year, month - 2, 1); // month-2 because JS months are 0-indexed
     const prevMonthKey = `${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, "0")}`;
     try {
-      const [sum, proj, top, momData, reminders, storyResult, tinyWinResult, prevSum, pomResult] = await Promise.all([
+      const [sum, proj, top, momData, reminders, storyResult, tinyWinResult, prevSum, pomResult, insightResult] = await Promise.all([
         api.get<Summary>(`/summary/${selMonth}`).then(r => r.data),
         api.get<ProjectionItem[]>(`/insights/projection/${selMonth}`).then(r => r.data),
         api.get<TopSpend[]>(`/insights/top-spends/${selMonth}?limit=5`).then(r => r.data),
@@ -208,6 +209,7 @@ export function OverviewTab({ onTabChange }: { onTabChange?: (path: string) => v
         api.get<TinyWin>(`/insights/tiny-win/${selMonth}`).then(r => r.data.win).catch(() => null),
         api.get<Summary>(`/summary/${prevMonthKey}`).then(r => r.data).catch(() => null),
         api.get<PeaceOfMind>(`/insights/peace-of-mind/${selMonth}`).then(r => r.data).catch(() => null),
+        api.get<{ insight: string | null }>(`/insights/monthly-insight/${selMonth}`).then(r => r.data.insight).catch(() => null),
       ]);
       setSummary(sum);
       setProjections(proj);
@@ -218,6 +220,7 @@ export function OverviewTab({ onTabChange }: { onTabChange?: (path: string) => v
       setTinyWin(tinyWinResult);
       setPrevSummary(prevSum);
       setPom(pomResult);
+      setMonthlyInsight(insightResult);
     } catch {
       // leave state as null — empty state renders
     } finally {
@@ -264,28 +267,34 @@ export function OverviewTab({ onTabChange }: { onTabChange?: (path: string) => v
         <div className="grid grid-cols-2 gap-3">
           {[
             {
-              label:  "Remaining",
-              value:  balance.remaining,
-              icon:   "💰",
-              colour: balance.remaining >= 0 ? "#34d399" : "#f87171",
+              label:    "Remaining",
+              value:    balance.remaining,
+              icon:     "💰",
+              colour:   balance.remaining >= 0 ? "#34d399" : "#f87171",
+              subtitle: undefined as string | undefined,
             },
             {
-              label:  "Income",
-              value:  balance.total_income,
-              icon:   "💼",
-              colour: "#6366f1",
+              label:    "Income",
+              value:    balance.total_income,
+              icon:     "💼",
+              colour:   "#6366f1",
+              subtitle: undefined as string | undefined,
             },
             {
-              label:  "Fixed Paid",
-              value:  balance.fixed_paid_total,
-              icon:   "✅",
-              colour: "#f59e0b",
+              label:    "Bills Paid",
+              value:    balance.fixed_paid_total,
+              icon:     "✅",
+              colour:   "#f59e0b",
+              subtitle: balance.fixed_unpaid_total === 0
+                ? "All bills cleared ✓"
+                : `Out of ${fmtInr(balance.fixed_paid_total + balance.fixed_unpaid_total)}`,
             },
             {
-              label:  balance.fixed_unpaid_total === 0 ? "All Bills Clear ✓" : "Pending Bills",
-              value:  balance.fixed_unpaid_total,
-              icon:   balance.fixed_unpaid_total === 0 ? "🎉" : "⏳",
-              colour: balance.fixed_unpaid_total === 0 ? "#34d399" : "#f87171",
+              label:    balance.fixed_unpaid_total === 0 ? "All Bills Clear ✓" : "Pending Bills",
+              value:    balance.fixed_unpaid_total,
+              icon:     balance.fixed_unpaid_total === 0 ? "🎉" : "⏳",
+              colour:   balance.fixed_unpaid_total === 0 ? "#34d399" : "#f87171",
+              subtitle: undefined as string | undefined,
             },
           ].map(tile => (
             <div
@@ -305,6 +314,11 @@ export function OverviewTab({ onTabChange }: { onTabChange?: (path: string) => v
               <p className="text-lg font-syne font-bold" style={{ color: tile.colour }}>
                 {fmtInr(tile.value)}
               </p>
+              {tile.subtitle && (
+                <p className="text-[10px] mt-1" style={{ color: "var(--text-sub)" }}>
+                  {tile.subtitle}
+                </p>
+              )}
             </div>
           ))}
         </div>
@@ -346,47 +360,32 @@ export function OverviewTab({ onTabChange }: { onTabChange?: (path: string) => v
       )}
 
       {/* ── Sections 3+4: Monthly Breakdown + Spend by Category (side-by-side) ── */}
-      <div className="grid grid-cols-1 pair:grid-cols-2 gap-4 items-start">
+      <div className="grid grid-cols-1 pair:grid-cols-2 gap-4">
 
         {/* ── Section 1: Monthly breakdown bar + Insight ───── */}
-        <section>
+        <section className="h-full flex flex-col gap-3">
           <BalanceBreakdown balance={balance} />
 
-          {(() => {
-            const currVarPct = balance.total_income > 0
-              ? Math.round(balance.variable_total / balance.total_income * 100)
-              : null;
-            const prevVarPct = prevSummary?.balance.total_income
-              ? Math.round(prevSummary.balance.variable_total / prevSummary.balance.total_income * 100)
-              : null;
-            if (currVarPct === null) return null;
-            const avgPct = prevVarPct !== null
-              ? Math.round((currVarPct + prevVarPct) / 2)
-              : null;
-            return (
-              <div className="flex gap-2 items-start mt-3 rounded-xl border-l-2 pl-3 py-2"
-                   style={{ borderColor: "#f59e0b", background: "var(--card2)" }}>
-                <span style={{ color: "#f59e0b", fontSize: 12 }}>⚡</span>
-                <p className="text-[11px] leading-relaxed" style={{ color: "var(--text-sub)" }}>
-                  Variable spending consumed{" "}
-                  <span className="font-semibold" style={{ color: "var(--text)" }}>
-                    {currVarPct}% of income
-                  </span>{" "}
-                  this month.{" "}
-                  {avgPct !== null
-                    ? <>Your average over the last 2 months is <span className="font-semibold" style={{ color: "var(--text)" }}>{avgPct}%</span>.</>
-                    : "No prior month data to compare."}
-                </p>
-              </div>
-            );
-          })()}
+          {monthlyInsight && (
+            <div
+              className="flex-1 rounded-2xl border p-4"
+              style={{ borderColor: "var(--border)", background: "var(--card)" }}
+            >
+              <p className="text-[11px] font-semibold tracking-wide mb-2" style={{ color: "var(--accent)" }}>
+                ✨ Insight
+              </p>
+              <p className="text-[13px] leading-relaxed" style={{ color: "var(--text)" }}>
+                {monthlyInsight}
+              </p>
+            </div>
+          )}
         </section>
 
         {/* ── Section 2: Spend donut + Category Winner ──────── */}
         {summary.categories.length > 0 && (
-          <section>
+          <section className="h-full">
             <div
-              className="rounded-2xl border p-4"
+              className="rounded-2xl border p-4 h-full"
               style={{ background: "var(--card)", borderColor: "var(--border-lg)" }}
             >
               {/* Header + filter tabs */}
@@ -397,22 +396,26 @@ export function OverviewTab({ onTabChange }: { onTabChange?: (path: string) => v
                 >
                   Spend by Category
                 </h2>
-                <div className="flex gap-1.5">
-                  {DONUT_FILTERS.map(f => (
-                    <button
-                      key={f.value}
-                      onClick={() => setDonutFilter(f.value)}
-                      className="text-xs px-2.5 py-1 rounded-lg border transition-colors"
-                      style={{
-                        background:  donutFilter === f.value ? "var(--accent-bg)" : "transparent",
-                        borderColor: donutFilter === f.value ? "var(--accent)"    : "var(--border-lg)",
-                        color:       donutFilter === f.value ? "var(--accent)"    : "var(--text)",
-                        fontWeight:  donutFilter === f.value ? 600 : 400,
-                      }}
-                    >
-                      {f.label}
-                    </button>
-                  ))}
+                <div className="relative">
+                  <select
+                    value={donutFilter}
+                    onChange={e => setDonutFilter(e.target.value as "variable" | "fixed" | "all")}
+                    className="appearance-none text-xs pl-2.5 pr-6 py-1 rounded-lg border cursor-pointer"
+                    style={{
+                      background:  "var(--card2)",
+                      borderColor: "var(--border-lg)",
+                      color:       "var(--text)",
+                    }}
+                  >
+                    {DONUT_FILTERS.map(f => (
+                      <option key={f.value} value={f.value}>{f.label}</option>
+                    ))}
+                  </select>
+                  <ChevronDown
+                    size={11}
+                    className="absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none"
+                    style={{ color: "var(--text-sub)" }}
+                  />
                 </div>
               </div>
 
@@ -449,8 +452,8 @@ export function OverviewTab({ onTabChange }: { onTabChange?: (path: string) => v
 
                 return (
                   <div
-                    className="mt-4 pt-4 border-t"
-                    style={{ borderColor: "var(--border-lg)" }}
+                    className="mt-3 pt-3 border-t"
+                    style={{ borderColor: "var(--border)" }}
                   >
                     <p
                       className="text-[10px] font-syne font-bold uppercase tracking-widest mb-2"
@@ -489,7 +492,7 @@ export function OverviewTab({ onTabChange }: { onTabChange?: (path: string) => v
       </div>
 
       {/* ── Sections 5+6: Peace of Mind + Spending Signals (side-by-side) ── */}
-      <div className="grid grid-cols-1 pair:grid-cols-2 gap-4 items-start">
+      <div className="grid grid-cols-1 pair:grid-cols-2 gap-4">
 
         {/* ── Section 5: Peace of Mind Score ───────────────── */}
         {pom && (() => {
@@ -501,14 +504,14 @@ export function OverviewTab({ onTabChange }: { onTabChange?: (path: string) => v
           const negFactors = (pom.factors ?? []).filter(f => f.points < 0);
 
           return (
-            <section>
+            <section className="h-full">
               <div
-                className="rounded-2xl border p-4"
+                className="rounded-2xl border p-4 h-full"
                 style={{ background: "var(--card)", borderColor: "var(--border-lg)" }}
               >
-                <p className="text-[10px] font-syne font-bold uppercase tracking-widest mb-3"
+                <p className="text-[10px] font-syne font-bold tracking-widest mb-3"
                    style={{ color: "var(--text-sub)" }}>
-                  Peace of Mind
+                  🧘 Peace of mind
                 </p>
 
                 {/* Dial + right column */}
@@ -598,13 +601,13 @@ export function OverviewTab({ onTabChange }: { onTabChange?: (path: string) => v
           const budgetSignals = [top, mid, low].filter(Boolean);
 
           return (
-            <section>
+            <section className="h-full">
               <div className="flex items-center justify-between mb-3">
                 <h2
-                  className="text-xs font-syne font-bold uppercase tracking-widest"
+                  className="text-xs font-syne font-bold tracking-widest"
                   style={{ color: "var(--text-sub)" }}
                 >
-                  Spending Signals
+                  📡 Spending signals
                 </h2>
                 <button
                   className="text-xs"
@@ -628,10 +631,10 @@ export function OverviewTab({ onTabChange }: { onTabChange?: (path: string) => v
       {/* ── Section 7: Upcoming Reality ──────────────────── */}
       <section>
         <h2
-          className="text-xs font-syne font-bold uppercase tracking-widest mb-3"
+          className="text-xs font-syne font-bold tracking-widest mb-3"
           style={{ color: "var(--text-sub)" }}
         >
-          Upcoming Reality
+          📅 Upcoming reality
         </h2>
         <div
           className="rounded-2xl border overflow-hidden"
@@ -801,10 +804,10 @@ export function OverviewTab({ onTabChange }: { onTabChange?: (path: string) => v
           return (
             <section>
               <h2
-                className="text-xs font-syne font-bold uppercase tracking-widest mb-1"
+                className="text-xs font-syne font-bold tracking-widest mb-1"
                 style={{ color: "var(--text-sub)" }}
               >
-                What Changed?
+                📊 What changed?
               </h2>
               <p className="text-xs mb-3" style={{ color: "var(--text-muted)" }}>
                 vs {prevLabel}
@@ -854,6 +857,13 @@ export function OverviewTab({ onTabChange }: { onTabChange?: (path: string) => v
           );
         }
 
+        const fmtMoM = (rawPct: number | null, prevAmt: number): string => {
+          if (prevAmt === 0) return "New this month";
+          if (rawPct === null) return "—";
+          if (Math.abs(rawPct) > 300) return rawPct > 0 ? "↑ New high" : "↓ Major drop";
+          return `${rawPct > 0 ? "↑" : "↓"} ${Math.abs(Math.round(rawPct))}%`;
+        };
+
         // ── Scenario 1: 2+ prior months — full comparison with percentage ──
         return (
           <section>
@@ -872,20 +882,18 @@ export function OverviewTab({ onTabChange }: { onTabChange?: (path: string) => v
                 const isSavingsCat = SAVINGS_CATS.has(cat);
                 const isPositive = isSavingsCat ? isUp : !isUp;
                 const dotColour = isPositive ? "#34d399" : "#f87171";
-                const icon = isUp ? "↑" : "↓";
-                const pct = prevAmt > 0
-                  ? Math.abs(Math.round((delta / prevAmt) * 100))
-                  : null;
-                const label = pct != null
-                  ? `${icon} ${pct}% (${fmtInr(Math.abs(delta))})`
-                  : `${icon} ${fmtInr(Math.abs(delta))}`;
+                const rawPct = prevAmt > 0 ? Math.round((delta / prevAmt) * 100) : null;
+                const momStr = fmtMoM(rawPct, prevAmt);
+                const label = prevAmt === 0
+                  ? momStr
+                  : `${momStr} (${fmtInr(Math.abs(delta))})`;
 
                 return (
                   <div key={cat} className="flex items-center gap-3 py-2.5 border-b"
                        style={{ borderColor: "var(--border-lg)" }}>
                     <span className="text-lg w-5 flex-shrink-0 text-center"
                           style={{ color: dotColour }}>
-                      {icon}
+                      {isUp ? "↑" : "↓"}
                     </span>
                     <span className="flex-1 text-sm" style={{ color: "var(--text)" }}>
                       {cat}
@@ -997,10 +1005,10 @@ export function OverviewTab({ onTabChange }: { onTabChange?: (path: string) => v
               >
                 <Activity size={13} strokeWidth={2.5} style={{ color: "#34d399" }} />
                 <p
-                  className="text-[10px] font-syne font-bold uppercase tracking-widest"
+                  className="text-[10px] font-syne font-bold tracking-widest"
                   style={{ color: "var(--text-sub)" }}
                 >
-                  Financial Pulse
+                  💓 Financial pulse
                 </p>
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-4">
@@ -1041,10 +1049,10 @@ export function OverviewTab({ onTabChange }: { onTabChange?: (path: string) => v
             <span className="text-2xl flex-shrink-0">🏆</span>
             <div>
               <p
-                className="text-[10px] font-syne font-bold uppercase tracking-widest mb-1"
+                className="text-[10px] font-syne font-bold tracking-widest mb-1"
                 style={{ color: "#f59e0b" }}
               >
-                Tiny Win
+                🎉 Tiny win
               </p>
               <p className="text-sm leading-relaxed" style={{ color: "var(--text)" }}>
                 {tinyWin}
