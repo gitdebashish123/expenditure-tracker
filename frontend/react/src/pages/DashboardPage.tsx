@@ -108,7 +108,7 @@ function DashboardShell({ tab, onTabChange, isAdmin }: {
       <main className="max-w-2xl mx-auto px-4 py-4">
         {tab === "today"    && <ErrorBoundary><QuickAddTab onExpenseAdded={bumpRefresh} /></ErrorBoundary>}
         {tab === "fixed"    && <ErrorBoundary><FixedTab    /></ErrorBoundary>}
-        {tab === "overview" && <ErrorBoundary><OverviewTab /></ErrorBoundary>}
+        {tab === "overview" && <ErrorBoundary><OverviewTab onTabChange={onTabChange} /></ErrorBoundary>}
         {tab === "history"  && <ErrorBoundary><HistoryTab  /></ErrorBoundary>}
         {tab === "settings" && <ErrorBoundary><SettingsTab /></ErrorBoundary>}
         {tab === "admin" && isAdmin &&

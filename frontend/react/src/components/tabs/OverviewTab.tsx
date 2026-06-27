@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
-import { Activity, Zap } from "lucide-react";
+import { Activity } from "lucide-react";
 import { api } from "@/api/client";
 import { useMonth } from "@/context/MonthContext";
 import { fmtInr } from "@/utils/formatInr";
@@ -7,9 +7,9 @@ import { fmtDate } from "@/utils/formatDate";
 import { CATEGORY_ICONS, FIXED_CATEGORIES } from "@/utils/categories";
 import { BalanceBreakdown } from "@/components/shared/BalanceBreakdown";
 import { SpendDonut } from "@/components/shared/SpendDonut";
-import { BudgetHealthCard } from "@/components/shared/BudgetHealthCard";
+import { SignalCard, SpendingSignalsModal } from "@/components/shared/SpendingSignalsModal";
 import { useToast } from "@/context/ToastContext";
-import type { Summary, ProjectionItem, DueReminder, MonthlyStory, TinyWin } from "@/types";
+import type { Summary, ProjectionItem, DueReminder, MonthlyStory, TinyWin, PeaceOfMind } from "@/types";
 
 /**
  * OverviewTab — full financial dashboard for the selected month
@@ -51,27 +51,68 @@ interface MoMData {
 const RANK_COLOURS = ["#f59e0b", "#94a3b8", "#b45309", "#6366f1", "#6366f1"];
 
 const DONUT_FILTERS = [
-  { value: "variable" as const, label: "Day-to-day"  },
+  { value: "variable" as const, label: "Variable"    },
   { value: "fixed"    as const, label: "Fixed Bills"  },
   { value: "all"      as const, label: "All"          },
 ];
 
-function TopSpendRow({ rank, item }: { rank: number; item: TopSpend }) {
-  const icon = CATEGORY_ICONS[item.category] ?? "📦";
+const getContextBadge = (tx: TopSpend, rank: number): { label: string; colour: string } | null => {
+  if (rank === 1) return { label: "🏆 Biggest Purchase", colour: "#f59e0b" };
+  if (["Savings", "Investments", "Mutual Fund"].includes(tx.category))
+    return { label: "📈 Investment", colour: "#818cf8" };
+  if (["Course", "Education"].includes(tx.category))
+    return { label: "📚 Learning", colour: "#818cf8" };
+  if (["Travel", "Medical", "Rent", "Cook", "Milk", "Electricity"].includes(tx.category))
+    return { label: "🚗 Essential", colour: "#94a3b8" };
+  if (tx.category === "Gifts")
+    return { label: "❤️ Special Moment", colour: "#f472b6" };
+  if (rank === 2) return { label: "👑 Top Spend", colour: "#f59e0b" };
+  return null;
+};
+
+const VENDOR_INITIAL_PALETTE = [
+  "#6366f1", "#8b5cf6", "#ec4899", "#f59e0b", "#14b8a6", "#3b82f6", "#f87171", "#34d399",
+];
+
+function vendorInitialColour(name: string) {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = name.charCodeAt(i) + ((h << 5) - h);
+  return VENDOR_INITIAL_PALETTE[Math.abs(h) % VENDOR_INITIAL_PALETTE.length];
+}
+
+function TopSpendRow({ rank, item, varTotal }: { rank: number; item: TopSpend; varTotal: number }) {
+  const catIcon = CATEGORY_ICONS[item.category];
+  const useFallback = !catIcon || catIcon === "📦";
+  const badge = getContextBadge(item, rank);
+  const pctOfVar = varTotal > 0 ? Math.round(item.amount / varTotal * 100) : null;
+  const initials = item.vendor.slice(0, 2).toUpperCase();
+  const bgColour = vendorInitialColour(item.vendor);
+
   return (
     <div className="flex items-center gap-3 py-3 border-b border-white/5">
-      {/* Rank number */}
+      {/* Rank indicator — gold background for rank 1 */}
       <span
-        className="font-syne font-extrabold text-lg w-7 text-center flex-shrink-0"
-        style={{ color: RANK_COLOURS[rank - 1] }}
+        className="font-syne font-extrabold text-base w-7 h-7 flex items-center justify-center rounded-lg flex-shrink-0"
+        style={{
+          color:      rank === 1 ? "#111"    : RANK_COLOURS[rank - 1],
+          background: rank === 1 ? "#f59e0b" : "transparent",
+        }}
       >
-        #{rank}
+        {rank}
       </span>
 
-      {/* Category icon */}
-      <div className="w-9 h-9 bg-dark-card2 rounded-xl flex items-center justify-center
-                      text-lg flex-shrink-0">
-        {icon}
+      {/* Category icon — or vendor initial avatar for Miscellaneous */}
+      <div
+        className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
+        style={useFallback
+          ? { background: bgColour + "33", border: `1px solid ${bgColour}55` }
+          : { background: "var(--card2)" }
+        }
+      >
+        {useFallback
+          ? <span className="text-[11px] font-syne font-bold" style={{ color: bgColour }}>{initials}</span>
+          : <span className="text-lg">{catIcon}</span>
+        }
       </div>
 
       {/* Vendor + category + date */}
@@ -89,10 +130,22 @@ function TopSpendRow({ rank, item }: { rank: number; item: TopSpend }) {
         </p>
       </div>
 
-      {/* Amount */}
-      <span className="font-syne font-bold text-red-400 flex-shrink-0 text-sm">
-        {fmtInr(item.amount)}
-      </span>
+      {/* Amount + % of spending + context badge */}
+      <div className="flex flex-col items-end gap-0.5 flex-shrink-0">
+        <span className="font-syne font-bold text-red-400 text-sm">
+          {fmtInr(item.amount)}
+        </span>
+        {pctOfVar !== null && (
+          <span className="text-[10px]" style={{ color: "var(--text-sub)" }}>
+            {pctOfVar}% of spending
+          </span>
+        )}
+        {badge && (
+          <span className="text-[10px] font-medium" style={{ color: badge.colour }}>
+            {badge.label}
+          </span>
+        )}
+      </div>
     </div>
   );
 }
@@ -120,7 +173,7 @@ function OverviewSkeleton() {
 
 // ── Main component ─────────────────────────────────────────────────────────────
 
-export function OverviewTab() {
+export function OverviewTab({ onTabChange }: { onTabChange?: (path: string) => void }) {
   const { selMonth } = useMonth();
   const { toast } = useToast();
 
@@ -131,14 +184,20 @@ export function OverviewTab() {
   const [dueReminders, setDueReminders] = useState<DueReminder[]>([]);
   const [story,        setStory]        = useState<string | null>(null);
   const [tinyWin,      setTinyWin]      = useState<string | null>(null);
+  const [prevSummary,  setPrevSummary]  = useState<Summary | null>(null);
+  const [pom,          setPom]          = useState<PeaceOfMind | null>(null);
   const [loading,           setLoading]          = useState(true);
   const [donutFilter,       setDonutFilter]       = useState<"variable" | "fixed" | "all">("variable");
   const [showPomBreakdown,  setShowPomBreakdown]  = useState(false);
+  const [showSignalsModal,  setShowSignalsModal]  = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
+    const [year, month] = selMonth.split("-").map(Number);
+    const prevDate = new Date(year, month - 2, 1); // month-2 because JS months are 0-indexed
+    const prevMonthKey = `${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, "0")}`;
     try {
-      const [sum, proj, top, momData, reminders, storyResult, tinyWinResult] = await Promise.all([
+      const [sum, proj, top, momData, reminders, storyResult, tinyWinResult, prevSum, pomResult] = await Promise.all([
         api.get<Summary>(`/summary/${selMonth}`).then(r => r.data),
         api.get<ProjectionItem[]>(`/insights/projection/${selMonth}`).then(r => r.data),
         api.get<TopSpend[]>(`/insights/top-spends/${selMonth}?limit=5`).then(r => r.data),
@@ -147,6 +206,8 @@ export function OverviewTab() {
         api.get<DueReminder[]>(`/fixed/due-reminders/${selMonth}`).then(r => r.data).catch((): DueReminder[] => []),
         api.get<MonthlyStory>(`/insights/story/${selMonth}`).then(r => r.data.story).catch(() => null),
         api.get<TinyWin>(`/insights/tiny-win/${selMonth}`).then(r => r.data.win).catch(() => null),
+        api.get<Summary>(`/summary/${prevMonthKey}`).then(r => r.data).catch(() => null),
+        api.get<PeaceOfMind>(`/insights/peace-of-mind/${selMonth}`).then(r => r.data).catch(() => null),
       ]);
       setSummary(sum);
       setProjections(proj);
@@ -155,6 +216,8 @@ export function OverviewTab() {
       setDueReminders(reminders);
       setStory(storyResult);
       setTinyWin(tinyWinResult);
+      setPrevSummary(prevSum);
+      setPom(pomResult);
     } catch {
       // leave state as null — empty state renders
     } finally {
@@ -282,43 +345,38 @@ export function OverviewTab() {
         </section>
       )}
 
-      {/* ── Sections 1+2: Monthly Breakdown + Spend by Category (side-by-side) ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
+      {/* ── Sections 3+4: Monthly Breakdown + Spend by Category (side-by-side) ── */}
+      <div className="grid grid-cols-1 pair:grid-cols-2 gap-4 items-start">
 
         {/* ── Section 1: Monthly breakdown bar + Insight ───── */}
         <section>
           <BalanceBreakdown balance={balance} />
 
-          {/* Insight row — variable spend % vs historical avg from mom data */}
-          {balance.total_income > 0 && (() => {
-            const varPct = Math.round(balance.variable_total / balance.total_income * 100);
-            const priorVars = mom?.months.slice(0, -1).map(m =>
-              Object.entries(mom.categories)
-                .filter(([cat]) => !FIXED_CATEGORIES.includes(cat))
-                .reduce((s, [, byM]) => s + (byM[m] ?? 0), 0)
-            ) ?? [];
-            const avgVarPct = priorVars.length > 0
-              ? Math.round(priorVars.reduce((a, b) => a + b, 0) / priorVars.length / balance.total_income * 100)
+          {(() => {
+            const currVarPct = balance.total_income > 0
+              ? Math.round(balance.variable_total / balance.total_income * 100)
+              : null;
+            const prevVarPct = prevSummary?.balance.total_income
+              ? Math.round(prevSummary.balance.variable_total / prevSummary.balance.total_income * 100)
+              : null;
+            if (currVarPct === null) return null;
+            const avgPct = prevVarPct !== null
+              ? Math.round((currVarPct + prevVarPct) / 2)
               : null;
             return (
-              <div
-                className="mt-3 flex gap-2.5 p-3 rounded-xl"
-                style={{ background: "var(--card2)", border: "1px solid var(--border)" }}
-              >
-                <Zap size={14} style={{ color: "#f59e0b", flexShrink: 0, marginTop: 1 }} />
-                <div>
-                  <p
-                    className="text-[10px] font-syne font-bold uppercase tracking-widest mb-1"
-                    style={{ color: "var(--text-sub)" }}
-                  >
-                    Insight
-                  </p>
-                  <p className="text-xs leading-relaxed" style={{ color: "var(--text-muted)" }}>
-                    Variable spending consumed {varPct}% of income this month.
-                    {avgVarPct !== null &&
-                      ` Your average over the last ${priorVars.length} month${priorVars.length > 1 ? "s" : ""} is ${avgVarPct}%.`}
-                  </p>
-                </div>
+              <div className="flex gap-2 items-start mt-3 rounded-xl border-l-2 pl-3 py-2"
+                   style={{ borderColor: "#f59e0b", background: "var(--card2)" }}>
+                <span style={{ color: "#f59e0b", fontSize: 12 }}>⚡</span>
+                <p className="text-[11px] leading-relaxed" style={{ color: "var(--text-sub)" }}>
+                  Variable spending consumed{" "}
+                  <span className="font-semibold" style={{ color: "var(--text)" }}>
+                    {currVarPct}% of income
+                  </span>{" "}
+                  this month.{" "}
+                  {avgPct !== null
+                    ? <>Your average over the last 2 months is <span className="font-semibold" style={{ color: "var(--text)" }}>{avgPct}%</span>.</>
+                    : "No prior month data to compare."}
+                </p>
               </div>
             );
           })()}
@@ -430,148 +488,142 @@ export function OverviewTab() {
 
       </div>
 
-      {/* ── Section 5: Top spends ─────────────────────────── */}
-      {topSpends.length > 0 && (
-        <section>
-          <h2
-            className="text-xs font-syne font-bold uppercase tracking-widest mb-3"
-            style={{ color: "var(--text-sub)" }}
-          >
-            Top Spends This Month
-          </h2>
-          <div className="space-y-0">
-            {topSpends.map((t, i) => (
-              <TopSpendRow key={i} rank={i + 1} item={t} />
-            ))}
-          </div>
-        </section>
-      )}
+      {/* ── Sections 5+6: Peace of Mind + Spending Signals (side-by-side) ── */}
+      <div className="grid grid-cols-1 pair:grid-cols-2 gap-4 items-start">
 
-      {/* ── Section 6: Financial Pulse ───────────────────── */}
-      {summary && (() => {
-        const [year, month] = selMonth.split("-").map(Number);
-        const today = new Date();
-        const isCurrentMonth =
-          today.getFullYear() === year && (today.getMonth() + 1) === month;
-        const daysInMonth = new Date(year, month, 0).getDate();
-        const daysElapsed = isCurrentMonth ? Math.max(today.getDate(), 1) : daysInMonth;
+        {/* ── Section 5: Peace of Mind Score ───────────────── */}
+        {pom && (() => {
+          const radius     = 33;
+          const circ       = 2 * Math.PI * radius;
+          const filled     = (pom.score / 100) * circ;
+          const dialColour = pom.score >= 70 ? "#34d399" : pom.score >= 40 ? "#f59e0b" : "#f87171";
+          const posFactors = (pom.factors ?? []).filter(f => f.points >= 0);
+          const negFactors = (pom.factors ?? []).filter(f => f.points < 0);
 
-        // Stability signal — fixed obligations completion
-        const fixedTotal  = balance.fixed_paid_total + balance.fixed_unpaid_total;
-        const unpaidFrac  = fixedTotal > 0 ? balance.fixed_unpaid_total / fixedTotal : 0;
-        const stabilityColour =
-          balance.fixed_unpaid_total === 0 ? "#34d399" :
-          unpaidFrac < 0.30               ? "#f59e0b" : "#f87171";
-        const stabilityDesc =
-          balance.fixed_unpaid_total === 0 ? "All fixed obligations complete."          :
-          unpaidFrac < 0.30               ? "Fixed obligations are nearly complete."    : "Fixed obligations pending.";
-
-        // Lifestyle signal — food spend + variable pace vs previous month
-        const prevMonthIdx = mom ? mom.months.indexOf(selMonth) - 1 : -1;
-        const prevMonthKey = mom && prevMonthIdx >= 0 ? mom.months[prevMonthIdx] : null;
-        const foodCurr = mom?.categories["Food"]?.[selMonth] ?? 0;
-        const foodPrev = prevMonthKey ? (mom?.categories["Food"]?.[prevMonthKey] ?? 0) : 0;
-        const foodPct  = foodPrev > 0 ? (foodCurr / foodPrev) * 100 : null;
-        const dailyRate = daysElapsed > 0 ? balance.variable_total / daysElapsed : 0;
-        const prevDaysInMonth = prevMonthKey
-          ? new Date(Number(prevMonthKey.split("-")[0]), Number(prevMonthKey.split("-")[1]), 0).getDate()
-          : 0;
-        const varPrevTotal = prevMonthKey
-          ? Object.entries(mom?.categories ?? {})
-              .filter(([cat]) => !FIXED_CATEGORIES.includes(cat))
-              .reduce((s, [, byM]) => s + (byM[prevMonthKey!] ?? 0), 0)
-          : 0;
-        const prevDailyRate = prevDaysInMonth > 0 ? varPrevTotal / prevDaysInMonth : 0;
-        const pacePct = prevDailyRate > 0 ? (dailyRate / prevDailyRate) * 100 : null;
-        const noLifestyleData = foodPct == null && pacePct == null;
-        const lifestyleColour =
-          noLifestyleData                                                             ? "#94a3b8" :
-          (foodPct != null && foodPct > 130) || (pacePct != null && pacePct > 130)  ? "#f87171" :
-          (foodPct != null && foodPct > 100) || (pacePct != null && pacePct > 100)  ? "#f59e0b" :
-          "#34d399";
-
-        // Savings signal — savings_total as % of income
-        const savingsPct = balance.total_income > 0
-          ? ((balance.savings_total ?? 0) / balance.total_income) * 100
-          : -1;
-        const savingsColour =
-          savingsPct < 0   ? "#94a3b8" :
-          savingsPct >= 20 ? "#34d399" :
-          savingsPct >= 10 ? "#f59e0b" : "#f87171";
-
-        // Consistency signal — proxy until real streak data is available
-        // TODO: replace with real streak
-        const daysTracked = new Date().getDate();
-
-        const lifestyleDesc =
-          noLifestyleData                                                            ? "No prior data to compare."            :
-          (foodPct != null && foodPct > 130) || (pacePct != null && pacePct > 130) ? "Food spending accelerated this month." :
-          (foodPct != null && foodPct > 100) || (pacePct != null && pacePct > 100) ? "Food and spending above normal."       :
-          "Spending pace is on track.";
-        const savingsDesc =
-          savingsPct < 0   ? "No income recorded."                              :
-          savingsPct >= 20 ? `${Math.round(savingsPct)}% of income protected.` :
-          savingsPct >= 10 ? "Savings moderate this month."                     :
-          "Savings below target.";
-        const consistencyDesc = `Tracked expenses on ${daysTracked} days this month.`;
-
-        const signals = [
-          { icon: "🛡️", name: "Stability",   desc: stabilityDesc,   colour: stabilityColour  },
-          { icon: "🔥", name: "Lifestyle",   desc: lifestyleDesc,   colour: lifestyleColour  },
-          { icon: "🐷", name: "Savings",     desc: savingsDesc,     colour: savingsColour    },
-          { icon: "🎯", name: "Consistency", desc: consistencyDesc, colour: "#34d399"        },
-        ];
-
-        return (
-          <section>
-            <div
-              className="rounded-2xl border overflow-hidden"
-              style={{ background: "var(--card)", borderColor: "var(--border-lg)" }}
-            >
-              {/* Header */}
+          return (
+            <section>
               <div
-                className="px-4 py-3 flex items-center gap-2 border-b"
-                style={{ borderColor: "var(--border-lg)" }}
+                className="rounded-2xl border p-4"
+                style={{ background: "var(--card)", borderColor: "var(--border-lg)" }}
               >
-                <Activity size={13} strokeWidth={2.5} style={{ color: "#34d399" }} />
-                <p
-                  className="text-[10px] font-syne font-bold uppercase tracking-widest"
+                <p className="text-[10px] font-syne font-bold uppercase tracking-widest mb-3"
+                   style={{ color: "var(--text-sub)" }}>
+                  Peace of Mind
+                </p>
+
+                {/* Dial + right column */}
+                <div className="flex items-start gap-4">
+                  {/* SVG dial with score centred */}
+                  <div className="relative flex-shrink-0" style={{ width: 88, height: 88 }}>
+                    <svg width="88" height="88" viewBox="0 0 88 88">
+                      <circle cx="44" cy="44" r={radius} fill="none"
+                        stroke="var(--border-lg)" strokeWidth="9" />
+                      <circle cx="44" cy="44" r={radius} fill="none"
+                        stroke={dialColour} strokeWidth="9"
+                        strokeDasharray={`${filled} ${circ}`}
+                        strokeDashoffset={circ * 0.25}
+                        strokeLinecap="round"
+                        transform="rotate(-90 44 44)" />
+                    </svg>
+                    <div style={{ position: "absolute", inset: 0, display: "flex",
+                                  flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+                      <span className="font-syne font-extrabold text-xl leading-none"
+                            style={{ color: dialColour }}>
+                        {pom.score}
+                      </span>
+                      <span className="text-[9px]" style={{ color: "var(--text-sub)" }}>/100</span>
+                    </div>
+                  </div>
+
+                  {/* Summary + delta + factors */}
+                  <div className="flex-1 min-w-0">
+                    {pom.summary && (
+                      <p className="text-xs leading-relaxed mb-2" style={{ color: "var(--text-sub)" }}>
+                        {pom.summary}
+                      </p>
+                    )}
+                    {pom.delta != null && (
+                      <p className="text-[11px] font-medium mb-2"
+                         style={{ color: pom.delta >= 0 ? "#34d399" : "#f87171" }}>
+                        {pom.delta >= 0
+                          ? `↑ ${pom.delta} pts vs yesterday`
+                          : `↓ ${Math.abs(pom.delta)} pts vs yesterday`}
+                      </p>
+                    )}
+                    <div className="space-y-1">
+                      {[...posFactors, ...negFactors].map((f, i) => (
+                        <div key={i} className="flex items-center justify-between text-[11px]">
+                          <span style={{ color: "var(--text-sub)" }}>{f.label}</span>
+                          <span className="font-semibold font-syne"
+                                style={{ color: f.points >= 0 ? "#34d399" : "#f87171" }}>
+                            {f.points >= 0 ? `+${f.points}` : f.points}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Why this score? expand */}
+                <div className="mt-3 border-t pt-3" style={{ borderColor: "var(--border-lg)" }}>
+                  <button
+                    onClick={() => setShowPomBreakdown(v => !v)}
+                    className="text-xs font-syne font-semibold transition-opacity hover:opacity-70"
+                    style={{ color: "var(--accent)" }}
+                  >
+                    {showPomBreakdown ? "↑ Hide" : "Why this score? ↓"}
+                  </button>
+                  {showPomBreakdown && (
+                    <p className="text-xs mt-2 leading-relaxed" style={{ color: "var(--text-sub)" }}>
+                      Score = 50 base + bills completion (up to +25) + positive balance (+15) + tracking (+10), minus overspend and pending bill deductions.
+                    </p>
+                  )}
+                </div>
+              </div>
+            </section>
+          );
+        })()}
+
+        {/* ── Section 6: Spending Signals ─────────────────── */}
+        {projections.length > 0 && (() => {
+          const withRatio = projections
+            .filter(p => p.limit > 0)
+            .map(p => ({ ...p, ratio: p.spent / p.limit }));
+          const sorted = [...withRatio].sort((a, b) => b.ratio - a.ratio);
+          const top = sorted[0];
+          const mid = sorted[1];
+          const low = [...withRatio]
+            .filter(p => p.spent > 0)
+            .sort((a, b) => a.ratio - b.ratio)[0];
+          const budgetSignals = [top, mid, low].filter(Boolean);
+
+          return (
+            <section>
+              <div className="flex items-center justify-between mb-3">
+                <h2
+                  className="text-xs font-syne font-bold uppercase tracking-widest"
                   style={{ color: "var(--text-sub)" }}
                 >
-                  Financial Pulse
-                </p>
+                  Spending Signals
+                </h2>
+                <button
+                  className="text-xs"
+                  style={{ color: "var(--text-sub)" }}
+                  onClick={() => setShowSignalsModal(true)}
+                >
+                  View all →
+                </button>
               </div>
-              {/* 4-column signal grid — 2 cols on mobile, 4 on sm+ */}
-              <div className="grid grid-cols-2 sm:grid-cols-4">
-                {signals.map((s, i) => {
-                  const rightBorder =
-                    i === 0 || i === 2 ? "border-r" :
-                    i === 1            ? "sm:border-r" : "";
-                  const bottomBorder = i < 2 ? "border-b sm:border-b-0" : "";
-                  return (
-                    <div
-                      key={s.name}
-                      className={`p-4 ${rightBorder} ${bottomBorder}`}
-                      style={{ borderColor: "var(--border-lg)" }}
-                    >
-                      <span className="text-xl">{s.icon}</span>
-                      <p
-                        className="text-sm font-syne font-semibold mt-2"
-                        style={{ color: s.colour }}
-                      >
-                        {s.name}
-                      </p>
-                      <p className="text-xs mt-1 leading-relaxed" style={{ color: "var(--text-muted)" }}>
-                        {s.desc}
-                      </p>
-                    </div>
-                  );
-                })}
+              <div className="space-y-3">
+                {budgetSignals.map(p => (
+                  <SignalCard key={p.category} p={p} />
+                ))}
               </div>
-            </div>
-          </section>
-        );
-      })()}
+            </section>
+          );
+        })()}
+
+      </div>
 
       {/* ── Section 7: Upcoming Reality ──────────────────── */}
       <section>
@@ -593,9 +645,8 @@ export function OverviewTab() {
               </p>
             ) : (
               (() => {
-                const next = [...dueReminders].sort(
-                  (a, b) => a.days_overdue - b.days_overdue
-                )[0];
+                const sorted = [...dueReminders].sort((a, b) => a.days_overdue - b.days_overdue);
+                const next = sorted.find(r => r.days_overdue <= 0) ?? sorted[sorted.length - 1];
                 return (
                   <div className="flex items-center gap-3">
                     <span className="text-xl">📅</span>
@@ -605,10 +656,10 @@ export function OverviewTab() {
                       </p>
                       <p className="text-xs" style={{ color: "var(--text-muted)" }}>
                         {next.days_overdue < 0
-                          ? `Due in ${Math.abs(next.days_overdue)} day${Math.abs(next.days_overdue) > 1 ? "s" : ""}`
+                          ? `Due in ${Math.abs(next.days_overdue)} day(s)`
                           : next.days_overdue === 0
                           ? "Due today"
-                          : `${next.days_overdue} day${next.days_overdue > 1 ? "s" : ""} overdue`}
+                          : `${next.days_overdue} day(s) overdue`}
                       </p>
                     </div>
                     <span
@@ -648,7 +699,44 @@ export function OverviewTab() {
         </div>
       </section>
 
-      {/* ── Section 8: What Changed? ─────────────────────── */}
+      {/* ── Section 8: Money Moments ─────────────────────── */}
+      {topSpends.length > 0 && (
+        <section>
+          <div className="flex items-center justify-between mb-3">
+            <h2
+              className="text-xs font-syne font-bold uppercase tracking-widest"
+              style={{ color: "var(--text-sub)" }}
+            >
+              💎 Money Moments
+            </h2>
+            <button
+              className="text-xs"
+              style={{ color: "var(--accent)" }}
+              onClick={() => onTabChange ? onTabChange("/history") : toast("See all transactions in the History tab →")}
+            >
+              View all →
+            </button>
+          </div>
+
+          {balance.variable_total > 0 && (
+            <p className="text-[11px] mb-3" style={{ color: "var(--text-sub)" }}>
+              Largest {topSpends.length} purchases contributed{" "}
+              <span style={{ color: "var(--text)", fontWeight: 600 }}>
+                {Math.round(topSpends.reduce((s, t) => s + t.amount, 0) / balance.variable_total * 100)}%
+              </span>{" "}
+              of this month's spending.
+            </p>
+          )}
+
+          <div className="space-y-0">
+            {topSpends.map((t, i) => (
+              <TopSpendRow key={i} rank={i + 1} item={t} varTotal={balance.variable_total} />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* ── Section 9: What Changed? ─────────────────────── */}
       {mom && (() => {
         const SAVINGS_CATS = new Set(["Savings", "Investments"]);
 
@@ -826,83 +914,122 @@ export function OverviewTab() {
         );
       })()}
 
-      {/* ── Section 9: Peace of Mind Score ───────────────── */}
-      {summary.peace_of_mind && (() => {
-        const pom = summary.peace_of_mind!;
-        const scoreColour = pom.score >= 80 ? "#34d399" : pom.score >= 60 ? "#6366f1" : pom.score >= 40 ? "#f59e0b" : "#f87171";
+      {/* ── Section 10: Financial Pulse ──────────────────── */}
+      {mom && (() => {
+        const [year, month] = selMonth.split("-").map(Number);
+        const today = new Date();
+        const isCurrentMonth =
+          today.getFullYear() === year && (today.getMonth() + 1) === month;
+        const daysInMonth = new Date(year, month, 0).getDate();
+        const daysElapsed = isCurrentMonth ? Math.max(today.getDate(), 1) : daysInMonth;
 
-        const breakdown = [
-          { key: "bills",    label: "Bills paid",   max: 35, pts: pom.breakdown.bills },
-          { key: "buffer",   label: "Buffer",        max: 30, pts: pom.breakdown.buffer },
-          { key: "pace",     label: "Spending pace", max: 20, pts: pom.breakdown.pace },
-          { key: "tracking", label: "Tracking",      max: 15, pts: pom.breakdown.tracking, note: "placeholder" },
+        const fixedTotal  = balance.fixed_paid_total + balance.fixed_unpaid_total;
+        const unpaidFrac  = fixedTotal > 0 ? balance.fixed_unpaid_total / fixedTotal : 0;
+        const stabilityColour =
+          balance.fixed_unpaid_total === 0 ? "#34d399" :
+          unpaidFrac < 0.30               ? "#f59e0b" : "#f87171";
+        const stabilityDesc =
+          balance.fixed_unpaid_total === 0 ? "All fixed obligations complete."       :
+          unpaidFrac < 0.30               ? "Fixed obligations are nearly complete." : "Fixed obligations pending.";
+
+        const prevMonthIdx = mom ? mom.months.indexOf(selMonth) - 1 : -1;
+        const prevMonthKey = mom && prevMonthIdx >= 0 ? mom.months[prevMonthIdx] : null;
+        const foodCurr = mom?.categories["Food"]?.[selMonth] ?? 0;
+        const foodPrev = prevMonthKey ? (mom?.categories["Food"]?.[prevMonthKey] ?? 0) : 0;
+        const foodPct  = foodPrev > 0 ? (foodCurr / foodPrev) * 100 : null;
+        const dailyRate = daysElapsed > 0 ? balance.variable_total / daysElapsed : 0;
+        const prevDaysInMonth = prevMonthKey
+          ? new Date(Number(prevMonthKey.split("-")[0]), Number(prevMonthKey.split("-")[1]), 0).getDate()
+          : 0;
+        const varPrevTotal = prevMonthKey
+          ? Object.entries(mom?.categories ?? {})
+              .filter(([cat]) => !FIXED_CATEGORIES.includes(cat))
+              .reduce((s, [, byM]) => s + (byM[prevMonthKey!] ?? 0), 0)
+          : 0;
+        const prevDailyRate = prevDaysInMonth > 0 ? varPrevTotal / prevDaysInMonth : 0;
+        const pacePct = prevDailyRate > 0 ? (dailyRate / prevDailyRate) * 100 : null;
+        const noLifestyleData = foodPct == null && pacePct == null;
+        const lifestyleColour =
+          noLifestyleData                                                             ? "#94a3b8" :
+          (foodPct != null && foodPct > 130) || (pacePct != null && pacePct > 130)  ? "#f87171" :
+          (foodPct != null && foodPct > 100) || (pacePct != null && pacePct > 100)  ? "#f59e0b" :
+          "#34d399";
+
+        const savingsPct = balance.total_income > 0
+          ? ((balance.savings_total ?? 0) / balance.total_income) * 100
+          : -1;
+        const savingsColour =
+          savingsPct < 0   ? "#94a3b8" :
+          savingsPct >= 20 ? "#34d399" :
+          savingsPct >= 10 ? "#f59e0b" : "#f87171";
+
+        // TODO: replace with real streak
+        const daysTracked = new Date().getDate();
+
+        const lifestyleDesc =
+          noLifestyleData                                                            ? "No prior data to compare."            :
+          (foodPct != null && foodPct > 130) || (pacePct != null && pacePct > 130) ? "Food spending accelerated this month." :
+          (foodPct != null && foodPct > 100) || (pacePct != null && pacePct > 100) ? "Food and spending above normal."       :
+          "Spending pace is on track.";
+        const savingsDesc =
+          savingsPct < 0   ? "No income recorded."                              :
+          savingsPct >= 20 ? `${Math.round(savingsPct)}% of income protected.` :
+          savingsPct >= 10 ? "Savings moderate this month."                     :
+          "Savings below target.";
+        const consistencyDesc = `Tracked expenses on ${daysTracked} days this month.`;
+
+        const signals = [
+          { icon: "🛡️", name: "Stability",   desc: stabilityDesc,   colour: stabilityColour },
+          { icon: "🔥", name: "Lifestyle",   desc: lifestyleDesc,   colour: lifestyleColour },
+          { icon: "🐷", name: "Savings",     desc: savingsDesc,     colour: savingsColour   },
+          { icon: "🎯", name: "Consistency", desc: consistencyDesc, colour: "#34d399"       },
         ];
 
         return (
           <section>
             <div
-              className="rounded-2xl border p-4"
+              className="rounded-2xl border overflow-hidden"
               style={{ background: "var(--card)", borderColor: "var(--border-lg)" }}
             >
-              <div className="flex items-center justify-between">
-                <div>
-                  <p
-                    className="text-[10px] font-syne font-bold uppercase tracking-widest mb-1"
-                    style={{ color: "var(--text-sub)" }}
-                  >
-                    Peace of Mind
-                  </p>
-                  <p className="text-3xl font-syne font-extrabold leading-none" style={{ color: scoreColour }}>
-                    {pom.score}
-                    <span className="text-base font-normal ml-0.5" style={{ color: "var(--text-muted)" }}>/100</span>
-                  </p>
-                  <p className="text-sm mt-1" style={{ color: "var(--text-sub)" }}>{pom.label}</p>
-                </div>
-                <button
-                  onClick={() => setShowPomBreakdown(v => !v)}
-                  className="text-xs font-syne font-semibold transition-opacity hover:opacity-70"
-                  style={{ color: "var(--accent)" }}
+              <div
+                className="px-4 py-3 flex items-center gap-2 border-b"
+                style={{ borderColor: "var(--border-lg)" }}
+              >
+                <Activity size={13} strokeWidth={2.5} style={{ color: "#34d399" }} />
+                <p
+                  className="text-[10px] font-syne font-bold uppercase tracking-widest"
+                  style={{ color: "var(--text-sub)" }}
                 >
-                  {showPomBreakdown ? "↑ Hide" : "Why this score? ↓"}
-                </button>
+                  Financial Pulse
+                </p>
               </div>
-
-              {showPomBreakdown && (
-                <div className="mt-4 space-y-2 border-t pt-3" style={{ borderColor: "var(--border-lg)" }}>
-                  {breakdown.map(b => (
-                    <div key={b.key} className="flex items-center justify-between text-xs">
-                      <span style={{ color: "var(--text-sub)" }}>
-                        {b.label}
-                        {b.note && <span style={{ color: "var(--text-muted)" }}> (placeholder)</span>}
-                      </span>
-                      <span className="font-syne font-semibold" style={{ color: b.pts === b.max ? "#34d399" : "var(--text)" }}>
-                        {b.pts}/{b.max}
-                      </span>
+              <div className="grid grid-cols-2 sm:grid-cols-4">
+                {signals.map((s, i) => {
+                  const rightBorder =
+                    i === 0 || i === 2 ? "border-r" :
+                    i === 1            ? "sm:border-r" : "";
+                  const bottomBorder = i < 2 ? "border-b sm:border-b-0" : "";
+                  return (
+                    <div
+                      key={s.name}
+                      className={`p-4 ${rightBorder} ${bottomBorder}`}
+                      style={{ borderColor: "var(--border-lg)" }}
+                    >
+                      <span className="text-xl">{s.icon}</span>
+                      <p className="text-sm font-syne font-semibold mt-2" style={{ color: s.colour }}>
+                        {s.name}
+                      </p>
+                      <p className="text-xs mt-1 leading-relaxed" style={{ color: "var(--text-muted)" }}>
+                        {s.desc}
+                      </p>
                     </div>
-                  ))}
-                </div>
-              )}
+                  );
+                })}
+              </div>
             </div>
           </section>
         );
       })()}
-
-      {/* ── Section 10: Budget health ─────────────────────── */}
-      {projections.length > 0 && (
-        <section>
-          <h2
-            className="text-xs font-syne font-bold uppercase tracking-widest mb-3"
-            style={{ color: "var(--text-sub)" }}
-          >
-            Budget Health
-          </h2>
-          <div className="space-y-3">
-            {projections.map(p => (
-              <BudgetHealthCard key={p.category} projection={p} />
-            ))}
-          </div>
-        </section>
-      )}
 
       {/* ── Section 11: Tiny Win ─────────────────────────── */}
       {tinyWin && (
@@ -926,6 +1053,12 @@ export function OverviewTab() {
           </div>
         </section>
       )}
+
+      <SpendingSignalsModal
+        open={showSignalsModal}
+        onClose={() => setShowSignalsModal(false)}
+        projections={projections}
+      />
 
     </div>
   );

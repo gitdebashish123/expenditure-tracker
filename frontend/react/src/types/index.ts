@@ -67,14 +67,10 @@ export interface Pool {
 }
 
 export interface PeaceOfMind {
-  score: number;
-  label: string;
-  breakdown: {
-    bills:    number;
-    buffer:   number;
-    pace:     number;
-    tracking: number;
-  };
+  score:    number;
+  summary?: string;
+  delta?:   number | null;
+  factors?: { label: string; points: number }[];
 }
 
 export interface Summary {

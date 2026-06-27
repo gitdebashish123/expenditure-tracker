@@ -5,6 +5,9 @@ export default {
   darkMode: "class",
   theme: {
     extend: {
+      screens: {
+        'pair': '580px',
+      },
       fontFamily: {
         syne: ["Syne", "sans-serif"],
         sans: ["DM Sans", "sans-serif"],

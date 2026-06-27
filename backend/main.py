@@ -8,7 +8,7 @@ from sqlmodel import Session, select, func
 from pydantic import BaseModel, field_validator
 import bleach
 from typing import Optional
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from dotenv import load_dotenv
 import os
 import yaml
@@ -580,6 +580,7 @@ def parse_and_save(request: Request, input: ExpenseInput, session: Session = Dep
         saved.append(item)
 
     session.commit()
+    _invalidate_month_caches(current_user.id, month_key)
     warnings = check_budget_warnings(session, month_key, user_id=current_user.id)
     balance  = get_balance_summary(session, month_key, user_id=current_user.id)
     return {"saved": saved, "warnings": warnings, "balance": balance}
@@ -605,6 +606,7 @@ def add_manual_expense(request: Request, exp: ManualExpense, session: Session = 
     session.add(new_exp)
     session.commit()
     session.refresh(new_exp)
+    _invalidate_month_caches(current_user.id, month_key)
     warnings = check_budget_warnings(session, month_key, user_id=current_user.id)
     return {"expense": new_exp, "warnings": warnings}
 
@@ -627,6 +629,7 @@ def edit_expense(expense_id: int, update: ExpenseUpdate, session: Session = Depe
     exp = session.get(Expense, expense_id)
     if not exp or exp.is_fixed or exp.user_id != current_user.id:
         raise HTTPException(status_code=404, detail="Expense not found")
+    old_month_key = exp.month_key
     if update.vendor is not None:       exp.vendor   = update.vendor
     if update.amount is not None:       exp.amount   = update.amount
     if update.category is not None:     exp.category = update.category
@@ -637,6 +640,9 @@ def edit_expense(expense_id: int, update: ExpenseUpdate, session: Session = Depe
     session.add(exp)
     session.commit()
     session.refresh(exp)
+    _invalidate_month_caches(current_user.id, old_month_key)
+    if exp.month_key != old_month_key:
+        _invalidate_month_caches(current_user.id, exp.month_key)
     return exp
 
 
@@ -659,8 +665,10 @@ def delete_expense(expense_id: int, session: Session = Depends(get_session),
     exp = session.get(Expense, expense_id)
     if not exp or exp.user_id != current_user.id:
         raise HTTPException(status_code=404, detail="Expense not found")
+    month_key = exp.month_key
     session.delete(exp)
     session.commit()
+    _invalidate_month_caches(current_user.id, month_key)
     return {"deleted": expense_id}
 
 
@@ -1214,6 +1222,9 @@ def budget_projection(month_key: str, session: Session = Depends(get_session),
 # insufficient in practice.
 _mantra_cache: dict[tuple[int, str], dict] = {}
 
+_score_history: dict[tuple, int] = {}
+# TODO: persist score_history to DB for reliable delta across server restarts
+
 # Tracks which "angle" was used in the most recent mantra per user, so
 # consecutive days don't always lead with the same angle when more than
 # one is available. In-memory only, same lifecycle as _mantra_cache —
@@ -1224,6 +1235,11 @@ _mantra_last_type: dict[int, str] = {}
 # Per-month story cache — keyed by (user_id, month_key). Past months never
 # change once generated, so no TTL needed; resets only on process restart.
 _story_cache: dict[tuple[int, str], str] = {}
+
+
+def _invalidate_month_caches(user_id: int, month_key: str) -> None:
+    _story_cache.pop((user_id, month_key), None)
+    _mantra_cache.pop((user_id, month_key), None)
 
 
 @app.get("/insights/mantra/{month_key}")
@@ -1401,6 +1417,74 @@ def tiny_win(month_key: str, session: Session = Depends(get_session),
 
     # Fallback
     return {"win": "You've been tracking consistently. That itself is progress."}
+
+
+def _compute_pom_factors(balance: dict, budgets: list) -> list[dict]:
+    factors = []
+
+    # Positive factors
+    fixed_total = balance["fixed_paid_total"] + balance["fixed_unpaid_total"]
+    bills_pts = round(25 * balance["fixed_paid_total"] / fixed_total) if fixed_total > 0 else 0
+    factors.append({"label": "Bills paid on time", "points": bills_pts})
+
+    if balance["remaining"] > 0:
+        factors.append({"label": "Positive remaining balance", "points": 15})
+
+    factors.append({"label": "Consistent tracking", "points": 10})
+    # TODO: replace with real streak
+
+    # Negative factors — top 2 overspent categories
+    overspent = sorted(
+        [b for b in budgets if b["spent"] > b["budget"] and b["budget"] > 0],
+        key=lambda b: b["spent"] - b["budget"], reverse=True,
+    )[:2]
+    for b in overspent:
+        pts = -round(min(15, (b["spent"] - b["budget"]) / b["budget"] * 10))
+        factors.append({"label": f"{b['category']} overspend", "points": pts})
+
+    # Pending bills deduction
+    if balance["fixed_unpaid_total"] > 0 and balance["total_income"] > 0:
+        pts = -round(min(16, balance["fixed_unpaid_total"] / balance["total_income"] * 100))
+        factors.append({"label": "Pending bills", "points": pts})
+
+    return factors
+
+
+@app.get("/insights/peace-of-mind/{month_key}")
+def peace_of_mind_score(month_key: str, session: Session = Depends(get_session),
+                        current_user: User = Depends(get_current_user)):
+    balance      = get_balance_summary(session, month_key, user_id=current_user.id)
+    spent_by_cat = get_monthly_spent_by_category(session, month_key, user_id=current_user.id)
+    limits       = get_budget_limits(session, user_id=current_user.id)
+    budgets = [
+        {"category": cat, "spent": spent_by_cat.get(cat, 0), "budget": limits.get(cat, 0)}
+        for cat in set(spent_by_cat.keys()) | set(limits.keys())
+    ]
+
+    factors = _compute_pom_factors(balance, budgets)
+    base    = 50
+    score   = max(0, min(100, base + sum(f["points"] for f in factors)))
+
+    neg_count = sum(1 for f in factors if f["points"] < 0)
+    if neg_count == 0:
+        summary = "Your finances are on track this month."
+    elif neg_count <= 2:
+        summary = f"Your finances are stable but {neg_count} area(s) need attention."
+    else:
+        summary = "A few areas need your attention this month."
+
+    today_key     = (current_user.id, month_key, str(date.today()))
+    yesterday_key = (current_user.id, month_key, str(date.today() - timedelta(days=1)))
+    _score_history[today_key] = score
+    delta = score - _score_history[yesterday_key] if yesterday_key in _score_history else None
+    # TODO: persist score_history to DB for reliable delta across server restarts
+
+    return {
+        "score":   score,
+        "summary": summary,
+        "delta":   delta,
+        "factors": factors,
+    }
 
 
 # ── Data Export ─────────────────────────────────────────────────────────────

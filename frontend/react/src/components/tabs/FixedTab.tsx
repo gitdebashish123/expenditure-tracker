@@ -121,11 +121,12 @@ export function FixedTab() {
             >
               <Bell size={14} className="flex-shrink-0 mt-0.5" />
               <span>
-                <b>{r.vendor}</b> {fmtInr(r.amount)} — was due on the {r.due_day}th
-                {r.days_overdue === 0
-                  ? " (due today)"
-                  : ` (${r.days_overdue}d overdue)`
-                }
+                <b>{r.vendor}</b> {fmtInr(r.amount)} —{" "}
+                {r.days_overdue < 0
+                  ? `due on the ${r.due_day}th (Due in ${Math.abs(r.days_overdue)} day(s))`
+                  : r.days_overdue === 0
+                  ? "due today"
+                  : `was due on the ${r.due_day}th (${r.days_overdue}d overdue)`}
               </span>
             </div>
           ))}
