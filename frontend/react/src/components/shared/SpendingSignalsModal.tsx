@@ -30,7 +30,7 @@ export function SignalCard({ p }: { p: ProjectionItem }) {
   return (
     <div
       className="rounded-2xl p-4"
-      style={{ background: sig.bg, border: `1px solid ${sig.colour}30` }}
+      style={{ background: sig.bg, border: `1px solid ${sig.colour}30`, overflow: 'hidden' }}
     >
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0">

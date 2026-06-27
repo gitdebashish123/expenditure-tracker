@@ -445,7 +445,38 @@ export function OverviewTab({ onTabChange }: { onTabChange?: (path: string) => v
               {(() => {
                 const varCats = summary.categories.filter(c => !FIXED_CATEGORIES.includes(c.category));
                 if (varCats.length === 0) return null;
-                const top = [...varCats].sort((a, b) => b.spent - a.spent)[0];
+                const eligibleCats = varCats.filter(c => c.category !== 'Miscellaneous');
+                const top = eligibleCats.length > 0
+                  ? [...eligibleCats].sort((a, b) => b.spent - a.spent)[0]
+                  : null;
+
+                if (!top) {
+                  return (
+                    <div
+                      className="mt-3 pt-3 border-t"
+                      style={{ borderColor: "var(--border)" }}
+                    >
+                      <p
+                        className="text-[10px] font-syne font-bold uppercase tracking-widest mb-2"
+                        style={{ color: "var(--text-sub)" }}
+                      >
+                        Category Winner
+                      </p>
+                      <div className="flex items-center gap-3">
+                        <span className="text-2xl flex-shrink-0">🏅</span>
+                        <div>
+                          <p className="text-sm font-syne font-bold" style={{ color: "var(--text)" }}>
+                            No clear winner this month
+                          </p>
+                          <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>
+                            Most spending was uncategorized. Try reviewing your transaction categories.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                }
+
                 const pctOfVar = balance.variable_total > 0
                   ? Math.round(top.spent / balance.variable_total * 100)
                   : 0;
@@ -644,7 +675,7 @@ export function OverviewTab({ onTabChange }: { onTabChange?: (path: string) => v
           className="text-xs font-syne font-bold tracking-widest mb-3"
           style={{ color: "var(--text-sub)" }}
         >
-          📅 Upcoming reality
+          📅 Coming Up
         </h2>
         <div
           className="rounded-2xl border overflow-hidden"
@@ -901,7 +932,7 @@ export function OverviewTab({ onTabChange }: { onTabChange?: (path: string) => v
                     <div
                       key={s.name}
                       className={`p-4 ${rightBorder} ${bottomBorder}`}
-                      style={{ borderColor: "var(--border-lg)" }}
+                      style={{ borderColor: "var(--border-lg)", minHeight: 120 }}
                     >
                       <span className="text-xl">{s.icon}</span>
                       <p className="text-sm font-syne font-semibold mt-2" style={{ color: s.colour }}>
@@ -926,7 +957,7 @@ export function OverviewTab({ onTabChange }: { onTabChange?: (path: string) => v
             className="rounded-2xl p-4 border flex items-center gap-4"
             style={{ background: "var(--card)", borderColor: "var(--border-lg)" }}
           >
-            <span className="text-2xl flex-shrink-0">🏆</span>
+            <span className="text-2xl flex-shrink-0">🌱</span>
             <div>
               <p
                 className="text-[10px] font-syne font-bold tracking-widest mb-1"

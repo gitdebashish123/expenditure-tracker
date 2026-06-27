@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { api } from "@/api/client";
 import { useAuth } from "@/context/AuthContext";
-import { FIXED_CATEGORIES, CATEGORY_ICONS } from "@/utils/categories";
+import { FIXED_CATEGORIES, VAR_CATEGORIES, CATEGORY_ICONS } from "@/utils/categories";
+import { suggestCategory } from "@/utils/categoryKeywords";
 import { fmtInr } from "@/utils/formatInr";
 
 /**
@@ -57,9 +58,13 @@ export function OnboardingWizard() {
   const [billAmt, setBillAmt]     = useState<number>(0);
   const [billErr, setBillErr]     = useState<string | null>(null);
   const [addedBills, setAddedBills] = useState<AddedBill[]>([]);
+  const [billCatAutoSet,      setBillCatAutoSet]      = useState(false);
+  const [billCatUserOverrode, setBillCatUserOverrode] = useState(false);
 
   // Step 3 state — spending caps
-  const [caps, setCaps] = useState<Record<string, number>>(DEFAULT_CAPS);
+  const [caps, setCaps] = useState<Record<string, string>>(
+    Object.fromEntries(Object.entries(DEFAULT_CAPS).map(([k, v]) => [k, String(v)]))
+  );
 
   // ── Actions ──────────────────────────────────────────────────────────────
 
@@ -108,15 +113,18 @@ export function OnboardingWizard() {
     setBillName("");
     setBillAmt(0);
     setBillKind("fixed");
+    setBillCat(FIXED_CATEGORIES[0]);
+    setBillCatAutoSet(false);
+    setBillCatUserOverrode(false);
   };
 
   const saveCaps = async (skip = false) => {
     if (!skip) {
       await Promise.all(
         Object.entries(caps)
-          .filter(([, v]) => v > 0)
-          .map(([category, limit_amount]) =>
-            api.put("/budget", { category, limit_amount })
+          .filter(([, raw]) => Number(raw) > 0)
+          .map(([category, raw]) =>
+            api.put("/budget", { category, limit_amount: Number(raw) })
           )
       );
     }
@@ -124,6 +132,8 @@ export function OnboardingWizard() {
   };
 
   // ── UI helpers ────────────────────────────────────────────────────────────
+
+  const ALL_BILL_CATEGORIES = [...FIXED_CATEGORIES, ...VAR_CATEGORIES];
 
   const inputCls =
     "w-full bg-dark-card2 border border-white/10 rounded-xl px-4 py-3 text-white " +
@@ -247,22 +257,52 @@ export function OnboardingWizard() {
                 <div className="grid grid-cols-2 gap-3">
                   <input
                     value={billName}
-                    onChange={(e) => setBillName(e.target.value)}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setBillName(val);
+                      if (!val) {
+                        setBillCat(FIXED_CATEGORIES[0]);
+                        setBillCatAutoSet(false);
+                        setBillCatUserOverrode(false);
+                        return;
+                      }
+                      if (!billCatUserOverrode) {
+                        const suggested = suggestCategory(val);
+                        if (suggested) {
+                          setBillCat(suggested);
+                          setBillCatAutoSet(true);
+                        } else {
+                          setBillCatAutoSet(false);
+                        }
+                      }
+                    }}
                     placeholder="e.g. Rent, Car Loan, Netflix"
                     className={`col-span-2 ${inputCls}`}
                   />
-                  <select
-                    value={billCat}
-                    onChange={(e) => setBillCat(e.target.value)}
-                    className="bg-dark-card2 border border-white/10 rounded-xl px-3 py-3
-                               text-white text-sm focus:border-accent focus:outline-none"
-                  >
-                    {FIXED_CATEGORIES.map((c) => (
-                      <option key={c} value={c}>
-                        {CATEGORY_ICONS[c]} {c}
-                      </option>
-                    ))}
-                  </select>
+                  <div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-white/60 text-xs">Category</span>
+                      {billCatAutoSet && (
+                        <span style={{ fontSize: 10, opacity: 0.55 }}>✨ suggested</span>
+                      )}
+                    </div>
+                    <select
+                      value={billCat}
+                      onChange={(e) => {
+                        setBillCat(e.target.value);
+                        setBillCatAutoSet(false);
+                        setBillCatUserOverrode(true);
+                      }}
+                      className="w-full bg-dark-card2 border border-white/10 rounded-xl px-3 py-3
+                                 text-white text-sm focus:border-accent focus:outline-none"
+                    >
+                      {ALL_BILL_CATEGORIES.map((c) => (
+                        <option key={c} value={c}>
+                          {CATEGORY_ICONS[c]} {c}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                   <input
                     type="number"
                     min="0"
@@ -355,17 +395,36 @@ export function OnboardingWizard() {
                     <label className="text-white/60 text-xs mb-1 block">
                       {CATEGORY_ICONS[cat] ?? "📦"} {cat}
                     </label>
-                    <input
-                      type="number"
-                      min="0"
-                      step="1"
-                      value={val}
-                      onChange={(e) =>
-                        setCaps((prev) => ({ ...prev, [cat]: Number(e.target.value) }))
-                      }
-                      className="w-full bg-dark-card2 border border-white/10 rounded-xl
-                                 px-3 py-2 text-white text-sm focus:border-accent focus:outline-none"
-                    />
+                    <div style={{ position: 'relative' }}>
+                      <input
+                        type="number"
+                        min="0"
+                        step="1"
+                        value={val}
+                        onFocus={(e) => e.target.select()}
+                        onChange={(e) => setCaps((prev) => ({ ...prev, [cat]: e.target.value }))}
+                        placeholder="Set cap limit"
+                        className="w-full bg-dark-card2 border border-white/10 rounded-xl
+                                   px-3 py-2 pr-8 text-white text-sm placeholder-white/30
+                                   focus:border-accent focus:outline-none"
+                      />
+                      {val !== "" && (
+                        <button
+                          type="button"
+                          onClick={() => setCaps((prev) => ({ ...prev, [cat]: "" }))}
+                          style={{
+                            position: 'absolute', right: 8, top: '50%',
+                            transform: 'translateY(-50%)',
+                            color: 'rgba(255,255,255,0.3)',
+                            fontSize: 14, lineHeight: 1, background: 'none', border: 'none',
+                            cursor: 'pointer', padding: '2px 4px',
+                          }}
+                          aria-label={`Clear ${cat} cap`}
+                        >
+                          ×
+                        </button>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>

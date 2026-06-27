@@ -186,6 +186,11 @@ export function InsightsScenarioD({
 }) {
   const bothSparse = currDays < 10 && prevDays < 10;
 
+  const today         = new Date();
+  const daysInMonth   = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+  const daysRemaining = daysInMonth - today.getDate();
+  const showDisclaimer = prevDays < 7 && daysRemaining > 3;
+
   return (
     <div
       className="rounded-2xl border p-4 space-y-2"
@@ -213,9 +218,11 @@ export function InsightsScenarioD({
               {prevDays} days
             </p>
           </div>
-          <p className="text-xs pt-1" style={{ color: "var(--text-muted)" }}>
-            Monthly comparisons become more accurate with consistent daily tracking.
-          </p>
+          {showDisclaimer && (
+            <p className="text-xs pt-1" style={{ color: "var(--text-muted)" }}>
+              Monthly comparisons become more accurate with consistent daily tracking.
+            </p>
+          )}
         </>
       )}
     </div>
