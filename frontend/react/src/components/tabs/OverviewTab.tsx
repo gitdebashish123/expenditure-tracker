@@ -309,7 +309,7 @@ export function OverviewTab({ onTabChange }: { onTabChange?: (path: string) => v
               <div className="flex items-center gap-1.5 mb-2">
                 <span className="text-base">{tile.icon}</span>
                 <p
-                  className="text-[10px] font-syne font-bold uppercase tracking-widest"
+                  className="text-[10px] font-syne font-bold uppercase tracking-wide"
                   style={{ color: "var(--text-sub)" }}
                 >
                   {tile.label}
@@ -643,7 +643,7 @@ export function OverviewTab({ onTabChange }: { onTabChange?: (path: string) => v
 
           return (
             <section className="h-full">
-              <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center justify-between mb-4">
                 <h2
                   className="text-xs font-syne font-bold tracking-widest"
                   style={{ color: "var(--text-sub)" }}
@@ -672,7 +672,7 @@ export function OverviewTab({ onTabChange }: { onTabChange?: (path: string) => v
       {/* ── Section 7: Coming Up (due bills + month-end balance) ─── */}
       <section>
         <h2
-          className="text-xs font-syne font-bold tracking-widest mb-3"
+          className="text-xs font-syne font-bold tracking-widest mb-4"
           style={{ color: "var(--text-sub)" }}
         >
           🔔 Coming Up
@@ -746,7 +746,7 @@ export function OverviewTab({ onTabChange }: { onTabChange?: (path: string) => v
       {/* ── Section 8: Money Moments ─────────────────────── */}
       {topSpends.length > 0 && (
         <section>
-          <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center justify-between mb-4">
             <h2
               className="text-xs font-syne font-bold uppercase tracking-widest"
               style={{ color: "var(--text-sub)" }}
@@ -798,7 +798,7 @@ export function OverviewTab({ onTabChange }: { onTabChange?: (path: string) => v
 
         return (
           <section>
-            <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center justify-between mb-4">
               <h2
                 className="text-xs font-syne font-bold tracking-widest"
                 style={{ color: "var(--text-sub)" }}
