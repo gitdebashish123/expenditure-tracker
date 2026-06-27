@@ -5,7 +5,7 @@ import { CATEGORY_ICONS } from "@/utils/categories";
 import { fmtInr } from "@/utils/formatInr";
 import { ExpenseRowSwipeable } from "@/components/shared/ExpenseRowSwipeable";
 import type { Expense, ExpenseTemplate, DailyMantra } from "@/types";
-import { Loader2, Zap } from "lucide-react";
+import { Loader2, Zap, MessageCircle } from "lucide-react";
 import { useToast } from "@/context/ToastContext";
 
 /**
@@ -37,6 +37,7 @@ interface Props {
 
 function TodaysMantraCard() {
   const { selMonth } = useMonth();
+  const { toast } = useToast();
   const [data, setData] = useState<DailyMantra | null>(null);
   const [showWhy, setShowWhy] = useState(false);
 
@@ -54,34 +55,62 @@ function TodaysMantraCard() {
   return (
     <section>
       <div
-        className="rounded-2xl p-4 border"
+        className="rounded-2xl overflow-hidden border"
         style={{
-          background: 'var(--card)',
+          background:  'var(--card)',
           borderColor: 'var(--accent)',
-          boxShadow: '0 0 24px -8px var(--accent2)',
+          boxShadow:   '0 0 24px -8px var(--accent2)',
         }}
       >
-        <p className="text-xs font-syne font-bold uppercase tracking-widest mb-2"
-           style={{ color: 'var(--accent)' }}>
-          🪷 Today's Mantra
-        </p>
-        <div className="h-px w-12 mb-3" style={{ background: 'var(--accent)', opacity: 0.4 }} />
-        <p className="text-sm leading-relaxed italic" style={{ color: 'var(--text)' }}>
-          {data.mantra}
-        </p>
+        {/* Top row: content left, avatar right */}
+        <div className="flex">
+          {/* Left: heading + divider + mantra */}
+          <div className="flex-1 p-4">
+            <p className="text-xs font-syne font-bold uppercase tracking-widest mb-2"
+               style={{ color: 'var(--accent)' }}>
+              🪷 Today's Mantra
+            </p>
+            <div className="h-px w-12 mb-3" style={{ background: 'var(--accent)', opacity: 0.4 }} />
+            <p className="text-sm leading-relaxed italic" style={{ color: 'var(--text)' }}>
+              {data.mantra}
+            </p>
+          </div>
 
-        {/* "Why?" toggle */}
-        <button
-          onClick={() => setShowWhy(v => !v)}
-          className="mt-3 text-xs font-syne font-semibold uppercase tracking-wider transition-opacity hover:opacity-80"
-          style={{ color: 'var(--accent)' }}
-        >
-          {showWhy ? "▲ Hide" : "▼ Why?"}
-        </button>
+          {/* Right: Tara avatar — hidden below 360px so text isn't squeezed */}
+          <div
+            className="hidden min-[360px]:block flex-shrink-0"
+            style={{ width: '100px', alignSelf: 'stretch', position: 'relative', overflow: 'hidden' }}
+          >
+            <img
+              src="/tara.png"
+              alt="Tara"
+              style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'top center' }}
+            />
+          </div>
+        </div>
 
+        {/* Bottom strip: Ask Tara pill + How Tara calculated this expand */}
+        <div className="px-4 pb-4 flex items-center gap-3">
+          <button
+            onClick={() => toast("Ask Tara is coming soon! 🪷")}
+            className="text-xs font-syne font-semibold px-3 py-1.5 rounded-full transition-opacity hover:opacity-80"
+            style={{ background: 'var(--accent)', color: '#fff' }}
+          >
+            Ask Tara
+          </button>
+          <button
+            onClick={() => setShowWhy(v => !v)}
+            className="text-xs font-syne font-semibold transition-opacity hover:opacity-80"
+            style={{ color: 'var(--accent)' }}
+          >
+            {showWhy ? "↑ Hide" : "How Tara calculated this ↓"}
+          </button>
+        </div>
+
+        {/* Expandable context panel */}
         {showWhy && (
           <div
-            className="mt-3 rounded-xl p-3 space-y-1 text-xs"
+            className="mx-4 mb-4 rounded-xl p-3 space-y-1 text-xs"
             style={{ background: 'var(--card2, rgba(255,255,255,0.05))', color: 'var(--text-sub)' }}
           >
             <p><span className="font-semibold">Remaining:</span> {fmtRs(ctx.remaining)}</p>
@@ -369,14 +398,30 @@ export function QuickAddTab({ onExpenseAdded }: Props = {}) {
         </h2>
 
         {todayExpenses.length === 0 ? (
-          <div className="text-center py-8">
-            <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
+          <div className="text-center py-8 space-y-3">
+            <div className="text-3xl">🧾</div>
+            <p className="text-sm font-medium" style={{ color: 'var(--text)' }}>
               Nothing logged today.
             </p>
-            <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
-              Type something like:{" "}
-              <span className="text-indigo-400">zomato 350, ola 120</span>
+            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+              Start your day by logging something small.
             </p>
+            <div className="flex gap-2 justify-center flex-wrap mt-2">
+              {(["tea 20", "uber 180", "milk 60"] as const).map(suggestion => (
+                <button
+                  key={suggestion}
+                  onClick={() => setText(suggestion)}
+                  className="text-xs px-3 py-1.5 rounded-full border transition-colors"
+                  style={{
+                    borderColor: 'var(--accent)',
+                    color:       'var(--accent)',
+                    background:  'transparent',
+                  }}
+                >
+                  {suggestion}
+                </button>
+              ))}
+            </div>
           </div>
         ) : (
           <div className="space-y-1">
@@ -390,6 +435,31 @@ export function QuickAddTab({ onExpenseAdded }: Props = {}) {
           </div>
         )}
       </section>
+
+      {/* Ask Tara FAB — shell only, chat backend not yet built */}
+      <button
+        onClick={() => toast("Ask Tara is coming soon! 🪷")}
+        aria-label="Ask Tara"
+        style={{
+          position:       'fixed',
+          bottom:         '72px',
+          right:          '16px',
+          width:          '52px',
+          height:         '52px',
+          borderRadius:   '50%',
+          background:     'var(--accent)',
+          color:          '#fff',
+          display:        'flex',
+          alignItems:     'center',
+          justifyContent: 'center',
+          zIndex:         30,
+          border:         'none',
+          boxShadow:      '0 4px 16px rgba(0,0,0,0.3)',
+          cursor:         'pointer',
+        }}
+      >
+        <MessageCircle size={22} />
+      </button>
 
     </div>
   );

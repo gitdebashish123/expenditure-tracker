@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
+import { Activity, ChevronDown } from "lucide-react";
 import { api } from "@/api/client";
 import { useMonth } from "@/context/MonthContext";
 import { fmtInr } from "@/utils/formatInr";
@@ -6,9 +7,9 @@ import { fmtDate } from "@/utils/formatDate";
 import { CATEGORY_ICONS, FIXED_CATEGORIES } from "@/utils/categories";
 import { BalanceBreakdown } from "@/components/shared/BalanceBreakdown";
 import { SpendDonut } from "@/components/shared/SpendDonut";
-import { BudgetHealthCard } from "@/components/shared/BudgetHealthCard";
-import { MoMTable } from "@/components/shared/MoMTable";
-import type { Summary, ProjectionItem } from "@/types";
+import { SignalCard, SpendingSignalsModal } from "@/components/shared/SpendingSignalsModal";
+import { useToast } from "@/context/ToastContext";
+import type { Summary, ProjectionItem, DueReminder, MonthlyStory, TinyWin, PeaceOfMind } from "@/types";
 
 /**
  * OverviewTab — full financial dashboard for the selected month
@@ -50,27 +51,68 @@ interface MoMData {
 const RANK_COLOURS = ["#f59e0b", "#94a3b8", "#b45309", "#6366f1", "#6366f1"];
 
 const DONUT_FILTERS = [
-  { value: "variable" as const, label: "Day-to-day"  },
+  { value: "variable" as const, label: "Variable"    },
   { value: "fixed"    as const, label: "Fixed Bills"  },
   { value: "all"      as const, label: "All"          },
 ];
 
-function TopSpendRow({ rank, item }: { rank: number; item: TopSpend }) {
-  const icon = CATEGORY_ICONS[item.category] ?? "📦";
+const getContextBadge = (tx: TopSpend, rank: number): { label: string; colour: string } | null => {
+  if (rank === 1) return { label: "🏆 Biggest Purchase", colour: "#f59e0b" };
+  if (["Savings", "Investments", "Mutual Fund"].includes(tx.category))
+    return { label: "📈 Investment", colour: "#818cf8" };
+  if (["Course", "Education"].includes(tx.category))
+    return { label: "📚 Learning", colour: "#818cf8" };
+  if (["Travel", "Medical", "Rent", "Cook", "Milk", "Electricity"].includes(tx.category))
+    return { label: "🚗 Essential", colour: "#94a3b8" };
+  if (tx.category === "Gifts")
+    return { label: "❤️ Special Moment", colour: "#f472b6" };
+  if (rank === 2) return { label: "👑 Top Spend", colour: "#f59e0b" };
+  return null;
+};
+
+const VENDOR_INITIAL_PALETTE = [
+  "#6366f1", "#8b5cf6", "#ec4899", "#f59e0b", "#14b8a6", "#3b82f6", "#f87171", "#34d399",
+];
+
+function vendorInitialColour(name: string) {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = name.charCodeAt(i) + ((h << 5) - h);
+  return VENDOR_INITIAL_PALETTE[Math.abs(h) % VENDOR_INITIAL_PALETTE.length];
+}
+
+function TopSpendRow({ rank, item, varTotal }: { rank: number; item: TopSpend; varTotal: number }) {
+  const catIcon = CATEGORY_ICONS[item.category];
+  const useFallback = !catIcon || catIcon === "📦";
+  const badge = getContextBadge(item, rank);
+  const pctOfVar = varTotal > 0 ? Math.round(item.amount / varTotal * 100) : null;
+  const initials = item.vendor.slice(0, 2).toUpperCase();
+  const bgColour = vendorInitialColour(item.vendor);
+
   return (
     <div className="flex items-center gap-3 py-3 border-b border-white/5">
-      {/* Rank number */}
+      {/* Rank indicator — gold background for rank 1 */}
       <span
-        className="font-syne font-extrabold text-lg w-7 text-center flex-shrink-0"
-        style={{ color: RANK_COLOURS[rank - 1] }}
+        className="font-syne font-extrabold text-base w-7 h-7 flex items-center justify-center rounded-lg flex-shrink-0"
+        style={{
+          color:      rank === 1 ? "#111"    : RANK_COLOURS[rank - 1],
+          background: rank === 1 ? "#f59e0b" : "transparent",
+        }}
       >
-        #{rank}
+        {rank}
       </span>
 
-      {/* Category icon */}
-      <div className="w-9 h-9 bg-dark-card2 rounded-xl flex items-center justify-center
-                      text-lg flex-shrink-0">
-        {icon}
+      {/* Category icon — or vendor initial avatar for Miscellaneous */}
+      <div
+        className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
+        style={useFallback
+          ? { background: bgColour + "33", border: `1px solid ${bgColour}55` }
+          : { background: "var(--card2)" }
+        }
+      >
+        {useFallback
+          ? <span className="text-[11px] font-syne font-bold" style={{ color: bgColour }}>{initials}</span>
+          : <span className="text-lg">{catIcon}</span>
+        }
       </div>
 
       {/* Vendor + category + date */}
@@ -88,10 +130,22 @@ function TopSpendRow({ rank, item }: { rank: number; item: TopSpend }) {
         </p>
       </div>
 
-      {/* Amount */}
-      <span className="font-syne font-bold text-red-400 flex-shrink-0 text-sm">
-        {fmtInr(item.amount)}
-      </span>
+      {/* Amount + % of spending + context badge */}
+      <div className="flex flex-col items-end gap-0.5 flex-shrink-0">
+        <span className="font-syne font-bold text-red-400 text-sm">
+          {fmtInr(item.amount)}
+        </span>
+        {pctOfVar !== null && (
+          <span className="text-[10px]" style={{ color: "var(--text-sub)" }}>
+            {pctOfVar}% of spending
+          </span>
+        )}
+        {badge && (
+          <span className="text-[10px] font-medium" style={{ color: badge.colour }}>
+            {badge.label}
+          </span>
+        )}
+      </div>
     </div>
   );
 }
@@ -119,29 +173,54 @@ function OverviewSkeleton() {
 
 // ── Main component ─────────────────────────────────────────────────────────────
 
-export function OverviewTab() {
+export function OverviewTab({ onTabChange }: { onTabChange?: (path: string) => void }) {
   const { selMonth } = useMonth();
+  const { toast } = useToast();
 
-  const [summary,     setSummary]     = useState<Summary | null>(null);
-  const [projections, setProjections] = useState<ProjectionItem[]>([]);
-  const [topSpends,   setTopSpends]   = useState<TopSpend[]>([]);
-  const [mom,         setMom]         = useState<MoMData | null>(null);
-  const [loading,     setLoading]     = useState(true);
-  const [donutFilter, setDonutFilter] = useState<"variable" | "fixed" | "all">("variable");
+  const [summary,      setSummary]      = useState<Summary | null>(null);
+  const [projections,  setProjections]  = useState<ProjectionItem[]>([]);
+  const [topSpends,    setTopSpends]    = useState<TopSpend[]>([]);
+  const [mom,          setMom]          = useState<MoMData | null>(null);
+  const [dueReminders, setDueReminders] = useState<DueReminder[]>([]);
+  const [story,        setStory]        = useState<string | null>(null);
+  const [tinyWin,      setTinyWin]      = useState<string | null>(null);
+  const [prevSummary,  setPrevSummary]  = useState<Summary | null>(null);
+  const [pom,          setPom]          = useState<PeaceOfMind | null>(null);
+  const [monthlyInsight, setMonthlyInsight] = useState<string | null>(null);
+  const [loading,           setLoading]          = useState(true);
+  const [donutFilter,       setDonutFilter]       = useState<"variable" | "fixed" | "all">("variable");
+  const [showPomBreakdown,  setShowPomBreakdown]  = useState(false);
+  const [showSignalsModal,  setShowSignalsModal]  = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
+    const [year, month] = selMonth.split("-").map(Number);
+    const prevDate = new Date(year, month - 2, 1); // month-2 because JS months are 0-indexed
+    const prevMonthKey = `${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, "0")}`;
     try {
-      const [sum, proj, top, momData] = await Promise.all([
+      const [sum, proj, top, momData, reminders, storyResult, tinyWinResult, prevSum, pomResult, insightResult] = await Promise.all([
         api.get<Summary>(`/summary/${selMonth}`).then(r => r.data),
         api.get<ProjectionItem[]>(`/insights/projection/${selMonth}`).then(r => r.data),
         api.get<TopSpend[]>(`/insights/top-spends/${selMonth}?limit=5`).then(r => r.data),
         api.get<MoMData>(`/insights/mom/${selMonth}`).then(r => r.data),
+        // Correct path is /fixed/due-reminders/ (not /insights/due-reminders/)
+        api.get<DueReminder[]>(`/fixed/due-reminders/${selMonth}`).then(r => r.data).catch((): DueReminder[] => []),
+        api.get<MonthlyStory>(`/insights/story/${selMonth}`).then(r => r.data.story).catch(() => null),
+        api.get<TinyWin>(`/insights/tiny-win/${selMonth}`).then(r => r.data.win).catch(() => null),
+        api.get<Summary>(`/summary/${prevMonthKey}`).then(r => r.data).catch(() => null),
+        api.get<PeaceOfMind>(`/insights/peace-of-mind/${selMonth}`).then(r => r.data).catch(() => null),
+        api.get<{ insight: string | null }>(`/insights/monthly-insight/${selMonth}`).then(r => r.data.insight).catch(() => null),
       ]);
       setSummary(sum);
       setProjections(proj);
       setTopSpends(top);
       setMom(momData);
+      setDueReminders(reminders);
+      setStory(storyResult);
+      setTinyWin(tinyWinResult);
+      setPrevSummary(prevSum);
+      setPom(pomResult);
+      setMonthlyInsight(insightResult);
     } catch {
       // leave state as null — empty state renders
     } finally {
@@ -177,97 +256,817 @@ export function OverviewTab() {
   return (
     <div className="space-y-6">
 
-      {/* ── Section 1: Monthly breakdown bar ───────────── */}
+      {/* ── Section 0: Financial Snapshot ────────────────── */}
       <section>
-        <BalanceBreakdown balance={balance} />
+        <h2
+          className="text-xs font-syne font-bold uppercase tracking-widest mb-3"
+          style={{ color: "var(--text-sub)" }}
+        >
+          Financial Snapshot
+        </h2>
+        <div className="grid grid-cols-2 gap-3">
+          {[
+            {
+              label:    "Remaining",
+              value:    balance.remaining,
+              icon:     "💰",
+              colour:   balance.remaining >= 0 ? "#34d399" : "#f87171",
+              subtitle: undefined as string | undefined,
+            },
+            {
+              label:    "Income",
+              value:    balance.total_income,
+              icon:     "💼",
+              colour:   "#6366f1",
+              subtitle: undefined as string | undefined,
+            },
+            {
+              label:    "Bills Paid",
+              value:    balance.fixed_paid_total,
+              icon:     "✅",
+              colour:   "#f59e0b",
+              subtitle: balance.fixed_unpaid_total === 0
+                ? "All bills cleared ✓"
+                : `Out of ${fmtInr(balance.fixed_paid_total + balance.fixed_unpaid_total)}`,
+            },
+            {
+              label:    balance.fixed_unpaid_total === 0 ? "All Bills Clear ✓" : "Pending Bills",
+              value:    balance.fixed_unpaid_total,
+              icon:     balance.fixed_unpaid_total === 0 ? "🎉" : "⏳",
+              colour:   balance.fixed_unpaid_total === 0 ? "#34d399" : "#f87171",
+              subtitle: undefined as string | undefined,
+            },
+          ].map(tile => (
+            <div
+              key={tile.label}
+              className="rounded-2xl p-4 border"
+              style={{ background: "var(--card)", borderColor: "var(--border-lg)" }}
+            >
+              <div className="flex items-center gap-1.5 mb-2">
+                <span className="text-base">{tile.icon}</span>
+                <p
+                  className="text-[10px] font-syne font-bold uppercase tracking-widest"
+                  style={{ color: "var(--text-sub)" }}
+                >
+                  {tile.label}
+                </p>
+              </div>
+              <p className="text-lg font-syne font-bold" style={{ color: tile.colour }}>
+                {fmtInr(tile.value)}
+              </p>
+              {tile.subtitle && (
+                <p className="text-[10px] mt-1" style={{ color: "var(--text-sub)" }}>
+                  {tile.subtitle}
+                </p>
+              )}
+            </div>
+          ))}
+        </div>
       </section>
 
-      {/* ── Section 2: Spend donut (bonus — not in Streamlit) */}
-      {summary.categories.length > 0 && (
+      {/* ── Section 0b: This Month's Story ───────────────── */}
+      {story && (
         <section>
-          <div className="mb-3 space-y-2">
+          <div
+            className="rounded-2xl border p-5 flex items-start gap-4 overflow-hidden"
+            style={{ background: "var(--card)", borderColor: "var(--border-lg)" }}
+          >
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-1.5 mb-2">
+                <span style={{ color: "#f59e0b" }}>✦</span>
+                <p
+                  className="text-[10px] font-syne font-bold uppercase tracking-widest"
+                  style={{ color: "var(--text-sub)" }}
+                >
+                  {new Date(selMonth + "-01").toLocaleString("en-IN", { month: "long" })} in one sentence
+                </p>
+              </div>
+              <p className="text-sm leading-relaxed" style={{ color: "var(--text)" }}>
+                {story}
+              </p>
+            </div>
+            {/* Decorative illustration */}
+            <div
+              className="hidden sm:flex flex-col items-center justify-center flex-shrink-0
+                         text-4xl leading-none select-none opacity-50"
+              style={{ width: 72, height: 72 }}
+              aria-hidden="true"
+            >
+              <span>📅</span>
+              <span className="text-xl mt-1">✨</span>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* ── Sections 3+4: Monthly Breakdown + Spend by Category (side-by-side) ── */}
+      <div className="grid grid-cols-1 pair:grid-cols-2 gap-4">
+
+        {/* ── Section 1: Monthly breakdown bar + Insight ───── */}
+        <section className="h-full flex flex-col gap-3">
+          <BalanceBreakdown balance={balance} />
+
+          {monthlyInsight && (
+            <div
+              className="flex-1 rounded-2xl border p-4"
+              style={{ borderColor: "var(--border)", background: "var(--card)" }}
+            >
+              <p className="text-[11px] font-semibold tracking-wide mb-2" style={{ color: "var(--accent)" }}>
+                ✨ Insight
+              </p>
+              <p className="text-[13px] leading-relaxed" style={{ color: "var(--text)" }}>
+                {monthlyInsight}
+              </p>
+            </div>
+          )}
+        </section>
+
+        {/* ── Section 2: Spend donut + Category Winner ──────── */}
+        {summary.categories.length > 0 && (
+          <section className="h-full">
+            <div
+              className="rounded-2xl border p-4 h-full"
+              style={{ background: "var(--card)", borderColor: "var(--border-lg)" }}
+            >
+              {/* Header + filter tabs */}
+              <div className="flex items-center justify-between mb-3">
+                <h2
+                  className="text-xs font-syne font-bold uppercase tracking-widest"
+                  style={{ color: "var(--text-sub)" }}
+                >
+                  Spend by Category
+                </h2>
+                <div className="relative">
+                  <select
+                    value={donutFilter}
+                    onChange={e => setDonutFilter(e.target.value as "variable" | "fixed" | "all")}
+                    className="appearance-none text-xs pl-2.5 pr-6 py-1 rounded-lg border cursor-pointer"
+                    style={{
+                      background:  "var(--card2)",
+                      borderColor: "var(--border-lg)",
+                      color:       "var(--text)",
+                    }}
+                  >
+                    {DONUT_FILTERS.map(f => (
+                      <option key={f.value} value={f.value}>{f.label}</option>
+                    ))}
+                  </select>
+                  <ChevronDown
+                    size={11}
+                    className="absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none"
+                    style={{ color: "var(--text-sub)" }}
+                  />
+                </div>
+              </div>
+
+              {/* Donut (left) + category list (right) */}
+              <SpendDonut
+                sidebar
+                categories={summary.categories.filter(c =>
+                  donutFilter === "all"
+                    ? true
+                    : donutFilter === "fixed"
+                      ? FIXED_CATEGORIES.includes(c.category)
+                      : !FIXED_CATEGORIES.includes(c.category)
+                )}
+              />
+
+              {/* ── Category Winner ─────────────────────────── */}
+              {(() => {
+                const varCats = summary.categories.filter(c => !FIXED_CATEGORIES.includes(c.category));
+                if (varCats.length === 0) return null;
+                const top = [...varCats].sort((a, b) => b.spent - a.spent)[0];
+                const pctOfVar = balance.variable_total > 0
+                  ? Math.round(top.spent / balance.variable_total * 100)
+                  : 0;
+                const curr = mom?.months[mom.months.length - 1];
+                const prev = mom && mom.months.length >= 2 ? mom.months[mom.months.length - 2] : null;
+                const topCurr = curr ? (mom?.categories[top.category]?.[curr] ?? 0) : 0;
+                const topPrev = prev ? (mom?.categories[top.category]?.[prev] ?? 0) : 0;
+                const momPct  = topPrev > 0
+                  ? Math.round((topCurr - topPrev) / topPrev * 100)
+                  : null;
+                const prevLabel = prev
+                  ? new Date(prev + "-01").toLocaleString("en-IN", { month: "short" })
+                  : null;
+
+                return (
+                  <div
+                    className="mt-3 pt-3 border-t"
+                    style={{ borderColor: "var(--border)" }}
+                  >
+                    <p
+                      className="text-[10px] font-syne font-bold uppercase tracking-widest mb-2"
+                      style={{ color: "var(--text-sub)" }}
+                    >
+                      Category Winner
+                    </p>
+                    <div className="flex items-center gap-3">
+                      <span className="text-2xl flex-shrink-0">🏆</span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-syne font-bold" style={{ color: "var(--text)" }}>
+                          {top.category}
+                        </p>
+                        <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>
+                          {fmtInr(top.spent)} spent ({pctOfVar}% of variable expenses)
+                        </p>
+                      </div>
+                      {momPct !== null && prevLabel && (
+                        <div className="text-right flex-shrink-0">
+                          <p className="text-sm font-syne font-bold" style={{ color: "var(--text-sub)" }}>
+                            {momPct >= 0 ? "↑" : "↓"} {Math.abs(momPct)}%
+                          </p>
+                          <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+                            vs {prevLabel}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+          </section>
+        )}
+
+      </div>
+
+      {/* ── Sections 5+6: Peace of Mind + Spending Signals (side-by-side) ── */}
+      <div className="grid grid-cols-1 pair:grid-cols-2 gap-4">
+
+        {/* ── Section 5: Peace of Mind Score ───────────────── */}
+        {pom && (() => {
+          const radius     = 33;
+          const circ       = 2 * Math.PI * radius;
+          const filled     = (pom.score / 100) * circ;
+          const dialColour = pom.score >= 70 ? "#34d399" : pom.score >= 40 ? "#f59e0b" : "#f87171";
+          const posFactors = (pom.factors ?? []).filter(f => f.points >= 0);
+          const negFactors = (pom.factors ?? []).filter(f => f.points < 0);
+
+          return (
+            <section className="h-full">
+              <div
+                className="rounded-2xl border p-4 h-full"
+                style={{ background: "var(--card)", borderColor: "var(--border-lg)" }}
+              >
+                <p className="text-[10px] font-syne font-bold tracking-widest mb-3"
+                   style={{ color: "var(--text-sub)" }}>
+                  🧘 Peace of mind
+                </p>
+
+                {/* Dial + right column */}
+                <div className="flex items-start gap-4">
+                  {/* SVG dial with score centred */}
+                  <div className="relative flex-shrink-0" style={{ width: 88, height: 88 }}>
+                    <svg width="88" height="88" viewBox="0 0 88 88">
+                      <circle cx="44" cy="44" r={radius} fill="none"
+                        stroke="var(--border-lg)" strokeWidth="9" />
+                      <circle cx="44" cy="44" r={radius} fill="none"
+                        stroke={dialColour} strokeWidth="9"
+                        strokeDasharray={`${filled} ${circ}`}
+                        strokeDashoffset={circ * 0.25}
+                        strokeLinecap="round"
+                        transform="rotate(-90 44 44)" />
+                    </svg>
+                    <div style={{ position: "absolute", inset: 0, display: "flex",
+                                  flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+                      <span className="font-syne font-extrabold text-xl leading-none"
+                            style={{ color: dialColour }}>
+                        {pom.score}
+                      </span>
+                      <span className="text-[9px]" style={{ color: "var(--text-sub)" }}>/100</span>
+                    </div>
+                  </div>
+
+                  {/* Summary + delta + factors */}
+                  <div className="flex-1 min-w-0">
+                    {pom.summary && (
+                      <p className="text-xs leading-relaxed mb-2" style={{ color: "var(--text-sub)" }}>
+                        {pom.summary}
+                      </p>
+                    )}
+                    {pom.delta != null && (
+                      <p className="text-[11px] font-medium mb-2"
+                         style={{ color: pom.delta >= 0 ? "#34d399" : "#f87171" }}>
+                        {pom.delta >= 0
+                          ? `↑ ${pom.delta} pts vs yesterday`
+                          : `↓ ${Math.abs(pom.delta)} pts vs yesterday`}
+                      </p>
+                    )}
+                    <div className="space-y-1">
+                      {[...posFactors, ...negFactors].map((f, i) => (
+                        <div key={i} className="flex items-center justify-between text-[11px]">
+                          <span style={{ color: "var(--text-sub)" }}>{f.label}</span>
+                          <span className="font-semibold font-syne"
+                                style={{ color: f.points >= 0 ? "#34d399" : "#f87171" }}>
+                            {f.points >= 0 ? `+${f.points}` : f.points}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Why this score? expand */}
+                <div className="mt-3 border-t pt-3" style={{ borderColor: "var(--border-lg)" }}>
+                  <button
+                    onClick={() => setShowPomBreakdown(v => !v)}
+                    className="text-xs font-syne font-semibold transition-opacity hover:opacity-70"
+                    style={{ color: "var(--accent)" }}
+                  >
+                    {showPomBreakdown ? "↑ Hide" : "Why this score? ↓"}
+                  </button>
+                  {showPomBreakdown && (
+                    <p className="text-xs mt-2 leading-relaxed" style={{ color: "var(--text-sub)" }}>
+                      Score = 50 base + bills completion (up to +25) + positive balance (+15) + tracking (+10), minus overspend and pending bill deductions.
+                    </p>
+                  )}
+                </div>
+              </div>
+            </section>
+          );
+        })()}
+
+        {/* ── Section 6: Spending Signals ─────────────────── */}
+        {projections.length > 0 && (() => {
+          const withRatio = projections
+            .filter(p => p.limit > 0)
+            .map(p => ({ ...p, ratio: p.spent / p.limit }));
+          const sorted = [...withRatio].sort((a, b) => b.ratio - a.ratio);
+          const top = sorted[0];
+          const mid = sorted[1];
+          const low = [...withRatio]
+            .filter(p => p.spent > 0)
+            .sort((a, b) => a.ratio - b.ratio)[0];
+          const budgetSignals = [top, mid, low].filter(Boolean);
+
+          return (
+            <section className="h-full">
+              <div className="flex items-center justify-between mb-3">
+                <h2
+                  className="text-xs font-syne font-bold tracking-widest"
+                  style={{ color: "var(--text-sub)" }}
+                >
+                  📡 Spending signals
+                </h2>
+                <button
+                  className="text-xs"
+                  style={{ color: "var(--text-sub)" }}
+                  onClick={() => setShowSignalsModal(true)}
+                >
+                  View all →
+                </button>
+              </div>
+              <div className="space-y-3">
+                {budgetSignals.map(p => (
+                  <SignalCard key={p.category} p={p} />
+                ))}
+              </div>
+            </section>
+          );
+        })()}
+
+      </div>
+
+      {/* ── Section 7: Upcoming Reality ──────────────────── */}
+      <section>
+        <h2
+          className="text-xs font-syne font-bold tracking-widest mb-3"
+          style={{ color: "var(--text-sub)" }}
+        >
+          📅 Upcoming reality
+        </h2>
+        <div
+          className="rounded-2xl border overflow-hidden"
+          style={{ background: "var(--card)", borderColor: "var(--border-lg)" }}
+        >
+          {/* Next due bill row */}
+          <div className="p-4">
+            {dueReminders.length === 0 ? (
+              <p className="text-sm font-medium" style={{ color: "#34d399" }}>
+                🎉 All bills paid this month
+              </p>
+            ) : (
+              (() => {
+                const sorted = [...dueReminders].sort((a, b) => a.days_overdue - b.days_overdue);
+                const next = sorted.find(r => r.days_overdue <= 0) ?? sorted[sorted.length - 1];
+                return (
+                  <div className="flex items-center gap-3">
+                    <span className="text-xl">📅</span>
+                    <div className="flex-1">
+                      <p className="text-sm font-medium" style={{ color: "var(--text)" }}>
+                        {next.vendor}
+                      </p>
+                      <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+                        {next.days_overdue < 0
+                          ? `Due in ${Math.abs(next.days_overdue)} day(s)`
+                          : next.days_overdue === 0
+                          ? "Due today"
+                          : `${next.days_overdue} day(s) overdue`}
+                      </p>
+                    </div>
+                    <span
+                      className="font-syne font-bold text-sm flex-shrink-0"
+                      style={{ color: "#f87171" }}
+                    >
+                      {fmtInr(next.amount)}
+                    </span>
+                  </div>
+                );
+              })()
+            )}
+          </div>
+
+          {/* Divider */}
+          <div className="h-px mx-4" style={{ background: "var(--border-lg)" }} />
+
+          {/* Month-end estimate */}
+          <div className="p-4">
+            <div className="flex items-center justify-between">
+              <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+                Expected month-end balance
+              </p>
+              <p
+                className="font-syne font-bold text-sm"
+                style={{
+                  color:
+                    balance.remaining - balance.fixed_unpaid_total >= 0
+                      ? "#34d399"
+                      : "#f87171",
+                }}
+              >
+                {fmtInr(balance.remaining - balance.fixed_unpaid_total)}
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ── Section 8: Money Moments ─────────────────────── */}
+      {topSpends.length > 0 && (
+        <section>
+          <div className="flex items-center justify-between mb-3">
             <h2
               className="text-xs font-syne font-bold uppercase tracking-widest"
               style={{ color: "var(--text-sub)" }}
             >
-              Spend by Category
+              💎 Money Moments
             </h2>
-            <div className="flex gap-1.5">
-              {DONUT_FILTERS.map(f => (
-                <button
-                  key={f.value}
-                  onClick={() => setDonutFilter(f.value)}
-                  className="text-xs px-3 py-1 rounded-lg border transition-colors"
-                  style={{
-                    background:   donutFilter === f.value ? "var(--accent-bg)"  : "transparent",
-                    borderColor:  donutFilter === f.value ? "var(--accent)"     : "var(--border-lg)",
-                    color:        donutFilter === f.value ? "var(--accent)"     : "var(--text)",
-                    fontWeight:   donutFilter === f.value ? 600 : 400,
-                  }}
-                >
-                  {f.label}
-                </button>
-              ))}
-            </div>
+            <button
+              className="text-xs"
+              style={{ color: "var(--accent)" }}
+              onClick={() => onTabChange ? onTabChange("/history") : toast("See all transactions in the History tab →")}
+            >
+              View all →
+            </button>
           </div>
-          <SpendDonut
-            categories={summary.categories.filter(c =>
-              donutFilter === "all"
-                ? true
-                : donutFilter === "fixed"
-                  ? FIXED_CATEGORIES.includes(c.category)
-                  : !FIXED_CATEGORIES.includes(c.category)
-            )}
-          />
-        </section>
-      )}
 
-      {/* ── Section 3: Budget health ─────────────────────── */}
-      {projections.length > 0 && (
-        <section>
-          <h2
-            className="text-xs font-syne font-bold uppercase tracking-widest mb-3"
-            style={{ color: "var(--text-sub)" }}
-          >
-            Budget Health
-          </h2>
-          <div className="space-y-3">
-            {projections.map(p => (
-              <BudgetHealthCard key={p.category} projection={p} />
-            ))}
-          </div>
-        </section>
-      )}
+          {balance.variable_total > 0 && (
+            <p className="text-[11px] mb-3" style={{ color: "var(--text-sub)" }}>
+              Largest {topSpends.length} purchases contributed{" "}
+              <span style={{ color: "var(--text)", fontWeight: 600 }}>
+                {Math.round(topSpends.reduce((s, t) => s + t.amount, 0) / balance.variable_total * 100)}%
+              </span>{" "}
+              of this month's spending.
+            </p>
+          )}
 
-      {/* ── Section 4: Top spends ────────────────────────── */}
-      {topSpends.length > 0 && (
-        <section>
-          <h2
-            className="text-xs font-syne font-bold uppercase tracking-widest mb-3"
-            style={{ color: "var(--text-sub)" }}
-          >
-            Top Spends This Month
-          </h2>
           <div className="space-y-0">
             {topSpends.map((t, i) => (
-              <TopSpendRow key={i} rank={i + 1} item={t} />
+              <TopSpendRow key={i} rank={i + 1} item={t} varTotal={balance.variable_total} />
             ))}
           </div>
         </section>
       )}
 
-      {/* ── Section 5: Month-over-Month table ───────────── */}
-      {mom && mom.months.length > 0 && (
+      {/* ── Section 9: What Changed? ─────────────────────── */}
+      {mom && (() => {
+        const SAVINGS_CATS = new Set(["Savings", "Investments"]);
+
+        // ── Scenario 2: first month — no prior data, show spending highlights ──
+        if (mom.months.length < 2) {
+          const highlights = [...summary.categories]
+            .filter(c => c.spent > 0)
+            .sort((a, b) => b.spent - a.spent)
+            .slice(0, 3);
+          if (highlights.length === 0) return null;
+          return (
+            <section>
+              <h2
+                className="text-xs font-syne font-bold uppercase tracking-widest mb-1"
+                style={{ color: "var(--text-sub)" }}
+              >
+                Spending Highlights
+              </h2>
+              <p className="text-xs mb-3" style={{ color: "var(--text-muted)" }}>
+                Your first month — no prior comparison yet
+              </p>
+              <div className="space-y-0">
+                {highlights.map(({ category, spent }) => (
+                  <div key={category} className="flex items-center gap-3 py-2.5 border-b"
+                       style={{ borderColor: "var(--border-lg)" }}>
+                    <span className="text-lg w-5 flex-shrink-0 text-center">
+                      {CATEGORY_ICONS[category] ?? "📦"}
+                    </span>
+                    <span className="flex-1 text-sm" style={{ color: "var(--text)" }}>
+                      {category}
+                    </span>
+                    <span className="text-sm font-syne font-semibold"
+                          style={{ color: "var(--text)" }}>
+                      {fmtInr(spent)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </section>
+          );
+        }
+
+        const curr = mom.months[mom.months.length - 1];
+        const prev = mom.months[mom.months.length - 2];
+        const prevLabel = new Date(prev + "-01").toLocaleString("en-IN", { month: "short" });
+
+        const changes = Object.entries(mom.categories)
+          .map(([cat, byMonth]) => ({
+            cat,
+            currAmt: byMonth[curr] ?? 0,
+            prevAmt: byMonth[prev] ?? 0,
+            delta:   (byMonth[curr] ?? 0) - (byMonth[prev] ?? 0),
+          }))
+          .filter(c => c.prevAmt > 0 || c.currAmt > 0)
+          .sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta))
+          .slice(0, 4);
+
+        if (changes.length === 0) return null;
+
+        // ── Scenario 3: exactly 1 prior month — ₹ delta only, no percentage ──
+        if (mom.months.length === 2) {
+          return (
+            <section>
+              <h2
+                className="text-xs font-syne font-bold tracking-widest mb-1"
+                style={{ color: "var(--text-sub)" }}
+              >
+                📊 What changed?
+              </h2>
+              <p className="text-xs mb-3" style={{ color: "var(--text-muted)" }}>
+                vs {prevLabel}
+              </p>
+              <div className="space-y-0">
+                {changes.map(({ cat, delta, prevAmt, currAmt }) => {
+                  const isUp = delta > 0;
+                  const isSavingsCat = SAVINGS_CATS.has(cat);
+                  const isPositive = isSavingsCat ? isUp : !isUp;
+                  const dotColour = isPositive ? "#34d399" : "#f87171";
+                  const icon = isUp ? "↑" : "↓";
+                  const label = currAmt > 0 && prevAmt === 0
+                    ? "New this month"
+                    : `${icon} ${fmtInr(Math.abs(delta))}`;
+
+                  return (
+                    <div key={cat} className="flex items-center gap-3 py-2.5 border-b"
+                         style={{ borderColor: "var(--border-lg)" }}>
+                      <span className="text-lg w-5 flex-shrink-0 text-center"
+                            style={{ color: currAmt > 0 && prevAmt === 0 ? "var(--text-muted)" : dotColour }}>
+                        {currAmt > 0 && prevAmt === 0 ? "✦" : icon}
+                      </span>
+                      <span className="flex-1 text-sm" style={{ color: "var(--text)" }}>
+                        {cat}
+                      </span>
+                      <div className="text-right">
+                        <span className="text-sm font-syne font-semibold"
+                              style={{ color: currAmt > 0 && prevAmt === 0 ? "var(--text-muted)" : dotColour }}>
+                          {label}
+                        </span>
+                        <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+                          {fmtInr(currAmt)} this month
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
+                <button
+                  onClick={() => toast("Full breakdown coming soon.")}
+                  className="text-xs mt-2 w-full text-right transition-opacity hover:opacity-70"
+                  style={{ color: "var(--accent)" }}
+                >
+                  View all →
+                </button>
+              </div>
+            </section>
+          );
+        }
+
+        const fmtMoM = (rawPct: number | null, prevAmt: number): string => {
+          if (prevAmt === 0) return "New this month";
+          if (rawPct === null) return "—";
+          if (Math.abs(rawPct) > 300) return rawPct > 0 ? "↑ New high" : "↓ Major drop";
+          return `${rawPct > 0 ? "↑" : "↓"} ${Math.abs(Math.round(rawPct))}%`;
+        };
+
+        // ── Scenario 1: 2+ prior months — full comparison with percentage ──
+        return (
+          <section>
+            <h2
+              className="text-xs font-syne font-bold uppercase tracking-widest mb-1"
+              style={{ color: "var(--text-sub)" }}
+            >
+              What Changed?
+            </h2>
+            <p className="text-xs mb-3" style={{ color: "var(--text-muted)" }}>
+              vs {prevLabel}
+            </p>
+            <div className="space-y-0">
+              {changes.map(({ cat, delta, prevAmt, currAmt }) => {
+                const isUp = delta > 0;
+                const isSavingsCat = SAVINGS_CATS.has(cat);
+                const isPositive = isSavingsCat ? isUp : !isUp;
+                const dotColour = isPositive ? "#34d399" : "#f87171";
+                const rawPct = prevAmt > 0 ? Math.round((delta / prevAmt) * 100) : null;
+                const momStr = fmtMoM(rawPct, prevAmt);
+                const label = prevAmt === 0
+                  ? momStr
+                  : `${momStr} (${fmtInr(Math.abs(delta))})`;
+
+                return (
+                  <div key={cat} className="flex items-center gap-3 py-2.5 border-b"
+                       style={{ borderColor: "var(--border-lg)" }}>
+                    <span className="text-lg w-5 flex-shrink-0 text-center"
+                          style={{ color: dotColour }}>
+                      {isUp ? "↑" : "↓"}
+                    </span>
+                    <span className="flex-1 text-sm" style={{ color: "var(--text)" }}>
+                      {cat}
+                    </span>
+                    <div className="text-right">
+                      <span className="text-sm font-syne font-semibold"
+                            style={{ color: dotColour }}>
+                        {label}
+                      </span>
+                      <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+                        {fmtInr(currAmt)} this month
+                      </p>
+                    </div>
+                  </div>
+                );
+              })}
+              <button
+                onClick={() => toast("Full breakdown coming soon.")}
+                className="text-xs mt-2 w-full text-right transition-opacity hover:opacity-70"
+                style={{ color: "var(--accent)" }}
+              >
+                View all →
+              </button>
+            </div>
+          </section>
+        );
+      })()}
+
+      {/* ── Section 10: Financial Pulse ──────────────────── */}
+      {mom && (() => {
+        const [year, month] = selMonth.split("-").map(Number);
+        const today = new Date();
+        const isCurrentMonth =
+          today.getFullYear() === year && (today.getMonth() + 1) === month;
+        const daysInMonth = new Date(year, month, 0).getDate();
+        const daysElapsed = isCurrentMonth ? Math.max(today.getDate(), 1) : daysInMonth;
+
+        const fixedTotal  = balance.fixed_paid_total + balance.fixed_unpaid_total;
+        const unpaidFrac  = fixedTotal > 0 ? balance.fixed_unpaid_total / fixedTotal : 0;
+        const stabilityColour =
+          balance.fixed_unpaid_total === 0 ? "#34d399" :
+          unpaidFrac < 0.30               ? "#f59e0b" : "#f87171";
+        const stabilityDesc =
+          balance.fixed_unpaid_total === 0 ? "All fixed obligations complete."       :
+          unpaidFrac < 0.30               ? "Fixed obligations are nearly complete." : "Fixed obligations pending.";
+
+        const prevMonthIdx = mom ? mom.months.indexOf(selMonth) - 1 : -1;
+        const prevMonthKey = mom && prevMonthIdx >= 0 ? mom.months[prevMonthIdx] : null;
+        const foodCurr = mom?.categories["Food"]?.[selMonth] ?? 0;
+        const foodPrev = prevMonthKey ? (mom?.categories["Food"]?.[prevMonthKey] ?? 0) : 0;
+        const foodPct  = foodPrev > 0 ? (foodCurr / foodPrev) * 100 : null;
+        const dailyRate = daysElapsed > 0 ? balance.variable_total / daysElapsed : 0;
+        const prevDaysInMonth = prevMonthKey
+          ? new Date(Number(prevMonthKey.split("-")[0]), Number(prevMonthKey.split("-")[1]), 0).getDate()
+          : 0;
+        const varPrevTotal = prevMonthKey
+          ? Object.entries(mom?.categories ?? {})
+              .filter(([cat]) => !FIXED_CATEGORIES.includes(cat))
+              .reduce((s, [, byM]) => s + (byM[prevMonthKey!] ?? 0), 0)
+          : 0;
+        const prevDailyRate = prevDaysInMonth > 0 ? varPrevTotal / prevDaysInMonth : 0;
+        const pacePct = prevDailyRate > 0 ? (dailyRate / prevDailyRate) * 100 : null;
+        const noLifestyleData = foodPct == null && pacePct == null;
+        const lifestyleColour =
+          noLifestyleData                                                             ? "#94a3b8" :
+          (foodPct != null && foodPct > 130) || (pacePct != null && pacePct > 130)  ? "#f87171" :
+          (foodPct != null && foodPct > 100) || (pacePct != null && pacePct > 100)  ? "#f59e0b" :
+          "#34d399";
+
+        const savingsPct = balance.total_income > 0
+          ? ((balance.savings_total ?? 0) / balance.total_income) * 100
+          : -1;
+        const savingsColour =
+          savingsPct < 0   ? "#94a3b8" :
+          savingsPct >= 20 ? "#34d399" :
+          savingsPct >= 10 ? "#f59e0b" : "#f87171";
+
+        // TODO: replace with real streak
+        const daysTracked = new Date().getDate();
+
+        const lifestyleDesc =
+          noLifestyleData                                                            ? "No prior data to compare."            :
+          (foodPct != null && foodPct > 130) || (pacePct != null && pacePct > 130) ? "Food spending accelerated this month." :
+          (foodPct != null && foodPct > 100) || (pacePct != null && pacePct > 100) ? "Food and spending above normal."       :
+          "Spending pace is on track.";
+        const savingsDesc =
+          savingsPct < 0   ? "No income recorded."                              :
+          savingsPct >= 20 ? `${Math.round(savingsPct)}% of income protected.` :
+          savingsPct >= 10 ? "Savings moderate this month."                     :
+          "Savings below target.";
+        const consistencyDesc = `Tracked expenses on ${daysTracked} days this month.`;
+
+        const signals = [
+          { icon: "🛡️", name: "Stability",   desc: stabilityDesc,   colour: stabilityColour },
+          { icon: "🔥", name: "Lifestyle",   desc: lifestyleDesc,   colour: lifestyleColour },
+          { icon: "🐷", name: "Savings",     desc: savingsDesc,     colour: savingsColour   },
+          { icon: "🎯", name: "Consistency", desc: consistencyDesc, colour: "#34d399"       },
+        ];
+
+        return (
+          <section>
+            <div
+              className="rounded-2xl border overflow-hidden"
+              style={{ background: "var(--card)", borderColor: "var(--border-lg)" }}
+            >
+              <div
+                className="px-4 py-3 flex items-center gap-2 border-b"
+                style={{ borderColor: "var(--border-lg)" }}
+              >
+                <Activity size={13} strokeWidth={2.5} style={{ color: "#34d399" }} />
+                <p
+                  className="text-[10px] font-syne font-bold tracking-widest"
+                  style={{ color: "var(--text-sub)" }}
+                >
+                  💓 Financial pulse
+                </p>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4">
+                {signals.map((s, i) => {
+                  const rightBorder =
+                    i === 0 || i === 2 ? "border-r" :
+                    i === 1            ? "sm:border-r" : "";
+                  const bottomBorder = i < 2 ? "border-b sm:border-b-0" : "";
+                  return (
+                    <div
+                      key={s.name}
+                      className={`p-4 ${rightBorder} ${bottomBorder}`}
+                      style={{ borderColor: "var(--border-lg)" }}
+                    >
+                      <span className="text-xl">{s.icon}</span>
+                      <p className="text-sm font-syne font-semibold mt-2" style={{ color: s.colour }}>
+                        {s.name}
+                      </p>
+                      <p className="text-xs mt-1 leading-relaxed" style={{ color: "var(--text-muted)" }}>
+                        {s.desc}
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </section>
+        );
+      })()}
+
+      {/* ── Section 11: Tiny Win ─────────────────────────── */}
+      {tinyWin && (
         <section>
-          <h2
-            className="text-xs font-syne font-bold uppercase tracking-widest mb-3"
-            style={{ color: "var(--text-sub)" }}
+          <div
+            className="rounded-2xl p-4 border flex items-center gap-4"
+            style={{ background: "var(--card)", borderColor: "var(--border-lg)" }}
           >
-            Month-over-Month
-          </h2>
-          <MoMTable mom={mom} />
+            <span className="text-2xl flex-shrink-0">🏆</span>
+            <div>
+              <p
+                className="text-[10px] font-syne font-bold tracking-widest mb-1"
+                style={{ color: "#f59e0b" }}
+              >
+                🎉 Tiny win
+              </p>
+              <p className="text-sm leading-relaxed" style={{ color: "var(--text)" }}>
+                {tinyWin}
+              </p>
+            </div>
+          </div>
         </section>
       )}
+
+      <SpendingSignalsModal
+        open={showSignalsModal}
+        onClose={() => setShowSignalsModal(false)}
+        projections={projections}
+      />
 
     </div>
   );

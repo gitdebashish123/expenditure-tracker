@@ -8,7 +8,7 @@ from sqlmodel import Session, select, func
 from pydantic import BaseModel, field_validator
 import bleach
 from typing import Optional
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from dotenv import load_dotenv
 import os
 import yaml
@@ -22,10 +22,11 @@ from backend.models import (
     Expense, BudgetLimit, IncomeEntry, FixedExpenseTemplate, ExpenseTemplate, PoolEntry,
     User, create_db, get_session, engine
 )
-from backend.ai_parser import parse_expense_input, generate_daily_mantra
+from backend.ai_parser import parse_expense_input, generate_daily_mantra, generate_monthly_story, generate_monthly_insight
 from backend.budget_rules import (
     get_month_key, check_budget_warnings, get_balance_summary,
-    seed_fixed_expenses, get_monthly_spent_by_category, get_budget_limits
+    seed_fixed_expenses, get_monthly_spent_by_category, get_budget_limits,
+    compute_peace_of_mind,
 )
 from backend.auth import (
     hash_password, verify_password,
@@ -579,6 +580,7 @@ def parse_and_save(request: Request, input: ExpenseInput, session: Session = Dep
         saved.append(item)
 
     session.commit()
+    _invalidate_month_caches(current_user.id, month_key)
     warnings = check_budget_warnings(session, month_key, user_id=current_user.id)
     balance  = get_balance_summary(session, month_key, user_id=current_user.id)
     return {"saved": saved, "warnings": warnings, "balance": balance}
@@ -604,6 +606,7 @@ def add_manual_expense(request: Request, exp: ManualExpense, session: Session = 
     session.add(new_exp)
     session.commit()
     session.refresh(new_exp)
+    _invalidate_month_caches(current_user.id, month_key)
     warnings = check_budget_warnings(session, month_key, user_id=current_user.id)
     return {"expense": new_exp, "warnings": warnings}
 
@@ -626,6 +629,7 @@ def edit_expense(expense_id: int, update: ExpenseUpdate, session: Session = Depe
     exp = session.get(Expense, expense_id)
     if not exp or exp.is_fixed or exp.user_id != current_user.id:
         raise HTTPException(status_code=404, detail="Expense not found")
+    old_month_key = exp.month_key
     if update.vendor is not None:       exp.vendor   = update.vendor
     if update.amount is not None:       exp.amount   = update.amount
     if update.category is not None:     exp.category = update.category
@@ -636,6 +640,9 @@ def edit_expense(expense_id: int, update: ExpenseUpdate, session: Session = Depe
     session.add(exp)
     session.commit()
     session.refresh(exp)
+    _invalidate_month_caches(current_user.id, old_month_key)
+    if exp.month_key != old_month_key:
+        _invalidate_month_caches(current_user.id, exp.month_key)
     return exp
 
 
@@ -658,8 +665,10 @@ def delete_expense(expense_id: int, session: Session = Depends(get_session),
     exp = session.get(Expense, expense_id)
     if not exp or exp.user_id != current_user.id:
         raise HTTPException(status_code=404, detail="Expense not found")
+    month_key = exp.month_key
     session.delete(exp)
     session.commit()
+    _invalidate_month_caches(current_user.id, month_key)
     return {"deleted": expense_id}
 
 
@@ -818,17 +827,17 @@ def get_due_reminders(month_key: str, session: Session = Depends(get_session),
                if exp.fixed_template_id else None
         if tmpl and tmpl.user_id != current_user.id:
             continue
-        if tmpl and tmpl.due_day:
-            days_overdue = today.day - tmpl.due_day
-            if days_overdue >= 0:
-                reminders.append({
-                    "expense_id": exp.id,
-                    "vendor": exp.vendor,
-                    "amount": exp.amount,
-                    "category": exp.category,
-                    "due_day": tmpl.due_day,
-                    "days_overdue": days_overdue,
-                })
+        due_day = tmpl.due_day if tmpl else None
+        # Negative = due in future; 0 = due today; positive = overdue
+        days_overdue = (today.day - due_day) if due_day else 0
+        reminders.append({
+            "expense_id": exp.id,
+            "vendor":     exp.vendor,
+            "amount":     exp.amount,
+            "category":   exp.category,
+            "due_day":    due_day,
+            "days_overdue": days_overdue,
+        })
     return sorted(reminders, key=lambda x: x["days_overdue"], reverse=True)
 
 
@@ -957,10 +966,11 @@ def get_summary(request: Request, month_key: str, session: Session = Depends(get
         })
 
     return {
-        "balance": balance,
-        "warnings": warnings,
-        "categories": categories,
+        "balance":       balance,
+        "warnings":      warnings,
+        "categories":    categories,
         "fixed_progress": {"paid": fixed_paid, "total": len(fixed_exps)},
+        "peace_of_mind": compute_peace_of_mind(balance),
     }
 
 
@@ -1212,12 +1222,28 @@ def budget_projection(month_key: str, session: Session = Depends(get_session),
 # insufficient in practice.
 _mantra_cache: dict[tuple[int, str], dict] = {}
 
+_score_history: dict[tuple, int] = {}
+# TODO: persist score_history to DB for reliable delta across server restarts
+
 # Tracks which "angle" was used in the most recent mantra per user, so
 # consecutive days don't always lead with the same angle when more than
 # one is available. In-memory only, same lifecycle as _mantra_cache —
 # resets on restart. Not persisted by design (see spec 07's "Explicitly
 # out of scope": no new mantra_history table at this stage).
 _mantra_last_type: dict[int, str] = {}
+
+# Per-month story cache — keyed by (user_id, month_key). Past months never
+# change once generated, so no TTL needed; resets only on process restart.
+_story_cache: dict[tuple[int, str], str] = {}
+
+# Per-month insight cache — same lifecycle as _story_cache.
+_insight_cache: dict[tuple[int, str], str] = {}
+
+
+def _invalidate_month_caches(user_id: int, month_key: str) -> None:
+    _story_cache.pop((user_id, month_key), None)
+    _mantra_cache.pop((user_id, month_key), None)
+    _insight_cache.pop((user_id, month_key), None)
 
 
 @app.get("/insights/mantra/{month_key}")
@@ -1303,6 +1329,212 @@ def daily_mantra(month_key: str, session: Session = Depends(get_session),
     }
     _mantra_cache[cache_key] = result
     return result
+
+
+@app.get("/insights/story/{month_key}")
+def monthly_story(month_key: str, session: Session = Depends(get_session),
+                  current_user: User = Depends(get_current_user)):
+    cache_key = (current_user.id, month_key)
+    if cache_key in _story_cache:
+        return {"story": _story_cache[cache_key]}
+
+    import calendar
+    from datetime import date as dt
+
+    balance      = get_balance_summary(session, month_key, user_id=current_user.id)
+    spent_by_cat = get_monthly_spent_by_category(session, month_key, user_id=current_user.id)
+
+    top_category       = None
+    top_category_spent = 0.0
+    if spent_by_cat:
+        top_category       = max(spent_by_cat, key=spent_by_cat.get)
+        top_category_spent = spent_by_cat[top_category]
+
+    year, month    = map(int, month_key.split("-"))
+    days_in_month  = calendar.monthrange(year, month)[1]
+    today          = dt.today()
+    days_left      = max(days_in_month - today.day, 0) \
+                     if month_key == today.strftime("%Y-%m") else 0
+
+    fixed_total          = balance["fixed_paid_total"] + balance["fixed_unpaid_total"]
+    fixed_completion_pct = (balance["fixed_paid_total"] / fixed_total * 100) \
+                           if fixed_total > 0 else 100.0
+
+    month_label = f"{calendar.month_name[month]} {year}"
+
+    context = {
+        "month_label":         month_label,
+        "remaining":           balance["remaining"],
+        "fixed_completion_pct": fixed_completion_pct,
+        "top_category":        top_category,
+        "top_category_spent":  top_category_spent,
+        "variable_total":      balance["variable_total"],
+        "days_left":           days_left,
+    }
+
+    try:
+        story = generate_monthly_story(context)
+    except Exception:
+        raise HTTPException(status_code=502, detail="Story generation failed")
+
+    _story_cache[cache_key] = story
+    return {"story": story}
+
+
+@app.get("/insights/monthly-insight/{month_key}")
+def monthly_insight(month_key: str, session: Session = Depends(get_session),
+                    current_user: User = Depends(get_current_user)):
+    cache_key = (current_user.id, month_key)
+    if cache_key in _insight_cache:
+        return {"insight": _insight_cache[cache_key]}
+
+    balance      = get_balance_summary(session, month_key, user_id=current_user.id)
+    spent_by_cat = get_monthly_spent_by_category(session, month_key, user_id=current_user.id)
+
+    top_category       = max(spent_by_cat, key=spent_by_cat.get) if spent_by_cat else None
+    top_category_spent = spent_by_cat[top_category] if top_category else 0.0
+
+    year, month_num = map(int, month_key.split("-"))
+    prev_month_num  = month_num - 1
+    prev_year       = year
+    if prev_month_num <= 0:
+        prev_month_num += 12
+        prev_year      -= 1
+    prev_month_key = f"{prev_year:04d}-{prev_month_num:02d}"
+    prev_balance   = get_balance_summary(session, prev_month_key, user_id=current_user.id)
+
+    variable_pct = (
+        round(balance["variable_total"] / balance["total_income"] * 100)
+        if balance["total_income"] else 0
+    )
+    fixed_total = balance["fixed_paid_total"] + balance["fixed_unpaid_total"]
+
+    context = {
+        "variable_total":         balance["variable_total"],
+        "variable_pct_of_income": variable_pct,
+        "top_category":           top_category,
+        "top_category_spent":     top_category_spent,
+        "prev_variable_total":    prev_balance["variable_total"] if prev_balance else None,
+        "fixed_paid_total":       balance["fixed_paid_total"],
+        "fixed_total":            fixed_total,
+    }
+
+    try:
+        insight = generate_monthly_insight(context)
+        _insight_cache[cache_key] = insight
+        return {"insight": insight}
+    except Exception:
+        return {"insight": None}
+
+
+@app.get("/insights/tiny-win/{month_key}")
+def tiny_win(month_key: str, session: Session = Depends(get_session),
+             current_user: User = Depends(get_current_user)):
+    import calendar
+    from datetime import date as dt
+
+    balance      = get_balance_summary(session, month_key, user_id=current_user.id)
+    spent_by_cat = get_monthly_spent_by_category(session, month_key, user_id=current_user.id)
+
+    year, month   = map(int, month_key.split("-"))
+    days_in_month = calendar.monthrange(year, month)[1]
+    today         = dt.today()
+    days_left     = max(days_in_month - today.day, 0) \
+                    if month_key == today.strftime("%Y-%m") else 0
+
+    # Condition 1: all bills cleared with days to spare
+    if balance["fixed_unpaid_total"] == 0 and days_left > 5:
+        return {"win": f"All bills cleared with {days_left} days to spare."}
+
+    # Condition 2: food spend down from last month
+    prev_month = month - 1
+    prev_year  = year
+    if prev_month <= 0:
+        prev_month += 12
+        prev_year  -= 1
+    prev_month_key = f"{prev_year:04d}-{prev_month:02d}"
+    prev_spent     = get_monthly_spent_by_category(session, prev_month_key,
+                                                   user_id=current_user.id)
+    food_curr = spent_by_cat.get("Food", 0)
+    food_prev = prev_spent.get("Food", 0)
+    if food_prev > 0 and food_curr < food_prev:
+        return {"win": "Food spending is down from last month."}
+
+    # Condition 3: healthy remaining buffer
+    if balance["total_income"] > 0 and \
+       (balance["remaining"] / balance["total_income"]) > 0.15:
+        return {"win": "You're keeping over 15% of income available — solid buffer."}
+
+    # Fallback
+    return {"win": "You've been tracking consistently. That itself is progress."}
+
+
+def _compute_pom_factors(balance: dict, budgets: list) -> list[dict]:
+    factors = []
+
+    # Positive factors
+    fixed_total = balance["fixed_paid_total"] + balance["fixed_unpaid_total"]
+    bills_pts = round(25 * balance["fixed_paid_total"] / fixed_total) if fixed_total > 0 else 0
+    factors.append({"label": "Bills paid on time", "points": bills_pts})
+
+    if balance["remaining"] > 0:
+        factors.append({"label": "Positive remaining balance", "points": 15})
+
+    factors.append({"label": "Consistent tracking", "points": 10})
+    # TODO: replace with real streak
+
+    # Negative factors — top 2 overspent categories
+    overspent = sorted(
+        [b for b in budgets if b["spent"] > b["budget"] and b["budget"] > 0],
+        key=lambda b: b["spent"] - b["budget"], reverse=True,
+    )[:2]
+    for b in overspent:
+        pts = -round(min(15, (b["spent"] - b["budget"]) / b["budget"] * 10))
+        factors.append({"label": f"{b['category']} overspend", "points": pts})
+
+    # Pending bills deduction
+    if balance["fixed_unpaid_total"] > 0 and balance["total_income"] > 0:
+        pts = -round(min(16, balance["fixed_unpaid_total"] / balance["total_income"] * 100))
+        factors.append({"label": "Pending bills", "points": pts})
+
+    return factors
+
+
+@app.get("/insights/peace-of-mind/{month_key}")
+def peace_of_mind_score(month_key: str, session: Session = Depends(get_session),
+                        current_user: User = Depends(get_current_user)):
+    balance      = get_balance_summary(session, month_key, user_id=current_user.id)
+    spent_by_cat = get_monthly_spent_by_category(session, month_key, user_id=current_user.id)
+    limits       = get_budget_limits(session, user_id=current_user.id)
+    budgets = [
+        {"category": cat, "spent": spent_by_cat.get(cat, 0), "budget": limits.get(cat, 0)}
+        for cat in set(spent_by_cat.keys()) | set(limits.keys())
+    ]
+
+    factors = _compute_pom_factors(balance, budgets)
+    base    = 50
+    score   = max(0, min(100, base + sum(f["points"] for f in factors)))
+
+    neg_count = sum(1 for f in factors if f["points"] < 0)
+    if neg_count == 0:
+        summary = "Your finances are on track this month."
+    elif neg_count <= 2:
+        summary = f"Your finances are stable but {neg_count} area(s) need attention."
+    else:
+        summary = "A few areas need your attention this month."
+
+    today_key     = (current_user.id, month_key, str(date.today()))
+    yesterday_key = (current_user.id, month_key, str(date.today() - timedelta(days=1)))
+    _score_history[today_key] = score
+    delta = score - _score_history[yesterday_key] if yesterday_key in _score_history else None
+    # TODO: persist score_history to DB for reliable delta across server restarts
+
+    return {
+        "score":   score,
+        "summary": summary,
+        "delta":   delta,
+        "factors": factors,
+    }
 
 
 # ── Data Export ─────────────────────────────────────────────────────────────

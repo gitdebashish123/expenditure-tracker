@@ -135,3 +135,79 @@ Rules:
         messages=[{"role": "user", "content": prompt}],
     )
     return message.content[0].text.strip()
+
+
+def generate_monthly_story(context: dict) -> str:
+    """
+    Generate a single factual sentence summarising the month.
+    Distinct from generate_daily_mantra — no motivational language,
+    no Tara branding, past-tense for completed items.
+
+    Expected context keys:
+        month_label: str             # e.g. "June 2026"
+        remaining: float
+        fixed_completion_pct: float  # fixed_paid / (fixed_paid + fixed_unpaid) * 100
+        top_category: str | None
+        top_category_spent: float
+        variable_total: float
+        days_left: int
+    """
+    prompt = f"""Financial month summary for {context['month_label']}:
+- Remaining balance: ₹{context['remaining']:.0f}
+- Fixed bills completion: {context['fixed_completion_pct']:.0f}%
+- Top spending category: {context.get('top_category') or 'N/A'} (₹{context.get('top_category_spent', 0):.0f})
+- Total variable spend: ₹{context['variable_total']:.0f}
+- Days left in month: {context['days_left']}
+
+Write ONE factual sentence (max 35 words) summarising this month's finances.
+Rules:
+- Factual and neutral — not motivational or encouraging.
+- Past-tense for completed items, forward-looking for projections.
+- Do NOT start the sentence with "I".
+- Reference at least one concrete number.
+- Use ₹ symbol when referencing specific amounts.
+- Return ONLY the sentence, no preamble, no quotation marks."""
+
+    message = client.messages.create(
+        model="claude-sonnet-4-5-20250929",
+        max_tokens=120,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    return message.content[0].text.strip()
+
+
+def generate_monthly_insight(context: dict) -> str:
+    """
+    Generate one concise behavioural observation sentence (max 20 words).
+
+    Expected context keys:
+        variable_total: float
+        variable_pct_of_income: int
+        top_category: str | None
+        top_category_spent: float
+        prev_variable_total: float | None
+        fixed_paid_total: float
+        fixed_total: float
+    """
+    prev_var = (
+        f"₹{context['prev_variable_total']:.0f}"
+        if context.get("prev_variable_total") is not None
+        else "N/A"
+    )
+    prompt = (
+        "You are a financial assistant. Generate exactly ONE concise observation sentence "
+        "(maximum 20 words) about this user's financial behaviour this month. "
+        "Do not restate totals already visible on the dashboard. "
+        "Focus on a pattern, trend, or notable behaviour.\n\n"
+        f"Variable spending: ₹{context['variable_total']:.0f} ({context['variable_pct_of_income']}% of income)\n"
+        f"Top category: {context.get('top_category') or 'N/A'} at ₹{context.get('top_category_spent', 0):.0f}\n"
+        f"Prior month variable: {prev_var}\n"
+        f"Bills paid: ₹{context['fixed_paid_total']:.0f} of ₹{context['fixed_total']:.0f}\n\n"
+        "Respond with a single sentence only. No preamble, no punctuation beyond the sentence itself."
+    )
+    message = client.messages.create(
+        model="claude-sonnet-4-5-20250929",
+        max_tokens=60,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    return message.content[0].text.strip()
