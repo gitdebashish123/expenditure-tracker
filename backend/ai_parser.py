@@ -159,18 +159,20 @@ def generate_monthly_story(context: dict) -> str:
 - Total variable spend: ₹{context['variable_total']:.0f}
 - Days left in month: {context['days_left']}
 
-Write ONE factual sentence (max 35 words) summarising this month's finances.
+Write ONE sentence (hard limit: 30 words) summarising this month's finances.
 Rules:
+- ONE sentence only. No semicolons. No list-style constructions (no "X, Y, and Z").
 - Factual and neutral — not motivational or encouraging.
 - Past-tense for completed items, forward-looking for projections.
 - Do NOT start the sentence with "I".
-- Reference at least one concrete number.
-- Use ₹ symbol when referencing specific amounts.
+- Prioritise: bills completion status, savings allocated, remaining balance.
+- Include variable spending total ONLY if it fits within the 30-word limit.
+- Use ₹ symbol for amounts.
 - Return ONLY the sentence, no preamble, no quotation marks."""
 
     message = client.messages.create(
         model="claude-sonnet-4-5-20250929",
-        max_tokens=120,
+        max_tokens=80,
         messages=[{"role": "user", "content": prompt}],
     )
     return message.content[0].text.strip()

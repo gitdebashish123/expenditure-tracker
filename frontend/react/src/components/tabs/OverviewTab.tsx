@@ -669,13 +669,13 @@ export function OverviewTab({ onTabChange }: { onTabChange?: (path: string) => v
 
       </div>
 
-      {/* ── Section 7: Upcoming Reality ──────────────────── */}
+      {/* ── Section 7: Coming Up (due bills + month-end balance) ─── */}
       <section>
         <h2
           className="text-xs font-syne font-bold tracking-widest mb-3"
           style={{ color: "var(--text-sub)" }}
         >
-          📅 Coming Up
+          🔔 Coming Up
         </h2>
         <div
           className="rounded-2xl border overflow-hidden"

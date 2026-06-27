@@ -189,6 +189,8 @@ export function InsightsScenarioD({
   const today         = new Date();
   const daysInMonth   = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
   const daysRemaining = daysInMonth - today.getDate();
+  // Shown only when last month's tracking was sparse (<7 days) AND
+  // there are days left in the current month to course-correct (>3 days).
   const showDisclaimer = prevDays < 7 && daysRemaining > 3;
 
   return (
