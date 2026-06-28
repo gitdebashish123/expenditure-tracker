@@ -169,6 +169,18 @@ hr { border-color: var(--border) !important; }
 .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
 .scrollbar-hide::-webkit-scrollbar { display: none; }
 
+/* ── Section headings — shared class (Spec 20) ───────────────── */
+.section-heading {
+  font-family: 'Syne', sans-serif;
+  font-weight: 700;
+  font-size: 0.75rem;      /* = text-xs */
+  letter-spacing: 0.1em;   /* ≈ tracking-widest */
+  line-height: 1.6;         /* descender room — Syne descenders need > 1.4 */
+  color: var(--text-sub);
+  padding-bottom: 4px;      /* extra descender safety */
+  /* NO text-transform — sentence case lives in source text (20A) */
+}
+
 /* ── Flip card (SummaryFlipCard) ─────────────────────────────── */
 .flip-card { perspective: 600px; }
 .flip-card-inner {
@@ -257,21 +269,24 @@ html.light .kpi-card-bills     { background: linear-gradient(135deg, #7a3800 0%,
   -webkit-user-select: none;
 }
 
-/* ── Mobile sliding carousel ─────────────────────────────────── */
-.kpi-viewport {
-  overflow: hidden;
-  padding: 0 18px;
-  margin: 0 -2px;
-}
-
-.kpi-track {
+/* ── Mobile native scroll-snap carousel ─────────────────────── */
+.kpi-scroller {
   display: flex;
   gap: 12px;
-  will-change: transform;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+  padding: 0 18px;
+  scroll-padding-left: 18px;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
+.kpi-scroller::-webkit-scrollbar { display: none; }
 
 .kpi-slide {
-  flex: 0 0 calc(100% - 24px);
+  flex: 0 0 calc(100% - 52px);   /* next card peeks ~34px on the right */
+  scroll-snap-align: start;
   height: 150px;
   border-radius: 22px;
   position: relative;
@@ -330,7 +345,7 @@ html.light .kpi-card-bills     { background: linear-gradient(135deg, #7a3800 0%,
   gap: 12px;
 }
 @media (min-width: 768px) {
-  .kpi-viewport,
+  .kpi-scroller,
   .kpi-dots { display: none; }
 
   .kpi-desktop-row { display: flex; }

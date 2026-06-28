@@ -200,10 +200,6 @@ export function OverviewTab({ onTabChange }: { onTabChange?: (path: string) => v
   const [showPomBreakdown,  setShowPomBreakdown]  = useState(false);
   const [showSignalsModal,  setShowSignalsModal]  = useState(false);
   const [activeKpiIndex,    setActiveKpiIndex]    = useState(0);
-  const touchStartX       = useRef<number>(0);
-  const touchStartTime    = useRef<number>(0);
-  const touchStartY       = useRef<number>(0);
-  const isHorizontalSwipe = useRef<boolean | null>(null);
   const carouselRef       = useRef<HTMLDivElement>(null);
 
   const load = useCallback(async () => {
@@ -248,51 +244,23 @@ export function OverviewTab({ onTabChange }: { onTabChange?: (path: string) => v
     setActiveKpiIndex(Math.max(0, Math.min(2, index)));
   }, []);
 
-  useEffect(() => {
+  const handleScroll = useCallback(() => {
     const el = carouselRef.current;
     if (!el) return;
+    const slideWidth = el.querySelector('.kpi-slide')?.clientWidth ?? el.clientWidth;
+    const index = Math.round(el.scrollLeft / slideWidth);
+    setActiveKpiIndex(Math.max(0, Math.min(2, index)));
+  }, []);
 
-    const onTouchStart = (e: TouchEvent) => {
-      touchStartX.current       = e.touches[0].clientX;
-      touchStartY.current       = e.touches[0].clientY;
-      touchStartTime.current    = e.timeStamp;
-      isHorizontalSwipe.current = null;
-    };
+  const scrollToCard = useCallback((index: number) => {
+    const el = carouselRef.current;
+    if (!el) return;
+    const slide = el.children[index] as HTMLElement | undefined;
+    if (slide) {
+      el.scrollTo({ left: slide.offsetLeft, behavior: 'smooth' });
+    }
+  }, []);
 
-    const onTouchMove = (e: TouchEvent) => {
-      const dx = e.touches[0].clientX - touchStartX.current;
-      const dy = e.touches[0].clientY - touchStartY.current;
-      if (isHorizontalSwipe.current === null) {
-        isHorizontalSwipe.current = Math.abs(dx) > Math.abs(dy);
-      }
-      if (isHorizontalSwipe.current) {
-        e.preventDefault();
-      }
-    };
-
-    const onTouchEnd = (e: TouchEvent) => {
-      if (!isHorizontalSwipe.current) return;
-      const dx       = e.changedTouches[0].clientX - touchStartX.current;
-      const dt       = e.timeStamp - touchStartTime.current;
-      const velocity = Math.abs(dx) / dt;
-      if (Math.abs(dx) < 40 && velocity <= 0.3) return;
-      if (dx < 0) {
-        navigateTo(activeKpiIndex + 1);
-      } else {
-        navigateTo(activeKpiIndex - 1);
-      }
-    };
-
-    el.addEventListener('touchstart', onTouchStart, { passive: true });
-    el.addEventListener('touchmove',  onTouchMove,  { passive: false });
-    el.addEventListener('touchend',   onTouchEnd,   { passive: true });
-
-    return () => {
-      el.removeEventListener('touchstart', onTouchStart);
-      el.removeEventListener('touchmove',  onTouchMove);
-      el.removeEventListener('touchend',   onTouchEnd);
-    };
-  }, [activeKpiIndex, navigateTo]);
 
   if (loading) return <OverviewSkeleton />;
 
@@ -362,30 +330,25 @@ export function OverviewTab({ onTabChange }: { onTabChange?: (path: string) => v
       <section>
         <div className="kpi-carousel-wrapper">
 
-          {/* Mobile: sliding track */}
-          <div className="kpi-viewport">
-            <div
-              ref={carouselRef}
-              className="kpi-track"
-              style={{
-                transform: `translateX(calc(-${activeKpiIndex} * (100% + 12px)))`,
-                transition: 'transform 350ms cubic-bezier(0.25,0.46,0.45,0.94)',
-              }}
-            >
-              {kpiCards.map((card) => (
-                <div key={card.id} className={`kpi-slide kpi-card-${card.id}`}>
-                  <div className="kpi-accent" />
-                  <span className="kpi-watermark">WM</span>
-                  <div className="kpi-slide-header">
-                    <span className="kpi-slide-icon">{card.icon}</span>
-                    <span className="kpi-card-label">{card.label}</span>
-                  </div>
-                  <p className="kpi-card-value">{card.value}</p>
-                  <p className="kpi-card-sub">{card.subtitle}</p>
-                  {card.pending && <p className="kpi-card-pending">{card.pending}</p>}
+          {/* Mobile: native scroll-snap carousel */}
+          <div
+            ref={carouselRef}
+            className="kpi-scroller md:hidden"
+            onScroll={handleScroll}
+          >
+            {kpiCards.map((card) => (
+              <div key={card.id} className={`kpi-slide kpi-card-${card.id}`}>
+                <div className="kpi-accent" />
+                <span className="kpi-watermark">WM</span>
+                <div className="kpi-slide-header">
+                  <span className="kpi-slide-icon">{card.icon}</span>
+                  <span className="kpi-card-label">{card.label}</span>
                 </div>
-              ))}
-            </div>
+                <p className="kpi-card-value">{card.value}</p>
+                <p className="kpi-card-sub">{card.subtitle}</p>
+                {card.pending && <p className="kpi-card-pending">{card.pending}</p>}
+              </div>
+            ))}
           </div>
 
           {/* Dot indicators — mobile only */}
@@ -394,7 +357,7 @@ export function OverviewTab({ onTabChange }: { onTabChange?: (path: string) => v
               <button
                 key={card.id}
                 className={`kpi-dot ${i === activeKpiIndex ? "active" : ""}`}
-                onClick={() => navigateTo(i)}
+                onClick={() => scrollToCard(i)}
                 aria-label={`View ${card.label}`}
               />
             ))}
@@ -454,8 +417,8 @@ export function OverviewTab({ onTabChange }: { onTabChange?: (path: string) => v
               <div className="flex items-center gap-1.5 mb-2">
                 <span style={{ color: "#f59e0b" }}>✦</span>
                 <p
-                  className="text-[10px] font-syne font-bold uppercase tracking-widest"
-                  style={{ color: "var(--text-sub)" }}
+                  className="text-[10px] font-syne font-bold tracking-widest"
+                  style={{ color: "var(--text-sub)", lineHeight: 1.6, paddingBottom: 4 }}
                 >
                   {new Date(selMonth + "-01").toLocaleString("en-IN", { month: "long" })} in one sentence
                 </p>
@@ -499,11 +462,8 @@ export function OverviewTab({ onTabChange }: { onTabChange?: (path: string) => v
             >
               {/* Header + filter tabs */}
               <div className="flex items-center justify-between mb-3">
-                <h2
-                  className="text-xs font-syne font-bold uppercase tracking-widest"
-                  style={{ color: "var(--text-sub)" }}
-                >
-                  Spend by Category
+                <h2 className="section-heading">
+                  Spend by category
                 </h2>
                 <div className="relative">
                   <select
@@ -555,11 +515,8 @@ export function OverviewTab({ onTabChange }: { onTabChange?: (path: string) => v
                       className="mt-3 pt-3 border-t"
                       style={{ borderColor: "var(--border)" }}
                     >
-                      <p
-                        className="text-[10px] font-syne font-bold uppercase tracking-widest mb-2"
-                        style={{ color: "var(--text-sub)" }}
-                      >
-                        Category Winner
+                      <p className="section-heading mb-2">
+                        Category winner
                       </p>
                       <div className="flex items-center gap-3">
                         <span className="text-2xl flex-shrink-0">🏅</span>
@@ -743,10 +700,7 @@ export function OverviewTab({ onTabChange }: { onTabChange?: (path: string) => v
           return (
             <section className="h-full">
               <div className="flex items-center justify-between mb-4">
-                <h2
-                  className="text-xs font-syne font-bold tracking-widest"
-                  style={{ color: "var(--text-sub)" }}
-                >
+                <h2 className="section-heading">
                   📡 Spending signals
                 </h2>
                 <button
@@ -770,11 +724,8 @@ export function OverviewTab({ onTabChange }: { onTabChange?: (path: string) => v
 
       {/* ── Section 7: Coming Up (due bills + month-end balance) ─── */}
       <section>
-        <h2
-          className="text-xs font-syne font-bold tracking-widest mb-4"
-          style={{ color: "var(--text-sub)" }}
-        >
-          🔔 Coming Up
+        <h2 className="section-heading mb-4">
+          🔔 Coming up
         </h2>
         <div
           className="rounded-2xl border overflow-hidden"
@@ -846,11 +797,8 @@ export function OverviewTab({ onTabChange }: { onTabChange?: (path: string) => v
       {topSpends.length > 0 && (
         <section>
           <div className="flex items-center justify-between mb-4">
-            <h2
-              className="text-xs font-syne font-bold uppercase tracking-widest"
-              style={{ color: "var(--text-sub)" }}
-            >
-              💎 Money Moments
+            <h2 className="section-heading">
+              💎 Money moments
             </h2>
             <button
               className="text-xs"
@@ -898,10 +846,7 @@ export function OverviewTab({ onTabChange }: { onTabChange?: (path: string) => v
         return (
           <section>
             <div className="flex items-center justify-between mb-4">
-              <h2
-                className="text-xs font-syne font-bold tracking-widest"
-                style={{ color: "var(--text-sub)" }}
-              >
+              <h2 className="section-heading">
                 {scenario === "A" ? "🌱 Getting started"     :
                  scenario === "B" ? "📊 What changed?"       :
                  scenario === "C" ? "📅 Spending highlights"  :
@@ -1016,7 +961,7 @@ export function OverviewTab({ onTabChange }: { onTabChange?: (path: string) => v
                 <Activity size={13} strokeWidth={2.5} style={{ color: "#34d399" }} />
                 <p
                   className="text-[10px] font-syne font-bold tracking-widest"
-                  style={{ color: "var(--text-sub)" }}
+                  style={{ color: "var(--text-sub)", lineHeight: 1.6 }}
                 >
                   💓 Financial pulse
                 </p>

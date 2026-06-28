@@ -41,11 +41,8 @@ export function BalanceBreakdown({ balance }: { balance: Balance }) {
 
   return (
     <div className="bg-dark-card border border-white/10 rounded-2xl p-4">
-      <p
-        className="text-xs uppercase tracking-widest mb-3"
-        style={{ color: "var(--text-sub)" }}
-      >
-        Monthly Breakdown
+      <p className="section-heading mb-3">
+        Monthly breakdown
       </p>
 
       {/* Stacked bar */}
