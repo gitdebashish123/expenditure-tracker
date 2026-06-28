@@ -192,3 +192,174 @@ hr { border-color: var(--border) !important; }
   justify-content: center;
 }
 .flip-card-back { transform: rotateY(180deg); }
+
+/* ══════════════════════════════════════════════════════════════
+   KPI CAROUSEL — Spec 17
+   ══════════════════════════════════════════════════════════════ */
+
+/* Card gradients — dark (default) */
+.kpi-card-remaining { background: linear-gradient(135deg, #0a4a2e 0%, #0d6b3f 35%, #1a9e58 70%, #00c96e 100%); }
+.kpi-card-income    { background: linear-gradient(135deg, #1a0a4a 0%, #2e1080 35%, #5a28c8 70%, #7c55ff 100%); }
+.kpi-card-bills     { background: linear-gradient(135deg, #3a1a00 0%, #7a3800 35%, #c86000 70%, #f0920a 100%); }
+
+/* Card gradients — light mode */
+html.light .kpi-card-remaining { background: linear-gradient(135deg, #0d6b3f 0%, #1a9e58 40%, #00c96e 75%, #34d399 100%); }
+html.light .kpi-card-income    { background: linear-gradient(135deg, #2e1080 0%, #5a28c8 40%, #7c55ff 75%, #a78bfa 100%); }
+html.light .kpi-card-bills     { background: linear-gradient(135deg, #7a3800 0%, #c86000 40%, #f0920a 75%, #fbbf24 100%); }
+
+/* Text inside cards — always white regardless of theme */
+.kpi-card-value   { color: #ffffff; }
+.kpi-card-label   { color: rgba(255, 255, 255, 0.70); }
+.kpi-card-sub     { color: rgba(255, 255, 255, 0.50); }
+.kpi-card-pending { color: rgba(255, 180, 100, 0.90); }
+
+/* Card shell (shared geometry + surface effects) */
+.kpi-card-shell {
+  border-radius: 22px;
+  position: relative;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.kpi-card-shell::before {
+  content: "";
+  position: absolute;
+  top: -30%;
+  left: -20%;
+  width: 60%;
+  height: 80%;
+  background: radial-gradient(ellipse, rgba(255,255,255,0.25) 0%, transparent 70%);
+  mix-blend-mode: overlay;
+  pointer-events: none;
+}
+.kpi-card-shell::after {
+  content: "";
+  position: absolute;
+  top: 0; right: 0; bottom: 0; left: 0;
+  background: linear-gradient(135deg, transparent 45%, rgba(255,255,255,0.06) 55%, transparent 65%);
+  pointer-events: none;
+}
+
+/* Left accent bar */
+.kpi-card-shell .kpi-accent {
+  position: absolute;
+  left: 0; top: 16px; bottom: 16px;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+}
+.kpi-card-remaining .kpi-accent { background: #00c96e; }
+.kpi-card-income    .kpi-accent { background: #a78bfa; }
+.kpi-card-bills     .kpi-accent { background: #fbbf24; }
+
+/* ── Mobile carousel wrapper ─────────────────────────────────── */
+.kpi-carousel-wrapper {
+  position: relative;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* Stage: clipped window showing active card + right peek */
+.kpi-carousel-stage {
+  position: relative;
+  height: 186px;
+  overflow: visible;
+  padding-left: 18px;
+}
+
+/* Active card */
+.kpi-carousel-stage .kpi-active-card {
+  width: 264px;
+  height: 150px;
+  position: relative;
+  z-index: 10;
+  transition: transform 350ms cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  top: 18px;
+}
+
+/* Stacked cards behind (decorative, no content) */
+.kpi-card-shell.pos-behind {
+  position: absolute;
+  top: 22px;
+  left: 18px;
+  width: 264px;
+  height: 150px;
+  z-index: 5;
+  transform: rotate(-2deg) scale(0.94);
+  transform-origin: center bottom;
+}
+.kpi-card-shell.pos-far-behind {
+  position: absolute;
+  top: 26px;
+  left: 18px;
+  width: 264px;
+  height: 150px;
+  z-index: 3;
+  transform: rotate(-4deg) scale(0.88);
+  transform-origin: center bottom;
+}
+
+/* Peek card (right edge) */
+.kpi-card-shell.pos-peek-right {
+  position: absolute;
+  top: 18px;
+  left: calc(18px + 264px + 8px);
+  width: 264px;
+  height: 150px;
+  z-index: 8;
+}
+
+/* Dot indicators — mobile only */
+.kpi-dots {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 12px;
+}
+.kpi-dot {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--border-lg);
+  transition: width 250ms ease, background 250ms ease;
+  cursor: pointer;
+  border: none;
+  padding: 0;
+  width: 6px;
+}
+.kpi-dot.active {
+  width: 20px;
+  background: var(--accent);
+}
+
+/* ── Desktop row (≥ 768px) — all 3 cards visible ─────────────── */
+.kpi-desktop-row {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+@media (min-width: 768px) {
+  .kpi-carousel-stage,
+  .kpi-dots { display: none; }
+
+  .kpi-desktop-row { display: flex; }
+
+  .kpi-desktop-row .kpi-card-shell {
+    height: 140px;
+    transition: transform 350ms cubic-bezier(0.25, 0.46, 0.45, 0.94),
+                opacity 350ms ease,
+                width 350ms cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  }
+  .kpi-desktop-row .kpi-card-shell.active {
+    width: 380px;
+    transform: scale(1);
+    opacity: 1;
+    z-index: 3;
+  }
+  .kpi-desktop-row .kpi-card-shell.side {
+    width: 260px;
+    transform: scale(0.93);
+    opacity: 0.6;
+    z-index: 2;
+    cursor: pointer;
+  }
+}

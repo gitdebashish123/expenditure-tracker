@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { Activity, ChevronDown } from "lucide-react";
 import { api } from "@/api/client";
 import { useMonth } from "@/context/MonthContext";
@@ -18,7 +18,7 @@ import { InsightsScenarioA, InsightsScenarioB, InsightsScenarioC, InsightsScenar
  * Streamlit ref: with tab3: in frontend/app.py
  *
  * Sections:
- *   1. Balance summary cards (3-col grid)
+ *   1. KPI carousel (swipeable, 3 cards: Remaining / Income / Bills Paid)
  *   2. Balance breakdown stacked bar
  *   3. Spend donut chart (bonus — not in Streamlit)
  *   4. Budget health projection cards
@@ -199,6 +199,10 @@ export function OverviewTab({ onTabChange }: { onTabChange?: (path: string) => v
   const [donutFilter,       setDonutFilter]       = useState<"variable" | "fixed" | "all">("variable");
   const [showPomBreakdown,  setShowPomBreakdown]  = useState(false);
   const [showSignalsModal,  setShowSignalsModal]  = useState(false);
+  const [activeKpiIndex,    setActiveKpiIndex]    = useState(0);
+  const touchStartX    = useRef<number>(0);
+  const touchStartTime = useRef<number>(0);
+  const touchDeltaX    = useRef<number>(0);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -238,6 +242,33 @@ export function OverviewTab({ onTabChange }: { onTabChange?: (path: string) => v
 
   useEffect(() => { load(); }, [load]);
 
+  const navigateTo = useCallback((index: number) => {
+    setActiveKpiIndex(Math.max(0, Math.min(2, index)));
+  }, []);
+
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    touchStartX.current    = e.touches[0].clientX;
+    touchStartTime.current = Date.now();
+    touchDeltaX.current    = 0;
+  }, []);
+
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    touchDeltaX.current = e.touches[0].clientX - touchStartX.current;
+  }, []);
+
+  const handleTouchEnd = useCallback(() => {
+    const delta     = touchDeltaX.current;
+    const elapsed   = Date.now() - touchStartTime.current;
+    const velocity  = Math.abs(delta) / elapsed;
+    const triggered = Math.abs(delta) > 40 || velocity > 0.3;
+    if (!triggered) return;
+    if (delta < 0) {
+      navigateTo(activeKpiIndex + 1);
+    } else {
+      navigateTo(activeKpiIndex - 1);
+    }
+  }, [activeKpiIndex, navigateTo]);
+
   if (loading) return <OverviewSkeleton />;
 
   // Empty state — no data for this month
@@ -270,61 +301,161 @@ export function OverviewTab({ onTabChange }: { onTabChange?: (path: string) => v
     return py === expectedPriorYear && pm === expectedPriorMonth;
   };
 
+  const kpiCards = [
+    {
+      id: "remaining",
+      label: "Remaining",
+      icon: "💰",
+      value: fmtInr(balance.remaining),
+      subtitle: "Left for the month",
+      pending: null as string | null,
+    },
+    {
+      id: "income",
+      label: "Income",
+      icon: "💼",
+      value: fmtInr(balance.total_income),
+      subtitle: "Total this month",
+      pending: null as string | null,
+    },
+    {
+      id: "bills",
+      label: "Bills Paid",
+      icon: "✅",
+      value: fmtInr(balance.fixed_paid_total),
+      subtitle: `Out of ${fmtInr(balance.fixed_paid_total + balance.fixed_unpaid_total)}`,
+      pending: balance.fixed_unpaid_total > 0
+        ? `${fmtInr(balance.fixed_unpaid_total)} still pending`
+        : null,
+    },
+  ];
+
   return (
     <div className="space-y-6">
 
-      {/* ── Section 0: KPI tiles ─────────────────────────── */}
+      {/* ── Section 0: KPI Carousel ─────────────────────────── */}
       <section>
-        <div className="grid grid-cols-3 gap-3">
-          {[
-            {
-              label:    "Remaining",
-              value:    balance.remaining,
-              icon:     "💰",
-              colour:   balance.remaining >= 0 ? "#34d399" : "#f87171",
-              subtitle: undefined as string | undefined,
-            },
-            {
-              label:    "Income",
-              value:    balance.total_income,
-              icon:     "💼",
-              colour:   "#6366f1",
-              subtitle: undefined as string | undefined,
-            },
-            {
-              label:    "Bills Paid",
-              value:    balance.fixed_paid_total,
-              icon:     "✅",
-              colour:   "#f59e0b",
-              subtitle: balance.fixed_unpaid_total === 0
-                ? "All bills cleared ✓"
-                : `Out of ${fmtInr(balance.fixed_paid_total + balance.fixed_unpaid_total)}`,
-            },
-          ].map(tile => (
+        <div className="kpi-carousel-wrapper">
+
+          {/* Mobile: stacked-deck stage */}
+          <div
+            className="kpi-carousel-stage"
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
+          >
+            {/* Far-behind decorative card */}
             <div
-              key={tile.label}
-              className="rounded-2xl p-4 border"
-              style={{ background: "var(--card)", borderColor: "var(--border-lg)" }}
+              className={`kpi-card-shell kpi-card-${kpiCards[(activeKpiIndex + 2) % 3].id} pos-far-behind`}
             >
-              <div className="flex items-center gap-1.5 mb-2">
-                <span className="text-base">{tile.icon}</span>
-                <p
-                  className="text-[10px] font-syne font-bold uppercase tracking-wide"
-                  style={{ color: "var(--text-sub)" }}
-                >
-                  {tile.label}
-                </p>
+              <div className="kpi-accent" />
+            </div>
+
+            {/* Behind decorative card */}
+            <div
+              className={`kpi-card-shell kpi-card-${kpiCards[(activeKpiIndex + 1) % 3].id} pos-behind`}
+            >
+              <div className="kpi-accent" />
+            </div>
+
+            {/* Active card — full content */}
+            <div
+              className={`kpi-card-shell kpi-card-${kpiCards[activeKpiIndex].id} kpi-active-card`}
+              style={{ padding: "16px 20px" }}
+            >
+              <div className="kpi-accent" />
+              <span
+                style={{
+                  position: "absolute", right: 16, top: 12,
+                  fontSize: 20, fontWeight: 900, fontStyle: "italic",
+                  color: "rgba(255,255,255,0.07)",
+                  pointerEvents: "none",
+                }}
+              >
+                WM
+              </span>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 12 }}>
+                <span style={{ fontSize: 16 }}>{kpiCards[activeKpiIndex].icon}</span>
+                <span className="kpi-card-label" style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                  {kpiCards[activeKpiIndex].label}
+                </span>
               </div>
-              <p className="text-lg font-syne font-bold" style={{ color: tile.colour }}>
-                {fmtInr(tile.value)}
+              <p className="kpi-card-value" style={{ fontSize: 30, fontWeight: 700, lineHeight: 1.1 }}>
+                {kpiCards[activeKpiIndex].value}
               </p>
-              {tile.subtitle && (
-                <p className="text-[10px] mt-1" style={{ color: "var(--text-sub)" }}>
-                  {tile.subtitle}
+              <p className="kpi-card-sub" style={{ fontSize: 11, marginTop: 4 }}>
+                {kpiCards[activeKpiIndex].subtitle}
+              </p>
+              {kpiCards[activeKpiIndex].pending && (
+                <p className="kpi-card-pending" style={{ fontSize: 11, marginTop: 2 }}>
+                  {kpiCards[activeKpiIndex].pending}
                 </p>
               )}
             </div>
-          ))}
+
+            {/* Peek card (next card's left edge visible) */}
+            {activeKpiIndex < 2 && (
+              <div
+                className={`kpi-card-shell kpi-card-${kpiCards[activeKpiIndex + 1].id} pos-peek-right`}
+              >
+                <div className="kpi-accent" />
+              </div>
+            )}
+          </div>
+
+          {/* Dot indicators — mobile only */}
+          <div className="kpi-dots md:hidden">
+            {kpiCards.map((card, i) => (
+              <button
+                key={card.id}
+                className={`kpi-dot ${i === activeKpiIndex ? "active" : ""}`}
+                onClick={() => navigateTo(i)}
+                aria-label={`View ${card.label}`}
+              />
+            ))}
+          </div>
+
+          {/* Desktop: all 3 cards side by side */}
+          <div className="kpi-desktop-row hidden md:flex">
+            {kpiCards.map((card, i) => (
+              <div
+                key={card.id}
+                className={`kpi-card-shell kpi-card-${card.id} ${i === activeKpiIndex ? "active" : "side"}`}
+                style={{ padding: "14px 20px" }}
+                onClick={() => navigateTo(i)}
+              >
+                <div className="kpi-accent" />
+                <span
+                  style={{
+                    position: "absolute", right: 14, top: 10,
+                    fontSize: 18, fontWeight: 900, fontStyle: "italic",
+                    color: "rgba(255,255,255,0.07)",
+                    pointerEvents: "none",
+                  }}
+                >
+                  WM
+                </span>
+                <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
+                  <span style={{ fontSize: 14 }}>{card.icon}</span>
+                  <span className="kpi-card-label" style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                    {card.label}
+                  </span>
+                </div>
+                <p className="kpi-card-value" style={{ fontSize: i === activeKpiIndex ? 26 : 22, fontWeight: 700, lineHeight: 1.1 }}>
+                  {card.value}
+                </p>
+                <p className="kpi-card-sub" style={{ fontSize: 10, marginTop: 3 }}>
+                  {card.subtitle}
+                </p>
+                {card.pending && (
+                  <p className="kpi-card-pending" style={{ fontSize: 10, marginTop: 2 }}>
+                    {card.pending}
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+
         </div>
       </section>
 
