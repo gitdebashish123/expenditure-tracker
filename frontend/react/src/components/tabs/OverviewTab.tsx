@@ -362,68 +362,30 @@ export function OverviewTab({ onTabChange }: { onTabChange?: (path: string) => v
       <section>
         <div className="kpi-carousel-wrapper">
 
-          {/* Mobile: stacked-deck stage */}
-          <div
-            ref={carouselRef}
-            className="kpi-carousel-stage touch-pan-y"
-          >
-            {/* Far-behind decorative card */}
+          {/* Mobile: sliding track */}
+          <div className="kpi-viewport">
             <div
-              className={`kpi-card-shell kpi-card-${kpiCards[(activeKpiIndex + 2) % 3].id} pos-far-behind`}
+              ref={carouselRef}
+              className="kpi-track"
+              style={{
+                transform: `translateX(calc(-${activeKpiIndex} * (100% + 12px)))`,
+                transition: 'transform 350ms cubic-bezier(0.25,0.46,0.45,0.94)',
+              }}
             >
-              <div className="kpi-accent" />
+              {kpiCards.map((card) => (
+                <div key={card.id} className={`kpi-slide kpi-card-${card.id}`}>
+                  <div className="kpi-accent" />
+                  <span className="kpi-watermark">WM</span>
+                  <div className="kpi-slide-header">
+                    <span className="kpi-slide-icon">{card.icon}</span>
+                    <span className="kpi-card-label">{card.label}</span>
+                  </div>
+                  <p className="kpi-card-value">{card.value}</p>
+                  <p className="kpi-card-sub">{card.subtitle}</p>
+                  {card.pending && <p className="kpi-card-pending">{card.pending}</p>}
+                </div>
+              ))}
             </div>
-
-            {/* Behind decorative card */}
-            <div
-              className={`kpi-card-shell kpi-card-${kpiCards[(activeKpiIndex + 1) % 3].id} pos-behind`}
-            >
-              <div className="kpi-accent" />
-            </div>
-
-            {/* Active card — full content */}
-            <div
-              className={`kpi-card-shell kpi-card-${kpiCards[activeKpiIndex].id} kpi-active-card`}
-              style={{ padding: "16px 20px" }}
-            >
-              <div className="kpi-accent" />
-              <span
-                style={{
-                  position: "absolute", right: 16, top: 12,
-                  fontSize: 20, fontWeight: 900, fontStyle: "italic",
-                  color: "rgba(255,255,255,0.07)",
-                  pointerEvents: "none",
-                }}
-              >
-                WM
-              </span>
-              <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 12 }}>
-                <span style={{ fontSize: 16 }}>{kpiCards[activeKpiIndex].icon}</span>
-                <span className="kpi-card-label" style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em" }}>
-                  {kpiCards[activeKpiIndex].label}
-                </span>
-              </div>
-              <p className="kpi-card-value" style={{ fontSize: 30, fontWeight: 700, lineHeight: 1.1 }}>
-                {kpiCards[activeKpiIndex].value}
-              </p>
-              <p className="kpi-card-sub" style={{ fontSize: 11, marginTop: 4 }}>
-                {kpiCards[activeKpiIndex].subtitle}
-              </p>
-              {kpiCards[activeKpiIndex].pending && (
-                <p className="kpi-card-pending" style={{ fontSize: 11, marginTop: 2 }}>
-                  {kpiCards[activeKpiIndex].pending}
-                </p>
-              )}
-            </div>
-
-            {/* Peek card (next card's left edge visible) */}
-            {activeKpiIndex < 2 && (
-              <div
-                className={`kpi-card-shell kpi-card-${kpiCards[activeKpiIndex + 1].id} pos-peek-right`}
-              >
-                <div className="kpi-accent" />
-              </div>
-            )}
           </div>
 
           {/* Dot indicators — mobile only */}
@@ -448,32 +410,15 @@ export function OverviewTab({ onTabChange }: { onTabChange?: (path: string) => v
                 onClick={() => navigateTo(i)}
               >
                 <div className="kpi-accent" />
-                <span
-                  style={{
-                    position: "absolute", right: 14, top: 10,
-                    fontSize: 18, fontWeight: 900, fontStyle: "italic",
-                    color: "rgba(255,255,255,0.07)",
-                    pointerEvents: "none",
-                  }}
-                >
-                  WM
-                </span>
-                <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
-                  <span style={{ fontSize: 14 }}>{card.icon}</span>
-                  <span className="kpi-card-label" style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em" }}>
-                    {card.label}
-                  </span>
+                <span className="kpi-watermark" style={{ fontSize: 18, top: 10, right: 14 }}>WM</span>
+                <div className="kpi-slide-header" style={{ marginBottom: 10 }}>
+                  <span className="kpi-slide-icon" style={{ fontSize: 14 }}>{card.icon}</span>
+                  <span className="kpi-card-label" style={{ fontSize: 10 }}>{card.label}</span>
                 </div>
-                <p className="kpi-card-value" style={{ fontSize: 24, fontWeight: 700, lineHeight: 1.1 }}>
-                  {card.value}
-                </p>
-                <p className="kpi-card-sub" style={{ fontSize: 10, marginTop: 3 }}>
-                  {card.subtitle}
-                </p>
+                <p className="kpi-card-value" style={{ fontSize: 24 }}>{card.value}</p>
+                <p className="kpi-card-sub" style={{ fontSize: 10, marginTop: 3 }}>{card.subtitle}</p>
                 {card.pending && (
-                  <p className="kpi-card-pending" style={{ fontSize: 10, marginTop: 2 }}>
-                    {card.pending}
-                  </p>
+                  <p className="kpi-card-pending" style={{ fontSize: 10, marginTop: 2 }}>{card.pending}</p>
                 )}
               </div>
             ))}

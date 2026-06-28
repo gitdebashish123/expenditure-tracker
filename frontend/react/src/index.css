@@ -209,9 +209,9 @@ html.light .kpi-card-bills     { background: linear-gradient(135deg, #7a3800 0%,
 
 /* Text inside cards — always white regardless of theme */
 .kpi-card-value   { color: #ffffff; }
-.kpi-card-label   { color: rgba(255, 255, 255, 0.70); }
-.kpi-card-sub     { color: rgba(255, 255, 255, 0.50); }
-.kpi-card-pending { color: rgba(255, 180, 100, 0.90); }
+.kpi-card-label   { color: rgba(255, 255, 255, 0.85); }
+.kpi-card-sub     { color: rgba(255, 255, 255, 0.72); text-shadow: 0 1px 2px rgba(0,0,0,0.15); }
+.kpi-card-pending { color: rgba(255, 210, 130, 0.95); }
 
 /* Card shell (shared geometry + surface effects) */
 .kpi-card-shell {
@@ -257,55 +257,48 @@ html.light .kpi-card-bills     { background: linear-gradient(135deg, #7a3800 0%,
   -webkit-user-select: none;
 }
 
-/* Stage: clipped window showing active card + right peek */
-.kpi-carousel-stage {
+/* ── Mobile sliding carousel ─────────────────────────────────── */
+.kpi-viewport {
+  overflow: hidden;
+  padding: 0 18px;
+  margin: 0 -2px;
+}
+
+.kpi-track {
+  display: flex;
+  gap: 12px;
+  will-change: transform;
+}
+
+.kpi-slide {
+  flex: 0 0 calc(100% - 24px);
+  height: 150px;
+  border-radius: 22px;
   position: relative;
-  height: 186px;
-  overflow: visible;
-  padding-left: 18px;
+  overflow: hidden;
+  padding: 18px 20px;
 }
 
-/* Active card */
-.kpi-carousel-stage .kpi-active-card {
-  width: 264px;
-  height: 150px;
-  position: relative;
-  z-index: 10;
-  transition: transform 350ms cubic-bezier(0.25, 0.46, 0.45, 0.94);
-  top: 18px;
+/* Watermark */
+.kpi-watermark {
+  position: absolute;
+  right: 16px;
+  top: 12px;
+  font-size: 20px;
+  font-weight: 900;
+  font-style: italic;
+  color: rgba(255, 255, 255, 0.07);
+  pointer-events: none;
 }
 
-/* Stacked cards behind (decorative, no content) */
-.kpi-card-shell.pos-behind {
-  position: absolute;
-  top: 22px;
-  left: 18px;
-  width: 264px;
-  height: 150px;
-  z-index: 5;
-  transform: rotate(-2deg) scale(0.94);
-  transform-origin: center bottom;
+/* Slide header (icon + label row) */
+.kpi-slide-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 12px;
 }
-.kpi-card-shell.pos-far-behind {
-  position: absolute;
-  top: 26px;
-  left: 18px;
-  width: 264px;
-  height: 150px;
-  z-index: 3;
-  transform: rotate(-4deg) scale(0.88);
-  transform-origin: center bottom;
-}
-
-/* Peek card (right edge) */
-.kpi-card-shell.pos-peek-right {
-  position: absolute;
-  top: 18px;
-  left: calc(18px + 264px + 8px);
-  width: 264px;
-  height: 150px;
-  z-index: 8;
-}
+.kpi-slide-icon { font-size: 16px; }
 
 /* Dot indicators — mobile only */
 .kpi-dots {
@@ -337,7 +330,7 @@ html.light .kpi-card-bills     { background: linear-gradient(135deg, #7a3800 0%,
   gap: 12px;
 }
 @media (min-width: 768px) {
-  .kpi-carousel-stage,
+  .kpi-viewport,
   .kpi-dots { display: none; }
 
   .kpi-desktop-row { display: flex; }
@@ -346,9 +339,21 @@ html.light .kpi-card-bills     { background: linear-gradient(135deg, #7a3800 0%,
     flex: 1;
     height: 140px;
     cursor: pointer;
-    transition: box-shadow 250ms ease;
+    transition: transform 250ms cubic-bezier(0.25,0.46,0.45,0.94),
+                box-shadow 250ms ease,
+                opacity 250ms ease;
+    opacity: 0.85;
+  }
+  .kpi-desktop-row .kpi-card-shell:hover {
+    transform: translateY(-2px);
+    opacity: 1;
   }
   .kpi-desktop-row .kpi-card-shell.active {
-    box-shadow: 0 0 0 2px rgba(255,255,255,0.15), 0 8px 32px rgba(0,0,0,0.4);
+    transform: translateY(-4px) scale(1.02);
+    opacity: 1;
+    box-shadow: 0 0 0 2px rgba(255,255,255,0.18), 0 12px 36px rgba(0,0,0,0.45);
+  }
+  .kpi-desktop-row .kpi-card-shell.side {
+    opacity: 0.78;
   }
 }
