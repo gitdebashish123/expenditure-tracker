@@ -333,8 +333,7 @@ html.light .kpi-card-bills     { background: linear-gradient(135deg, #7a3800 0%,
 /* ── Desktop row (≥ 768px) — all 3 cards visible ─────────────── */
 .kpi-desktop-row {
   display: none;
-  align-items: center;
-  justify-content: center;
+  align-items: stretch;
   gap: 12px;
 }
 @media (min-width: 768px) {
@@ -344,22 +343,12 @@ html.light .kpi-card-bills     { background: linear-gradient(135deg, #7a3800 0%,
   .kpi-desktop-row { display: flex; }
 
   .kpi-desktop-row .kpi-card-shell {
+    flex: 1;
     height: 140px;
-    transition: transform 350ms cubic-bezier(0.25, 0.46, 0.45, 0.94),
-                opacity 350ms ease,
-                width 350ms cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    cursor: pointer;
+    transition: box-shadow 250ms ease;
   }
   .kpi-desktop-row .kpi-card-shell.active {
-    width: 380px;
-    transform: scale(1);
-    opacity: 1;
-    z-index: 3;
-  }
-  .kpi-desktop-row .kpi-card-shell.side {
-    width: 260px;
-    transform: scale(0.93);
-    opacity: 0.6;
-    z-index: 2;
-    cursor: pointer;
+    box-shadow: 0 0 0 2px rgba(255,255,255,0.15), 0 8px 32px rgba(0,0,0,0.4);
   }
 }

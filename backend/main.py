@@ -1388,6 +1388,7 @@ def monthly_story(month_key: str, session: Session = Depends(get_session),
         "top_category":        top_category,
         "top_category_spent":  top_category_spent,
         "variable_total":      balance["variable_total"],
+        "savings_total":       balance["savings_total"],
         "days_left":           days_left,
     }
 

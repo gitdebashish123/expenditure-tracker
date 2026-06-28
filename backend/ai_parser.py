@@ -152,23 +152,30 @@ def generate_monthly_story(context: dict) -> str:
         variable_total: float
         days_left: int
     """
-    prompt = f"""Financial month summary for {context['month_label']}:
-- Remaining balance: ₹{context['remaining']:.0f}
-- Fixed bills completion: {context['fixed_completion_pct']:.0f}%
-- Top spending category: {context.get('top_category') or 'N/A'} (₹{context.get('top_category_spent', 0):.0f})
-- Total variable spend: ₹{context['variable_total']:.0f}
-- Days left in month: {context['days_left']}
+    prompt = f"""Generate a single sentence summary of this month's finances.
 
-Write ONE sentence (hard limit: 30 words) summarising this month's finances.
-Rules:
-- ONE sentence only. No semicolons. No list-style constructions (no "X, Y, and Z").
-- Factual and neutral — not motivational or encouraging.
-- Past-tense for completed items, forward-looking for projections.
-- Do NOT start the sentence with "I".
-- Prioritise: bills completion status, savings allocated, remaining balance.
-- Include variable spending total ONLY if it fits within the 30-word limit.
-- Use ₹ symbol for amounts.
-- Return ONLY the sentence, no preamble, no quotation marks."""
+STRICT RULES — violating any rule makes the output wrong:
+1. Exactly ONE sentence. No semicolons. No "and X and Y and Z" chaining.
+2. Maximum 25 words. Count the words before responding. If over 25, rewrite.
+3. Must mention exactly TWO of these three: bills status, savings amount, remaining balance.
+4. Factual and neutral tone. Not motivational or encouraging.
+5. Use ₹ symbol with formatted numbers (₹34,000 not ₹34000).
+6. Return ONLY the sentence, no preamble, no quotation marks.
+
+GOOD examples (all under 25 words):
+- "Bills are 98% done, ₹34,000 went to savings, and ₹3,479 remains." (13 words)
+- "Nearly all bills paid, ₹3,479 left after saving ₹34,000 this month." (13 words)
+- "₹34,000 saved, bills at 98%, with ₹3,479 still in hand." (11 words)
+
+BAD examples (too long or chained):
+- "Bills reached 98% completion while ₹34000 was allocated to savings, leaving ₹3479 available with two days remaining after ₹52066 in variable spending this month." (too long)
+- "All fixed bills were paid while ₹36062 went to savings and ₹53212 to variable spending, leaving ₹4005 for the final two days." (too long, chained)
+
+Financial data for {context['month_label']}:
+- Bills paid: {context['fixed_completion_pct']:.0f}% of fixed expenses
+- Savings allocated: ₹{context.get('savings_total', 0):,.0f}
+- Remaining balance: ₹{context['remaining']:,.0f}
+- Days remaining: {context['days_left']}"""
 
     message = client.messages.create(
         model="claude-sonnet-4-5-20250929",

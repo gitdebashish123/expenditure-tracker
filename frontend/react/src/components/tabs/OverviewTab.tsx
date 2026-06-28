@@ -200,9 +200,11 @@ export function OverviewTab({ onTabChange }: { onTabChange?: (path: string) => v
   const [showPomBreakdown,  setShowPomBreakdown]  = useState(false);
   const [showSignalsModal,  setShowSignalsModal]  = useState(false);
   const [activeKpiIndex,    setActiveKpiIndex]    = useState(0);
-  const touchStartX    = useRef<number>(0);
-  const touchStartTime = useRef<number>(0);
-  const touchDeltaX    = useRef<number>(0);
+  const touchStartX       = useRef<number>(0);
+  const touchStartTime    = useRef<number>(0);
+  const touchStartY       = useRef<number>(0);
+  const isHorizontalSwipe = useRef<boolean | null>(null);
+  const carouselRef       = useRef<HTMLDivElement>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -246,27 +248,50 @@ export function OverviewTab({ onTabChange }: { onTabChange?: (path: string) => v
     setActiveKpiIndex(Math.max(0, Math.min(2, index)));
   }, []);
 
-  const handleTouchStart = useCallback((e: React.TouchEvent) => {
-    touchStartX.current    = e.touches[0].clientX;
-    touchStartTime.current = Date.now();
-    touchDeltaX.current    = 0;
-  }, []);
+  useEffect(() => {
+    const el = carouselRef.current;
+    if (!el) return;
 
-  const handleTouchMove = useCallback((e: React.TouchEvent) => {
-    touchDeltaX.current = e.touches[0].clientX - touchStartX.current;
-  }, []);
+    const onTouchStart = (e: TouchEvent) => {
+      touchStartX.current       = e.touches[0].clientX;
+      touchStartY.current       = e.touches[0].clientY;
+      touchStartTime.current    = e.timeStamp;
+      isHorizontalSwipe.current = null;
+    };
 
-  const handleTouchEnd = useCallback(() => {
-    const delta     = touchDeltaX.current;
-    const elapsed   = Date.now() - touchStartTime.current;
-    const velocity  = Math.abs(delta) / elapsed;
-    const triggered = Math.abs(delta) > 40 || velocity > 0.3;
-    if (!triggered) return;
-    if (delta < 0) {
-      navigateTo(activeKpiIndex + 1);
-    } else {
-      navigateTo(activeKpiIndex - 1);
-    }
+    const onTouchMove = (e: TouchEvent) => {
+      const dx = e.touches[0].clientX - touchStartX.current;
+      const dy = e.touches[0].clientY - touchStartY.current;
+      if (isHorizontalSwipe.current === null) {
+        isHorizontalSwipe.current = Math.abs(dx) > Math.abs(dy);
+      }
+      if (isHorizontalSwipe.current) {
+        e.preventDefault();
+      }
+    };
+
+    const onTouchEnd = (e: TouchEvent) => {
+      if (!isHorizontalSwipe.current) return;
+      const dx       = e.changedTouches[0].clientX - touchStartX.current;
+      const dt       = e.timeStamp - touchStartTime.current;
+      const velocity = Math.abs(dx) / dt;
+      if (Math.abs(dx) < 40 && velocity <= 0.3) return;
+      if (dx < 0) {
+        navigateTo(activeKpiIndex + 1);
+      } else {
+        navigateTo(activeKpiIndex - 1);
+      }
+    };
+
+    el.addEventListener('touchstart', onTouchStart, { passive: true });
+    el.addEventListener('touchmove',  onTouchMove,  { passive: false });
+    el.addEventListener('touchend',   onTouchEnd,   { passive: true });
+
+    return () => {
+      el.removeEventListener('touchstart', onTouchStart);
+      el.removeEventListener('touchmove',  onTouchMove);
+      el.removeEventListener('touchend',   onTouchEnd);
+    };
   }, [activeKpiIndex, navigateTo]);
 
   if (loading) return <OverviewSkeleton />;
@@ -339,10 +364,8 @@ export function OverviewTab({ onTabChange }: { onTabChange?: (path: string) => v
 
           {/* Mobile: stacked-deck stage */}
           <div
-            className="kpi-carousel-stage"
-            onTouchStart={handleTouchStart}
-            onTouchMove={handleTouchMove}
-            onTouchEnd={handleTouchEnd}
+            ref={carouselRef}
+            className="kpi-carousel-stage touch-pan-y"
           >
             {/* Far-behind decorative card */}
             <div
@@ -441,7 +464,7 @@ export function OverviewTab({ onTabChange }: { onTabChange?: (path: string) => v
                     {card.label}
                   </span>
                 </div>
-                <p className="kpi-card-value" style={{ fontSize: i === activeKpiIndex ? 26 : 22, fontWeight: 700, lineHeight: 1.1 }}>
+                <p className="kpi-card-value" style={{ fontSize: 24, fontWeight: 700, lineHeight: 1.1 }}>
                   {card.value}
                 </p>
                 <p className="kpi-card-sub" style={{ fontSize: 10, marginTop: 3 }}>
