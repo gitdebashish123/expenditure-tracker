@@ -5,6 +5,7 @@ import type { FixedExpenseTemplate } from "@/types";
 import { ChevronDown, ChevronUp, Trash2, Save, Plus, Check } from "lucide-react";
 import { CurrencyInput } from "@/components/shared/CurrencyInput";
 import { fmtInr } from "@/utils/formatInr";
+import { suggestCategory } from "@/utils/categoryKeywords";
 
 /**
  * BillsSection — fixed template management + add new bill form
@@ -186,12 +187,14 @@ export function BillsSection() {
   const [confirmPoolId, setConfirmPoolId] = useState<number | null>(null);
 
   // Add bill form state
-  const [newName,  setNewName]  = useState("");
-  const [newCat,   setNewCat]   = useState(FIXED_CATEGORIES[0]);
-  const [newKind,  setNewKind]  = useState<"fixed" | "pool">("fixed");
-  const [newAmt,   setNewAmt]   = useState<number>(0);
-  const [addError, setAddError] = useState<string | null>(null);
-  const [adding,   setAdding]   = useState(false);
+  const [newName,      setNewName]      = useState("");
+  const [newCat,       setNewCat]       = useState(FIXED_CATEGORIES[0]);
+  const [newKind,      setNewKind]      = useState<"fixed" | "pool">("fixed");
+  const [newAmt,       setNewAmt]       = useState<number>(0);
+  const [addError,     setAddError]     = useState<string | null>(null);
+  const [adding,       setAdding]       = useState(false);
+  const [catAutoSet,   setCatAutoSet]   = useState(false);
+  const [userOverrode, setUserOverrode] = useState(false);
 
   const load = useCallback(() => {
     api.get<FixedExpenseTemplate[]>("/fixed-templates")
@@ -216,6 +219,22 @@ export function BillsSection() {
     setTemplates(prev => prev.filter(t => t.id !== id));
   };
 
+  const handleNewNameChange = (value: string) => {
+    const suggested = suggestCategory(value);
+    const autoSet = !!suggested && !userOverrode;
+    setNewName(value);
+    if (value === "") {
+      setNewCat(FIXED_CATEGORIES[0]);
+      setCatAutoSet(false);
+      setUserOverrode(false);
+    } else if (autoSet) {
+      setNewCat(suggested!);
+      setCatAutoSet(true);
+    } else {
+      setCatAutoSet(false);
+    }
+  };
+
   const handleAddBill = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newName.trim()) { setAddError("Please enter a bill name."); return; }
@@ -229,10 +248,11 @@ export function BillsSection() {
       await api.post("/fixed-templates", {
         name:          newName.trim(),
         category:      newCat,
-        amount:        newAmt,   // pools send 0 if unknown — backend now accepts it
+        amount:        newAmt,
         template_type: newKind,
       });
       setNewName(""); setNewAmt(0); setNewKind("fixed");
+      setCatAutoSet(false); setUserOverrode(false);
       setAddOpen(false);
       load();
     } finally {
@@ -261,11 +281,96 @@ export function BillsSection() {
                        border border-accent/40 text-indigo-300 hover:bg-accent/10
                        transition-colors"
           >
-            + Add Bill
+            + Add commitment
           </button>
         </div>
         <div className="border-b border-white/10 mt-3" />
       </div>
+
+      {/* Add commitment form — shown inline right below header */}
+      {addOpen && (
+        <form
+          onSubmit={handleAddBill}
+          className="mb-4 p-4 border border-white/10 rounded-2xl space-y-3"
+        >
+          <div className="grid grid-cols-2 gap-3 pt-3">
+            <input
+              value={newName}
+              onChange={e => handleNewNameChange(e.target.value)}
+              placeholder="e.g. Rent, Car Loan, Netflix"
+              className={`col-span-2 ${inputCls}`}
+            />
+            <select
+              value={newCat}
+              onChange={e => { setNewCat(e.target.value); setCatAutoSet(false); setUserOverrode(true); }}
+              className={inputCls}
+            >
+              {FIXED_CATEGORIES.map(c => (
+                <option key={c} value={c}>{CATEGORY_ICONS[c]} {c}</option>
+              ))}
+            </select>
+            <CurrencyInput
+              value={newAmt}
+              onChange={v => setNewAmt(v)}
+              placeholder={newKind === "fixed" ? "Monthly amount (₹)" : "Typical amount (₹)"}
+              className={inputCls}
+            />
+          </div>
+          {catAutoSet && (
+            <p className="text-xs -mt-1" style={{ color: "var(--text-muted)" }}>
+              ✨ Category suggested based on name — tap the dropdown to change
+            </p>
+          )}
+
+          <div>
+            <p className="text-xs mb-2" style={{ color: "var(--text-muted)" }}>
+              Is the amount the same every month?
+            </p>
+            {(["fixed", "pool"] as const).map(kind => (
+              <label key={kind} className="flex items-center gap-2 mb-1.5 cursor-pointer">
+                <input
+                  type="radio"
+                  name="newKind"
+                  value={kind}
+                  checked={newKind === kind}
+                  onChange={() => setNewKind(kind)}
+                  className="accent-indigo-500"
+                />
+                <span className="text-white text-sm">
+                  {kind === "fixed" ? "Yes, always the same" : "No, it varies"}
+                </span>
+              </label>
+            ))}
+            {newKind === "pool" && (
+              <p className="text-xs mt-1" style={{ color: "var(--text-sub)" }}>
+                You'll add the actual amount once it's paid.
+              </p>
+            )}
+          </div>
+
+          {addError && <p className="text-red-400 text-xs">{addError}</p>}
+
+          <div className="flex gap-2">
+            <button
+              type="submit"
+              disabled={adding}
+              className="flex-1 bg-gradient-to-r from-accent to-accent2 text-white
+                         font-semibold py-2.5 rounded-xl text-sm disabled:opacity-50
+                         transition-opacity"
+            >
+              {adding ? "Adding…" : "＋ Add commitment"}
+            </button>
+            <button
+              type="button"
+              onClick={() => { setAddOpen(false); setNewName(""); setNewAmt(0); setNewKind("fixed"); setCatAutoSet(false); setUserOverrode(false); setNewCat(FIXED_CATEGORIES[0]); setAddError(null); }}
+              className="px-4 py-2.5 rounded-xl text-sm bg-dark-card
+                         text-white/50 hover:text-white transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        </form>
+      )}
 
       {/* Fixed templates by category */}
       {Object.keys(byCat).length > 0 && (
@@ -354,81 +459,6 @@ export function BillsSection() {
         </div>
       )}
 
-      {/* Add commitment form (revealed by "+ Add Bill" in header) */}
-      {addOpen && (
-        <form
-          onSubmit={handleAddBill}
-          className="mb-4 p-4 border border-white/10 rounded-2xl space-y-3"
-        >
-            <div className="grid grid-cols-2 gap-3 pt-3">
-              <input
-                value={newName}
-                onChange={e => setNewName(e.target.value)}
-                placeholder="e.g. Rent, Car Loan, Netflix"
-                className={`col-span-2 ${inputCls}`}
-              />
-              <select
-                value={newCat}
-                onChange={e => setNewCat(e.target.value)}
-                className={inputCls}
-              >
-                {FIXED_CATEGORIES.map(c => (
-                  <option key={c} value={c}>{CATEGORY_ICONS[c]} {c}</option>
-                ))}
-              </select>
-              <CurrencyInput
-                value={newAmt}
-                onChange={v => setNewAmt(v)}
-                placeholder={
-                  newKind === "fixed" ? "Monthly amount (₹)" : "Typical amount (₹)"
-                }
-                className={inputCls}
-              />
-            </div>
-
-            {/* Fixed / variable radio */}
-            <div>
-              <p className="text-xs mb-2" style={{ color: "var(--text-muted)" }}>
-                Is the amount the same every month?
-              </p>
-              {(["fixed", "pool"] as const).map(kind => (
-                <label key={kind} className="flex items-center gap-2 mb-1.5 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="newKind"
-                    value={kind}
-                    checked={newKind === kind}
-                    onChange={() => setNewKind(kind)}
-                    className="accent-indigo-500"
-                  />
-                  <span className="text-white text-sm">
-                    {kind === "fixed" ? "Yes, always the same" : "No, it varies"}
-                  </span>
-                </label>
-              ))}
-              {/* Caption appears instantly — key improvement over Streamlit */}
-              {newKind === "pool" && (
-                <p className="text-xs mt-1" style={{ color: "var(--text-sub)" }}>
-                  You'll add the actual amount once it's paid.
-                </p>
-              )}
-            </div>
-
-            {addError && (
-              <p className="text-red-400 text-xs">{addError}</p>
-            )}
-
-            <button
-              type="submit"
-              disabled={adding}
-              className="w-full bg-gradient-to-r from-accent to-accent2 text-white
-                         font-semibold py-2.5 rounded-xl text-sm disabled:opacity-50
-                         transition-opacity"
-            >
-              {adding ? "Adding…" : "＋ Add commitment"}
-            </button>
-          </form>
-      )}
     </section>
   );
 }

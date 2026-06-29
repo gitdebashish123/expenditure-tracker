@@ -1075,6 +1075,26 @@ def delete_income(income_id: int, session: Session = Depends(get_session),
     return {"deleted": income_id}
 
 
+@app.put("/income/{income_id}")
+def update_income(income_id: int, update: IncomeInput,
+                  session: Session = Depends(get_session),
+                  current_user: User = Depends(get_current_user)):
+    entry = session.exec(
+        select(IncomeEntry).where(
+            IncomeEntry.id == income_id,
+            IncomeEntry.user_id == current_user.id,
+        )
+    ).first()
+    if not entry:
+        raise HTTPException(status_code=404, detail="Income entry not found")
+    entry.source = update.source
+    entry.amount = update.amount
+    entry.note   = update.note
+    session.add(entry)
+    session.commit()
+    return {"id": entry.id, "source": entry.source, "amount": entry.amount, "note": entry.note}
+
+
 @app.get("/income/{month_key}")
 def get_income(month_key: str, session: Session = Depends(get_session),
                current_user: User = Depends(get_current_user)):

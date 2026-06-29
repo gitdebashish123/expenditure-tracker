@@ -17,6 +17,7 @@ export function CapsSection() {
   const [newLimit,   setNewLimit]   = useState<number>(0);
   const [addingSave, setAddingSave] = useState(false);
   const [addOpen,    setAddOpen]    = useState(false);
+  const [showAllCaps, setShowAllCaps] = useState(false);
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -123,9 +124,9 @@ export function CapsSection() {
         </div>
       )}
 
-      {/* Cap cards — 2-per-row grid */}
+      {/* Cap cards — 2-per-row grid, first 2 visible; expand via "View all" */}
       <div className="grid grid-cols-2 gap-3">
-        {budgets.map(b => {
+        {(showAllCaps ? budgets : budgets.slice(0, 2)).map(b => {
           const spent  = catSpent[b.category] ?? 0;
           const limit  = updates[b.category]  ?? b.limit_amount;
           const pct    = limit > 0 ? (spent / limit) * 100 : 0;
@@ -183,6 +184,15 @@ export function CapsSection() {
           );
         })}
       </div>
+
+      {budgets.length > 2 && (
+        <button
+          onClick={() => setShowAllCaps(v => !v)}
+          className="mt-3 text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
+        >
+          {showAllCaps ? "▲ Hide" : `View all cap limits → (${budgets.length - 2} more)`}
+        </button>
+      )}
     </section>
   );
 }
