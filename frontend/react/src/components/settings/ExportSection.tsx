@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { api } from "@/api/client";
 import { useMonth } from "@/context/MonthContext";
 import { fmtMonth } from "@/utils/formatDate";
@@ -22,9 +22,13 @@ export function ExportSection() {
   const [loadingMonth, setLoadingMonth] = useState(false);
   const [loadingAll,   setLoadingAll]   = useState(false);
   const [showRange,    setShowRange]    = useState(false);
-  const [fromDate,     setFromDate]     = useState(() => new Date().toISOString().slice(0, 10));
+  const [fromDate,     setFromDate]     = useState(() => `${selMonth}-01`);
   const [toDate,       setToDate]       = useState(() => new Date().toISOString().slice(0, 10));
   const [loadingRange, setLoadingRange] = useState(false);
+
+  useEffect(() => {
+    setFromDate(`${selMonth}-01`);
+  }, [selMonth]);
 
   const download = async (
     url:        string,
@@ -59,15 +63,20 @@ export function ExportSection() {
 
   const today = new Date().toISOString().slice(0, 10);
 
+  const fmtD = (iso: string) =>
+    new Date(iso + "T00:00:00").toLocaleDateString("en-IN", {
+      day: "numeric", month: "short", year: "numeric",
+    });
+
   const btnCls =
     "flex-1 flex items-center justify-center gap-2 bg-dark-card2 border border-white/10 " +
-    "hover:bg-white/5 py-3 rounded-xl text-sm disabled:opacity-50 transition-colors";
+    "hover:bg-white/5 py-3 rounded-xl text-sm text-white disabled:opacity-50 transition-colors";
 
   return (
     <section>
       {/* Section header */}
       <div className="mb-4">
-        <h2 className="font-syne font-bold text-white">📥 My Data</h2>
+        <h2 className="font-syne font-bold text-white">📥 Export data</h2>
         <p className="text-sm mt-0.5" style={{ color: "var(--text-sub)" }}>
           Download your expense history as a CSV file.
         </p>
@@ -86,7 +95,6 @@ export function ExportSection() {
           }
           disabled={loadingMonth}
           className={btnCls}
-          style={{ color: "var(--text-sub)" }}
         >
           {loadingMonth
             ? <Loader2 size={14} className="animate-spin" />
@@ -106,7 +114,6 @@ export function ExportSection() {
           }
           disabled={loadingAll}
           className={btnCls}
-          style={{ color: "var(--text-sub)" }}
         >
           {loadingAll
             ? <Loader2 size={14} className="animate-spin" />
@@ -168,7 +175,7 @@ export function ExportSection() {
                        text-sm disabled:opacity-50 transition-opacity"
           >
             {loadingRange ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
-            Download {fromDate} → {toDate}
+            Download {fmtD(fromDate)} → {fmtD(toDate)}
           </button>
           {fromDate > toDate && (
             <p className="text-xs text-red-400 text-center">"From" must be before "To"</p>

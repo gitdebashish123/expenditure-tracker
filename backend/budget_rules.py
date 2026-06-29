@@ -140,6 +140,26 @@ def get_balance_summary(session: Session, month_key: str, user_id: int) -> dict:
     }
 
 
+def has_prior_activity(session: Session, month_key: str, user_id: int) -> bool:
+    """True if the user has any Expense or IncomeEntry in a month before month_key.
+
+    Month keys are "YYYY-MM" strings, so lexicographic `<` is the correct ordering.
+    """
+    exp = session.exec(
+        select(Expense.id).where(
+            Expense.user_id == user_id, Expense.month_key < month_key
+        ).limit(1)
+    ).first()
+    if exp:
+        return True
+    inc = session.exec(
+        select(IncomeEntry.id).where(
+            IncomeEntry.user_id == user_id, IncomeEntry.month_key < month_key
+        ).limit(1)
+    ).first()
+    return inc is not None
+
+
 def compute_peace_of_mind(balance: dict) -> dict:
     """
     Compute Peace of Mind Score (0–100) from a get_balance_summary() dict.

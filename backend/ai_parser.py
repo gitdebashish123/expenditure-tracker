@@ -152,25 +152,34 @@ def generate_monthly_story(context: dict) -> str:
         variable_total: float
         days_left: int
     """
-    prompt = f"""Financial month summary for {context['month_label']}:
-- Remaining balance: ₹{context['remaining']:.0f}
-- Fixed bills completion: {context['fixed_completion_pct']:.0f}%
-- Top spending category: {context.get('top_category') or 'N/A'} (₹{context.get('top_category_spent', 0):.0f})
-- Total variable spend: ₹{context['variable_total']:.0f}
-- Days left in month: {context['days_left']}
+    prompt = f"""Generate a single sentence summary of this month's finances.
 
-Write ONE factual sentence (max 35 words) summarising this month's finances.
-Rules:
-- Factual and neutral — not motivational or encouraging.
-- Past-tense for completed items, forward-looking for projections.
-- Do NOT start the sentence with "I".
-- Reference at least one concrete number.
-- Use ₹ symbol when referencing specific amounts.
-- Return ONLY the sentence, no preamble, no quotation marks."""
+STRICT RULES — violating any rule makes the output wrong:
+1. Exactly ONE sentence. No semicolons. No "and X and Y and Z" chaining.
+2. Maximum 25 words. Count the words before responding. If over 25, rewrite.
+3. Must mention exactly TWO of these three: bills status, savings amount, remaining balance.
+4. Factual and neutral tone. Not motivational or encouraging.
+5. Use ₹ symbol with formatted numbers (₹34,000 not ₹34000).
+6. Return ONLY the sentence, no preamble, no quotation marks.
+
+GOOD examples (all under 25 words):
+- "Bills are 98% done, ₹34,000 went to savings, and ₹3,479 remains." (13 words)
+- "Nearly all bills paid, ₹3,479 left after saving ₹34,000 this month." (13 words)
+- "₹34,000 saved, bills at 98%, with ₹3,479 still in hand." (11 words)
+
+BAD examples (too long or chained):
+- "Bills reached 98% completion while ₹34000 was allocated to savings, leaving ₹3479 available with two days remaining after ₹52066 in variable spending this month." (too long)
+- "All fixed bills were paid while ₹36062 went to savings and ₹53212 to variable spending, leaving ₹4005 for the final two days." (too long, chained)
+
+Financial data for {context['month_label']}:
+- Bills paid: {context['fixed_completion_pct']:.0f}% of fixed expenses
+- Savings allocated: ₹{context.get('savings_total', 0):,.0f}
+- Remaining balance: ₹{context['remaining']:,.0f}
+- Days remaining: {context['days_left']}"""
 
     message = client.messages.create(
         model="claude-sonnet-4-5-20250929",
-        max_tokens=120,
+        max_tokens=80,
         messages=[{"role": "user", "content": prompt}],
     )
     return message.content[0].text.strip()
@@ -180,31 +189,57 @@ def generate_monthly_insight(context: dict) -> str:
     """
     Generate one concise behavioural observation sentence (max 20 words).
 
-    Expected context keys:
-        variable_total: float
-        variable_pct_of_income: int
+    Required context keys (all cases):
+        is_first_month: bool
         top_category: str | None
         top_category_spent: float
+
+    First-month additional keys:
+        month_key: str
+        savings_total: float
+        savings_pct: int
+        bills_status: str   # "all" or "unpaid bills remain"
+
+    Returning-user additional keys:
+        variable_total: float
+        variable_pct_of_income: int
         prev_variable_total: float | None
         fixed_paid_total: float
         fixed_total: float
     """
-    prev_var = (
-        f"₹{context['prev_variable_total']:.0f}"
-        if context.get("prev_variable_total") is not None
-        else "N/A"
-    )
-    prompt = (
-        "You are a financial assistant. Generate exactly ONE concise observation sentence "
-        "(maximum 20 words) about this user's financial behaviour this month. "
-        "Do not restate totals already visible on the dashboard. "
-        "Focus on a pattern, trend, or notable behaviour.\n\n"
-        f"Variable spending: ₹{context['variable_total']:.0f} ({context['variable_pct_of_income']}% of income)\n"
-        f"Top category: {context.get('top_category') or 'N/A'} at ₹{context.get('top_category_spent', 0):.0f}\n"
-        f"Prior month variable: {prev_var}\n"
-        f"Bills paid: ₹{context['fixed_paid_total']:.0f} of ₹{context['fixed_total']:.0f}\n\n"
-        "Respond with a single sentence only. No preamble, no punctuation beyond the sentence itself."
-    )
+    if context.get("is_first_month"):
+        prompt = (
+            "This is the user's first tracked month in Wallet Mantra. Generate exactly ONE short, "
+            "encouraging, forward-looking observation (maximum 20 words). Do not reference any "
+            "comparison to prior months, percentages, or changes. Focus only on what is notable "
+            "or positive about this month's actual data.\n\n"
+            f"Month: {context.get('month_key', 'this month')}\n"
+            f"Top spending category: {context.get('top_category') or 'N/A'} "
+            f"at ₹{context.get('top_category_spent', 0):.0f}\n"
+            f"Savings this month: ₹{context.get('savings_total', 0):.0f} "
+            f"({context.get('savings_pct', 0)}% of income)\n"
+            f"Bills paid: {context.get('bills_status', 'unknown')}\n\n"
+            "Respond with a single sentence only. No preamble."
+        )
+    else:
+        prev_var = (
+            f"₹{context['prev_variable_total']:.0f}"
+            if context.get("prev_variable_total") is not None
+            else "N/A"
+        )
+        prompt = (
+            "You are a financial assistant. Generate exactly ONE concise observation sentence "
+            "(maximum 20 words) about this user's financial behaviour this month. "
+            "Do not restate totals already visible on the dashboard. "
+            "Focus on a pattern, trend, or notable behaviour.\n\n"
+            f"Variable spending: ₹{context['variable_total']:.0f} ({context['variable_pct_of_income']}% of income)\n"
+            f"Top category: {context.get('top_category') or 'N/A'} at ₹{context.get('top_category_spent', 0):.0f}\n"
+            f"Prior month variable: {prev_var}\n"
+            f"Bills paid: ₹{context['fixed_paid_total']:.0f} of ₹{context['fixed_total']:.0f}\n\n"
+            "Respond with a single sentence only. No preamble, no punctuation beyond the sentence itself. "
+            "Only state a percentage change if BOTH months' variable totals exceed ₹1,000; "
+            "otherwise describe the trend qualitatively (e.g. 'higher', 'similar') with no number."
+        )
     message = client.messages.create(
         model="claude-sonnet-4-5-20250929",
         max_tokens=60,

@@ -21,11 +21,18 @@ Spec 11 W1 added a gap-detection guard to prevent misleading comparisons. This s
 
 ## Product Decision
 
-**Rename**: "What Changed?" → "💡 Insights"
+**Heading strategy (updated 2026-06-27 by spec 13)**: The single "💡 Insights" umbrella heading originally proposed here is superseded. Each scenario now uses a distinct heading to avoid naming collision with the "✨ Insight" AI card in the Monthly Breakdown column.
 
-This rename signals a different contract to the user: the section is no longer purely comparative — it is personalised and adaptive. The rename should land together with the full scenario engine, not before.
+Per-scenario headings (locked in spec 13):
 
-**Section heading icon**: 💡 (replaces 📊 assigned in spec 11 P3 — update the heading in `OverviewTab.tsx` when this spec is implemented)
+| Scenario | Heading |
+|----------|---------|
+| A — First month | 🌱 Getting started |
+| B — MoM comparison | 📊 What changed? |
+| C — Gap + highlights | 📅 Spending highlights |
+| D — Tracking quality | 📋 Tracking summary |
+
+Item 8 (scenario selector) must use these headings — not a single shared heading.
 
 ---
 
@@ -197,11 +204,11 @@ Replace the current `mom && (() => { ... })()` IIFE with a clean scenario select
 
   return (
     <section>
-      <div className="flex items-center justify-between mb-1">
-        <h2 className="text-xs font-syne font-bold tracking-widest"
-            style={{ color: "var(--text-sub)" }}>
-          💡 Insights
-        </h2>
+      <div className="flex items-center justify-between mb-3">
+        {scenario === "A" && <h2 className="text-xs font-syne font-bold tracking-widest" style={{ color: "var(--text-sub)" }}>🌱 Getting started</h2>}
+        {scenario === "B" && <h2 className="text-xs font-syne font-bold tracking-widest" style={{ color: "var(--text-sub)" }}>📊 What changed?</h2>}
+        {scenario === "C" && <h2 className="text-xs font-syne font-bold tracking-widest" style={{ color: "var(--text-sub)" }}>📅 Spending highlights</h2>}
+        {scenario === "D" && <h2 className="text-xs font-syne font-bold tracking-widest" style={{ color: "var(--text-sub)" }}>📋 Tracking summary</h2>}
         {scenario === "B" && prev && (
           <span className="text-xs" style={{ color: "var(--text-muted)" }}>
             vs {new Date(prev + "-01").toLocaleString("en-IN", { month: "short" })}
@@ -253,7 +260,8 @@ Items 1–3 must precede items 4–8. Items 4–7 can be parallelised.
 
 ## Acceptance Criteria (full spec)
 
-- Section heading reads "💡 Insights" in all scenarios.
+- Each scenario renders its own distinct heading (locked in spec 13): 🌱 Getting started / 📊 What changed? / 📅 Spending highlights / 📋 Tracking summary.
+- No single "💡 Insights" heading used anywhere in Section 9.
 - Scenario A: shown when no prior month; displays expense count, top category %, encouragement line. No comparison language.
 - Scenario B: shown when prior is consecutive and prior days_tracked ≥ 10; displays existing MoM rows unchanged.
 - Scenario C: shown when prior exists but gap ≥ 2 months; displays gap notice + top 3 current categories.

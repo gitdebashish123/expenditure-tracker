@@ -2,6 +2,7 @@ import { Sun, Moon } from "lucide-react";
 import { useTheme } from "@/context/ThemeContext";
 import { MonthSelector } from "@/components/shared/MonthSelector";
 import { ProfileDropdown } from "./ProfileDropdown";
+import { NotificationBell } from "./NotificationBell";
 
 /**
  * Header — sticky top bar
@@ -29,13 +30,10 @@ export function Header() {
             <h1 className="font-syne font-bold text-white text-lg leading-none tracking-tight">
               💸 Wallet Mantra
             </h1>
-            <p className="text-xs mt-0.5" style={{ color: 'var(--text-sub)' }}>
-              Beyond expense tracking
-            </p>
           </div>
 
           {/* Month selector — desktop only (centre) */}
-          <div className="hidden sm:block flex-1 flex justify-center">
+          <div className="flex-1 flex justify-center">
             <MonthSelector />
           </div>
 
@@ -49,14 +47,11 @@ export function Header() {
             >
               {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
             </button>
+            <NotificationBell />
             <ProfileDropdown />
           </div>
         </div>
 
-        {/* Month selector — mobile only (full width below header row) */}
-        <div className="sm:hidden mt-2">
-          <MonthSelector />
-        </div>
       </div>
     </header>
   );

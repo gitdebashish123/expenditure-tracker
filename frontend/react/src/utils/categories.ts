@@ -18,7 +18,7 @@ export const CATEGORY_ICONS: Record<string, string> = {
   Investments:   "📈",
   Utilities:     "⚡",
   Insurance:     "🛡️",
-  Household:     "🏡",
+  Household:     "🧺",
 };
 
 // Bills with a fixed monthly amount

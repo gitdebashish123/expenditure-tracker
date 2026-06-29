@@ -3,6 +3,7 @@
 **Date**: 2026-06-27
 **Branch**: new branch from `main` after spec 11 merges
 **Prerequisite**: spec 11 W1 (gap detection) must be deployed before this sprint begins.
+**Blocker** (2026-06-27): Spec 11 W1 is ⬜ pending — `isConsecutiveMonth` does not yet exist in `OverviewTab.tsx`. Do NOT start this sprint until W1 ships.
 
 ---
 
@@ -27,11 +28,15 @@ Open decisions resolved for this plan:
 
 ## ⚠️ Flags & Gaps
 
-### Flag 1 — `isConsecutiveMonth` already exists after spec 11 W1
-Spec 11 W1 added `isConsecutiveMonth` to `OverviewTab.tsx`. Do NOT redefine it in this sprint — reuse it directly in the scenario selector (Item 8). Read the file before writing any code to confirm the function name and location.
+### Flag 1 — `isConsecutiveMonth` does NOT yet exist (W1 pending)
+Spec 11 W1 was supposed to add `isConsecutiveMonth` to `OverviewTab.tsx` but W1 is still ⬜ pending as of 2026-06-27. At the start of this sprint, check whether W1 has shipped:
+- If W1 is done: reuse `isConsecutiveMonth` from `OverviewTab.tsx` — do not redefine it.
+- If W1 is not done: define `isConsecutiveMonth` in Item 8 (the scenario selector) before the IIFE, and skip the W1 gap-notice fallback (Scenario C already handles it better).
 
 ### Flag 2 — Existing "What Changed?" IIFE has three branches
-The current code has three internal branches: first-month (< 2 months), single-prior-month (= 2 months), and multi-month (> 2 months). Item 5 (Scenario B refactor) must preserve all three as part of a single `InsightsScenarioB` sub-component. Do not accidentally discard the single-prior-month branch.
+The current code has three internal branches: first-month (< 2 months), single-prior-month (= 2 months), and multi-month (> 2 months). In spec 12 these map as: first-month → Scenario A, single-prior-month → Scenario B, multi-month → Scenario B.
+
+**Intentional simplification**: The current single-prior-month branch shows ₹ delta only (no percentage). `InsightsScenarioB` uses `fmtMoM` for all cases, which will show percentages even on the first comparison month. This is an acceptable UX improvement — more informative, not a regression. Do not add a special branch for `mom.months.length === 2` inside `InsightsScenarioB`.
 
 ### Flag 3 — `func.distinct` in SQLAlchemy
 The `days_tracked` query uses `func.count(func.distinct(Expense.date))`. Verify the exact SQLAlchemy import path in `main.py` — it may need `from sqlalchemy import func, distinct` and the syntax `func.count(distinct(Expense.date))` instead. Check before writing the query.
@@ -42,8 +47,8 @@ Both scenarios need the top spending category. Confirm `summary.categories` is a
 ### Flag 5 — `expense_count` field name collision
 Before adding `expense_count` to the summary response, search `main.py` for any existing field by that name in the summary dict. If it already exists under a different name (e.g. `total_expenses`), use that instead of adding a duplicate.
 
-### Flag 6 — `OverviewTab.tsx` line count
-After spec 11 ships, read the file and count lines. If > 700 lines, extract scenario sub-components to `frontend/react/src/components/shared/InsightsSection.tsx`. If ≤ 700, keep inline. Make this call at the start of Item 4.
+### Flag 6 — `OverviewTab.tsx` line count — decision already made
+`OverviewTab.tsx` is currently ~1,100 lines (verified 2026-06-27), well above the 700-line threshold. **Scenario sub-components (Items 4–7) must be placed in a new file: `frontend/react/src/components/shared/InsightsSection.tsx`.** Do not keep them inline. Item 8 imports them from there.
 
 ---
 
@@ -437,9 +442,9 @@ function InsightsScenarioD({
 **Depends on**: Items 1–7 all complete
 
 **Pre-check**:
-1. Confirm `isConsecutiveMonth` exists from spec 11 W1 (Flag 1) — do not redefine.
-2. Count `OverviewTab.tsx` lines (Flag 6) — if > 700, move sub-components to `InsightsSection.tsx` first, then proceed.
-3. Verify Items 4–7 sub-components are all defined and TypeScript-clean before touching the selector.
+1. Check whether spec 11 W1 shipped (Flag 1): if `isConsecutiveMonth` exists in `OverviewTab.tsx`, reuse it; if not, define it here before the IIFE.
+2. Confirm Items 4–7 sub-components are in `InsightsSection.tsx` and TypeScript-clean (Flag 6 — extraction is mandatory, not optional).
+3. Verify Items 4–7 render correctly in isolation before wiring up the selector.
 
 **What to do**:
 

@@ -169,26 +169,183 @@ hr { border-color: var(--border) !important; }
 .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
 .scrollbar-hide::-webkit-scrollbar { display: none; }
 
-/* ── Flip card (SummaryFlipCard) ─────────────────────────────── */
-.flip-card { perspective: 600px; }
-.flip-card-inner {
-  position: relative;
-  width: 100%;
-  height: 100%;
-  transition: transform 0.3s ease;
-  transform-style: preserve-3d;
+/* ── Section headings — shared class (Spec 20) ───────────────── */
+.section-heading {
+  font-family: 'Syne', sans-serif;
+  font-weight: 700;
+  font-size: 0.75rem;      /* = text-xs */
+  letter-spacing: 0.1em;   /* ≈ tracking-widest */
+  line-height: 1.6;         /* descender room — Syne descenders need > 1.4 */
+  color: var(--text-sub);
+  padding-bottom: 4px;      /* extra descender safety */
+  /* NO text-transform — sentence case lives in source text (20A) */
 }
-.flip-card:hover .flip-card-inner,
-.flip-card-flipped .flip-card-inner { transform: rotateY(180deg); }
-.flip-card-front,
-.flip-card-back {
+
+
+/* ══════════════════════════════════════════════════════════════
+   KPI CAROUSEL — Spec 17
+   ══════════════════════════════════════════════════════════════ */
+
+/* Card gradients — dark (default) */
+.kpi-card-remaining { background: linear-gradient(135deg, #0a4a2e 0%, #0d6b3f 35%, #1a9e58 70%, #00c96e 100%); }
+.kpi-card-income    { background: linear-gradient(135deg, #1a0a4a 0%, #2e1080 35%, #5a28c8 70%, #7c55ff 100%); }
+.kpi-card-bills     { background: linear-gradient(135deg, #3a1a00 0%, #7a3800 35%, #c86000 70%, #f0920a 100%); }
+
+/* Card gradients — light mode */
+html.light .kpi-card-remaining { background: linear-gradient(135deg, #0d6b3f 0%, #1a9e58 40%, #00c96e 75%, #34d399 100%); }
+html.light .kpi-card-income    { background: linear-gradient(135deg, #2e1080 0%, #5a28c8 40%, #7c55ff 75%, #a78bfa 100%); }
+html.light .kpi-card-bills     { background: linear-gradient(135deg, #7a3800 0%, #c86000 40%, #f0920a 75%, #fbbf24 100%); }
+
+/* Text inside cards — always white regardless of theme */
+.kpi-card-value   { color: #ffffff; }
+.kpi-card-label   { color: rgba(255, 255, 255, 0.85); }
+.kpi-card-sub     { color: rgba(255, 255, 255, 0.72); text-shadow: 0 1px 2px rgba(0,0,0,0.15); }
+.kpi-card-pending { color: rgba(255, 210, 130, 0.95); }
+
+/* Card shell (shared geometry + surface effects) */
+.kpi-card-shell {
+  border-radius: 22px;
+  position: relative;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.kpi-card-shell::before {
+  content: "";
   position: absolute;
-  inset: 0;
-  backface-visibility: hidden;
-  -webkit-backface-visibility: hidden;
+  top: -30%;
+  left: -20%;
+  width: 60%;
+  height: 80%;
+  background: radial-gradient(ellipse, rgba(255,255,255,0.25) 0%, transparent 70%);
+  mix-blend-mode: overlay;
+  pointer-events: none;
+}
+.kpi-card-shell::after {
+  content: "";
+  position: absolute;
+  top: 0; right: 0; bottom: 0; left: 0;
+  background: linear-gradient(135deg, transparent 45%, rgba(255,255,255,0.06) 55%, transparent 65%);
+  pointer-events: none;
+}
+
+/* Left accent bar */
+.kpi-card-shell .kpi-accent {
+  position: absolute;
+  left: 0; top: 16px; bottom: 16px;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+}
+.kpi-card-remaining .kpi-accent { background: #00c96e; }
+.kpi-card-income    .kpi-accent { background: #a78bfa; }
+.kpi-card-bills     .kpi-accent { background: #fbbf24; }
+
+/* ── Mobile carousel wrapper ─────────────────────────────────── */
+.kpi-carousel-wrapper {
+  position: relative;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* ── Mobile native scroll-snap carousel ─────────────────────── */
+.kpi-scroller {
   display: flex;
-  flex-direction: column;
+  gap: 12px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+  padding: 0 18px;
+  scroll-padding-left: 18px;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.kpi-scroller::-webkit-scrollbar { display: none; }
+
+.kpi-slide {
+  flex: 0 0 calc(100% - 52px);   /* next card peeks ~34px on the right */
+  scroll-snap-align: start;
+  height: 150px;
+  border-radius: 22px;
+  position: relative;
+  overflow: hidden;
+  padding: 18px 20px;
+}
+
+/* Watermark */
+.kpi-watermark {
+  position: absolute;
+  right: 16px;
+  top: 12px;
+  font-size: 20px;
+  font-weight: 900;
+  font-style: italic;
+  color: rgba(255, 255, 255, 0.07);
+  pointer-events: none;
+}
+
+/* Slide header (icon + label row) */
+.kpi-slide-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+.kpi-slide-icon { font-size: 16px; }
+
+/* Dot indicators — mobile only */
+.kpi-dots {
+  display: flex;
   align-items: center;
   justify-content: center;
+  gap: 6px;
+  margin-top: 12px;
 }
-.flip-card-back { transform: rotateY(180deg); }
+.kpi-dot {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--border-lg);
+  transition: width 250ms ease, background 250ms ease;
+  cursor: pointer;
+  border: none;
+  padding: 0;
+  width: 6px;
+}
+.kpi-dot.active {
+  width: 20px;
+  background: var(--accent);
+}
+
+/* ── Desktop row (≥ 768px) — all 3 cards visible ─────────────── */
+.kpi-desktop-row {
+  display: none;
+  align-items: stretch;
+  gap: 12px;
+}
+@media (min-width: 768px) {
+  .kpi-scroller,
+  .kpi-dots { display: none; }
+
+  .kpi-desktop-row { display: flex; }
+
+  .kpi-desktop-row .kpi-card-shell {
+    flex: 1;
+    height: 140px;
+    cursor: pointer;
+    transition: transform 250ms cubic-bezier(0.25,0.46,0.45,0.94),
+                box-shadow 250ms ease,
+                opacity 250ms ease;
+    opacity: 0.85;
+  }
+  .kpi-desktop-row .kpi-card-shell:hover {
+    transform: translateY(-2px);
+    opacity: 1;
+  }
+  .kpi-desktop-row .kpi-card-shell.active {
+    transform: translateY(-4px) scale(1.02);
+    opacity: 1;
+    box-shadow: 0 0 0 2px rgba(255,255,255,0.18), 0 12px 36px rgba(0,0,0,0.45);
+  }
+  .kpi-desktop-row .kpi-card-shell.side {
+    opacity: 0.78;
+  }
+}

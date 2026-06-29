@@ -11,7 +11,7 @@ interface Balance {
 export function BalanceBreakdown({ balance }: { balance: Balance }) {
   const inc = Math.max(balance.total_income, 1);
 
-  const segments = [
+  const segments: Array<{ label: string; shortLabel: string; value: number; colour: string; legendOnly?: boolean }> = [
     {
       label:      "Fixed Paid",
       shortLabel: "Bills",
@@ -35,23 +35,21 @@ export function BalanceBreakdown({ balance }: { balance: Balance }) {
       shortLabel: "Balance",
       value:      Math.max(balance.remaining, 0),
       colour:     "rgba(52,211,153,0.4)",
+      legendOnly: true,
     },
   ];
 
   return (
     <div className="bg-dark-card border border-white/10 rounded-2xl p-4">
-      <p
-        className="text-xs uppercase tracking-widest mb-3"
-        style={{ color: "var(--text-sub)" }}
-      >
-        Monthly Breakdown
+      <p className="section-heading mb-3">
+        Monthly breakdown
       </p>
 
       {/* Stacked bar */}
       <div className="flex h-7 rounded-lg overflow-hidden gap-px">
         {segments.map(s => {
           const pct = Math.min((s.value / inc) * 100, 100);
-          if (pct < 0.5) return null;
+          if (pct < 0.5 || s.legendOnly) return null;
           const pctRounded = Math.round(pct);
           const text = pct >= 12
             ? `${s.shortLabel} ${pctRounded}%`

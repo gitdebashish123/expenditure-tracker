@@ -5,11 +5,14 @@ import { useMonth } from "@/context/MonthContext";
 import { fmtInr } from "@/utils/formatInr";
 import { fmtDate } from "@/utils/formatDate";
 import { CATEGORY_ICONS, FIXED_CATEGORIES } from "@/utils/categories";
+import { KpiCarousel } from "@/components/shared/KpiCarousel";
+import type { KpiCard } from "@/components/shared/KpiCarousel";
 import { BalanceBreakdown } from "@/components/shared/BalanceBreakdown";
 import { SpendDonut } from "@/components/shared/SpendDonut";
 import { SignalCard, SpendingSignalsModal } from "@/components/shared/SpendingSignalsModal";
 import { useToast } from "@/context/ToastContext";
 import type { Summary, ProjectionItem, DueReminder, MonthlyStory, TinyWin, PeaceOfMind } from "@/types";
+import { InsightsScenarioA, InsightsScenarioB, InsightsScenarioC, InsightsScenarioD } from "@/components/shared/InsightsSection";
 
 /**
  * OverviewTab — full financial dashboard for the selected month
@@ -17,7 +20,7 @@ import type { Summary, ProjectionItem, DueReminder, MonthlyStory, TinyWin, Peace
  * Streamlit ref: with tab3: in frontend/app.py
  *
  * Sections:
- *   1. Balance summary cards (3-col grid)
+ *   1. KPI carousel (swipeable, 3 cards: Remaining / Income / Bills Paid)
  *   2. Balance breakdown stacked bar
  *   3. Spend donut chart (bonus — not in Streamlit)
  *   4. Budget health projection cards
@@ -42,8 +45,9 @@ interface TopSpend {
 }
 
 interface MoMData {
-  months:     string[];
-  categories: Record<string, Record<string, number>>;
+  months:      string[];
+  categories:  Record<string, Record<string, number>>;
+  days_tracked: Record<string, number>;
 }
 
 // ── Sub-components ─────────────────────────────────────────────────────────────
@@ -52,7 +56,7 @@ const RANK_COLOURS = ["#f59e0b", "#94a3b8", "#b45309", "#6366f1", "#6366f1"];
 
 const DONUT_FILTERS = [
   { value: "variable" as const, label: "Variable"    },
-  { value: "fixed"    as const, label: "Fixed Bills"  },
+  { value: "fixed"    as const, label: "Commitments"  },
   { value: "all"      as const, label: "All"          },
 ];
 
@@ -171,6 +175,12 @@ function OverviewSkeleton() {
   );
 }
 
+const COMPARATIVE_TERMS = ["% from", "last month", "compared to", "jumped", "increased by", "decreased by"];
+function isSafeInsight(text: string, isFirstMonth: boolean): boolean {
+  if (!isFirstMonth) return true;
+  return !COMPARATIVE_TERMS.some(term => text.toLowerCase().includes(term));
+}
+
 // ── Main component ─────────────────────────────────────────────────────────────
 
 export function OverviewTab({ onTabChange }: { onTabChange?: (path: string) => void }) {
@@ -252,76 +262,60 @@ export function OverviewTab({ onTabChange }: { onTabChange?: (path: string) => v
   }
 
   const { balance } = summary;
+  // The /summary endpoint returns a zero-filled object (never null) for an empty
+  // prior month, so treat "no real prior activity" as first-month too.
+  const isFirstMonth =
+    prevSummary === null || (prevSummary.balance?.variable_total ?? 0) === 0;
+
+  const isConsecutiveMonth = (current: string, prior: string): boolean => {
+    const [cy, cm] = current.split("-").map(Number);
+    const [py, pm] = prior.split("-").map(Number);
+    const expectedPriorMonth = cm === 1 ? 12 : cm - 1;
+    const expectedPriorYear  = cm === 1 ? cy - 1 : cy;
+    return py === expectedPriorYear && pm === expectedPriorMonth;
+  };
+
+  const kpiCards: KpiCard[] = [
+    {
+      id: "remaining",
+      label: "Remaining",
+      icon: "💰",
+      value: fmtInr(balance.remaining),
+      subtitle: "Left for the month",
+      accent: "#00c96e",
+      gradientClass: "kpi-card-remaining",
+      pending: null,
+    },
+    {
+      id: "income",
+      label: "Income",
+      icon: "💼",
+      value: fmtInr(balance.total_income),
+      subtitle: "Total this month",
+      accent: "#a78bfa",
+      gradientClass: "kpi-card-income",
+      pending: null,
+    },
+    {
+      id: "bills",
+      label: "Commitments Paid",
+      icon: "✅",
+      value: fmtInr(balance.fixed_paid_total),
+      subtitle: `Out of ${fmtInr(balance.fixed_paid_total + balance.fixed_unpaid_total)}`,
+      accent: "#fbbf24",
+      gradientClass: "kpi-card-bills",
+      pending: balance.fixed_unpaid_total > 0
+        ? `${fmtInr(balance.fixed_unpaid_total)} still pending`
+        : null,
+    },
+  ];
 
   return (
     <div className="space-y-6">
 
-      {/* ── Section 0: Financial Snapshot ────────────────── */}
+      {/* ── Section 0: KPI Carousel ─────────────────────────── */}
       <section>
-        <h2
-          className="text-xs font-syne font-bold uppercase tracking-widest mb-3"
-          style={{ color: "var(--text-sub)" }}
-        >
-          Financial Snapshot
-        </h2>
-        <div className="grid grid-cols-2 gap-3">
-          {[
-            {
-              label:    "Remaining",
-              value:    balance.remaining,
-              icon:     "💰",
-              colour:   balance.remaining >= 0 ? "#34d399" : "#f87171",
-              subtitle: undefined as string | undefined,
-            },
-            {
-              label:    "Income",
-              value:    balance.total_income,
-              icon:     "💼",
-              colour:   "#6366f1",
-              subtitle: undefined as string | undefined,
-            },
-            {
-              label:    "Bills Paid",
-              value:    balance.fixed_paid_total,
-              icon:     "✅",
-              colour:   "#f59e0b",
-              subtitle: balance.fixed_unpaid_total === 0
-                ? "All bills cleared ✓"
-                : `Out of ${fmtInr(balance.fixed_paid_total + balance.fixed_unpaid_total)}`,
-            },
-            {
-              label:    balance.fixed_unpaid_total === 0 ? "All Bills Clear ✓" : "Pending Bills",
-              value:    balance.fixed_unpaid_total,
-              icon:     balance.fixed_unpaid_total === 0 ? "🎉" : "⏳",
-              colour:   balance.fixed_unpaid_total === 0 ? "#34d399" : "#f87171",
-              subtitle: undefined as string | undefined,
-            },
-          ].map(tile => (
-            <div
-              key={tile.label}
-              className="rounded-2xl p-4 border"
-              style={{ background: "var(--card)", borderColor: "var(--border-lg)" }}
-            >
-              <div className="flex items-center gap-1.5 mb-2">
-                <span className="text-base">{tile.icon}</span>
-                <p
-                  className="text-[10px] font-syne font-bold uppercase tracking-widest"
-                  style={{ color: "var(--text-sub)" }}
-                >
-                  {tile.label}
-                </p>
-              </div>
-              <p className="text-lg font-syne font-bold" style={{ color: tile.colour }}>
-                {fmtInr(tile.value)}
-              </p>
-              {tile.subtitle && (
-                <p className="text-[10px] mt-1" style={{ color: "var(--text-sub)" }}>
-                  {tile.subtitle}
-                </p>
-              )}
-            </div>
-          ))}
-        </div>
+        <KpiCarousel cards={kpiCards} />
       </section>
 
       {/* ── Section 0b: This Month's Story ───────────────── */}
@@ -331,12 +325,28 @@ export function OverviewTab({ onTabChange }: { onTabChange?: (path: string) => v
             className="rounded-2xl border p-5 flex items-start gap-4 overflow-hidden"
             style={{ background: "var(--card)", borderColor: "var(--border-lg)" }}
           >
+            {/* Dynamic month badge */}
+            <div
+              className="flex-shrink-0 flex flex-col items-center justify-center rounded-xl border px-3 py-2 text-center"
+              style={{ background: "var(--card2)", borderColor: "var(--border-lg)", minWidth: 52 }}
+            >
+              <p
+                className="text-[10px] font-syne font-bold uppercase tracking-widest"
+                style={{ color: "var(--accent)" }}
+              >
+                {new Date(selMonth + "-01").toLocaleString("en-IN", { month: "short" })}
+              </p>
+              <p className="text-sm font-bold leading-tight" style={{ color: "var(--text)" }}>
+                {selMonth.split("-")[0]}
+              </p>
+            </div>
+
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-1.5 mb-2">
                 <span style={{ color: "#f59e0b" }}>✦</span>
                 <p
-                  className="text-[10px] font-syne font-bold uppercase tracking-widest"
-                  style={{ color: "var(--text-sub)" }}
+                  className="text-[10px] font-syne font-bold tracking-widest"
+                  style={{ color: "var(--text-sub)", lineHeight: 1.6, paddingBottom: 4 }}
                 >
                   {new Date(selMonth + "-01").toLocaleString("en-IN", { month: "long" })} in one sentence
                 </p>
@@ -344,16 +354,6 @@ export function OverviewTab({ onTabChange }: { onTabChange?: (path: string) => v
               <p className="text-sm leading-relaxed" style={{ color: "var(--text)" }}>
                 {story}
               </p>
-            </div>
-            {/* Decorative illustration */}
-            <div
-              className="hidden sm:flex flex-col items-center justify-center flex-shrink-0
-                         text-4xl leading-none select-none opacity-50"
-              style={{ width: 72, height: 72 }}
-              aria-hidden="true"
-            >
-              <span>📅</span>
-              <span className="text-xl mt-1">✨</span>
             </div>
           </div>
         </section>
@@ -366,7 +366,7 @@ export function OverviewTab({ onTabChange }: { onTabChange?: (path: string) => v
         <section className="h-full flex flex-col gap-3">
           <BalanceBreakdown balance={balance} />
 
-          {monthlyInsight && (
+          {monthlyInsight && isSafeInsight(monthlyInsight, isFirstMonth) && (
             <div
               className="flex-1 rounded-2xl border p-4"
               style={{ borderColor: "var(--border)", background: "var(--card)" }}
@@ -390,11 +390,8 @@ export function OverviewTab({ onTabChange }: { onTabChange?: (path: string) => v
             >
               {/* Header + filter tabs */}
               <div className="flex items-center justify-between mb-3">
-                <h2
-                  className="text-xs font-syne font-bold uppercase tracking-widest"
-                  style={{ color: "var(--text-sub)" }}
-                >
-                  Spend by Category
+                <h2 className="section-heading">
+                  Spend by category
                 </h2>
                 <div className="relative">
                   <select
@@ -435,7 +432,35 @@ export function OverviewTab({ onTabChange }: { onTabChange?: (path: string) => v
               {(() => {
                 const varCats = summary.categories.filter(c => !FIXED_CATEGORIES.includes(c.category));
                 if (varCats.length === 0) return null;
-                const top = [...varCats].sort((a, b) => b.spent - a.spent)[0];
+                const eligibleCats = varCats.filter(c => c.category !== 'Miscellaneous');
+                const top = eligibleCats.length > 0
+                  ? [...eligibleCats].sort((a, b) => b.spent - a.spent)[0]
+                  : null;
+
+                if (!top) {
+                  return (
+                    <div
+                      className="mt-3 pt-3 border-t"
+                      style={{ borderColor: "var(--border)" }}
+                    >
+                      <p className="section-heading mb-2">
+                        Category winner
+                      </p>
+                      <div className="flex items-center gap-3">
+                        <span className="text-2xl flex-shrink-0">🏅</span>
+                        <div>
+                          <p className="text-sm font-syne font-bold" style={{ color: "var(--text)" }}>
+                            No clear winner this month
+                          </p>
+                          <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>
+                            Most spending was uncategorized. Try reviewing your transaction categories.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                }
+
                 const pctOfVar = balance.variable_total > 0
                   ? Math.round(top.spent / balance.variable_total * 100)
                   : 0;
@@ -602,11 +627,8 @@ export function OverviewTab({ onTabChange }: { onTabChange?: (path: string) => v
 
           return (
             <section className="h-full">
-              <div className="flex items-center justify-between mb-3">
-                <h2
-                  className="text-xs font-syne font-bold tracking-widest"
-                  style={{ color: "var(--text-sub)" }}
-                >
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="section-heading">
                   📡 Spending signals
                 </h2>
                 <button
@@ -628,13 +650,10 @@ export function OverviewTab({ onTabChange }: { onTabChange?: (path: string) => v
 
       </div>
 
-      {/* ── Section 7: Upcoming Reality ──────────────────── */}
+      {/* ── Section 7: Coming Up (due bills + month-end balance) ─── */}
       <section>
-        <h2
-          className="text-xs font-syne font-bold tracking-widest mb-3"
-          style={{ color: "var(--text-sub)" }}
-        >
-          📅 Upcoming reality
+        <h2 className="section-heading mb-4">
+          🔔 Coming up
         </h2>
         <div
           className="rounded-2xl border overflow-hidden"
@@ -644,7 +663,7 @@ export function OverviewTab({ onTabChange }: { onTabChange?: (path: string) => v
           <div className="p-4">
             {dueReminders.length === 0 ? (
               <p className="text-sm font-medium" style={{ color: "#34d399" }}>
-                🎉 All bills paid this month
+                🎉 All commitments paid this month
               </p>
             ) : (
               (() => {
@@ -705,12 +724,9 @@ export function OverviewTab({ onTabChange }: { onTabChange?: (path: string) => v
       {/* ── Section 8: Money Moments ─────────────────────── */}
       {topSpends.length > 0 && (
         <section>
-          <div className="flex items-center justify-between mb-3">
-            <h2
-              className="text-xs font-syne font-bold uppercase tracking-widest"
-              style={{ color: "var(--text-sub)" }}
-            >
-              💎 Money Moments
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="section-heading">
+              💎 Money moments
             </h2>
             <button
               className="text-xs"
@@ -739,185 +755,52 @@ export function OverviewTab({ onTabChange }: { onTabChange?: (path: string) => v
         </section>
       )}
 
-      {/* ── Section 9: What Changed? ─────────────────────── */}
+      {/* ── Section 9: Tracking summary / What Changed? ─── */}
       {mom && (() => {
-        const SAVINGS_CATS = new Set(["Savings", "Investments"]);
-
-        // ── Scenario 2: first month — no prior data, show spending highlights ──
-        if (mom.months.length < 2) {
-          const highlights = [...summary.categories]
-            .filter(c => c.spent > 0)
-            .sort((a, b) => b.spent - a.spent)
-            .slice(0, 3);
-          if (highlights.length === 0) return null;
-          return (
-            <section>
-              <h2
-                className="text-xs font-syne font-bold uppercase tracking-widest mb-1"
-                style={{ color: "var(--text-sub)" }}
-              >
-                Spending Highlights
-              </h2>
-              <p className="text-xs mb-3" style={{ color: "var(--text-muted)" }}>
-                Your first month — no prior comparison yet
-              </p>
-              <div className="space-y-0">
-                {highlights.map(({ category, spent }) => (
-                  <div key={category} className="flex items-center gap-3 py-2.5 border-b"
-                       style={{ borderColor: "var(--border-lg)" }}>
-                    <span className="text-lg w-5 flex-shrink-0 text-center">
-                      {CATEGORY_ICONS[category] ?? "📦"}
-                    </span>
-                    <span className="flex-1 text-sm" style={{ color: "var(--text)" }}>
-                      {category}
-                    </span>
-                    <span className="text-sm font-syne font-semibold"
-                          style={{ color: "var(--text)" }}>
-                      {fmtInr(spent)}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </section>
-          );
-        }
-
         const curr = mom.months[mom.months.length - 1];
-        const prev = mom.months[mom.months.length - 2];
-        const prevLabel = new Date(prev + "-01").toLocaleString("en-IN", { month: "short" });
+        const prev = mom.months.length >= 2 ? mom.months[mom.months.length - 2] : null;
+        const isFirstMonth    = !prev;
+        const isConsecutive   = prev ? isConsecutiveMonth(curr, prev) : false;
+        const currDaysTracked = mom.days_tracked?.[curr] ?? 0;
+        const prevDaysTracked = prev ? (mom.days_tracked?.[prev] ?? 0) : 0;
+        const isQualityData   = prevDaysTracked >= 10;
 
-        const changes = Object.entries(mom.categories)
-          .map(([cat, byMonth]) => ({
-            cat,
-            currAmt: byMonth[curr] ?? 0,
-            prevAmt: byMonth[prev] ?? 0,
-            delta:   (byMonth[curr] ?? 0) - (byMonth[prev] ?? 0),
-          }))
-          .filter(c => c.prevAmt > 0 || c.currAmt > 0)
-          .sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta))
-          .slice(0, 4);
+        const scenario =
+          isFirstMonth                   ? "A" :
+          isConsecutive && isQualityData ? "B" :
+          isConsecutive                  ? "D" :
+          "C";
 
-        if (changes.length === 0) return null;
-
-        // ── Scenario 3: exactly 1 prior month — ₹ delta only, no percentage ──
-        if (mom.months.length === 2) {
-          return (
-            <section>
-              <h2
-                className="text-xs font-syne font-bold tracking-widest mb-1"
-                style={{ color: "var(--text-sub)" }}
-              >
-                📊 What changed?
-              </h2>
-              <p className="text-xs mb-3" style={{ color: "var(--text-muted)" }}>
-                vs {prevLabel}
-              </p>
-              <div className="space-y-0">
-                {changes.map(({ cat, delta, prevAmt, currAmt }) => {
-                  const isUp = delta > 0;
-                  const isSavingsCat = SAVINGS_CATS.has(cat);
-                  const isPositive = isSavingsCat ? isUp : !isUp;
-                  const dotColour = isPositive ? "#34d399" : "#f87171";
-                  const icon = isUp ? "↑" : "↓";
-                  const label = currAmt > 0 && prevAmt === 0
-                    ? "New this month"
-                    : `${icon} ${fmtInr(Math.abs(delta))}`;
-
-                  return (
-                    <div key={cat} className="flex items-center gap-3 py-2.5 border-b"
-                         style={{ borderColor: "var(--border-lg)" }}>
-                      <span className="text-lg w-5 flex-shrink-0 text-center"
-                            style={{ color: currAmt > 0 && prevAmt === 0 ? "var(--text-muted)" : dotColour }}>
-                        {currAmt > 0 && prevAmt === 0 ? "✦" : icon}
-                      </span>
-                      <span className="flex-1 text-sm" style={{ color: "var(--text)" }}>
-                        {cat}
-                      </span>
-                      <div className="text-right">
-                        <span className="text-sm font-syne font-semibold"
-                              style={{ color: currAmt > 0 && prevAmt === 0 ? "var(--text-muted)" : dotColour }}>
-                          {label}
-                        </span>
-                        <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-                          {fmtInr(currAmt)} this month
-                        </p>
-                      </div>
-                    </div>
-                  );
-                })}
-                <button
-                  onClick={() => toast("Full breakdown coming soon.")}
-                  className="text-xs mt-2 w-full text-right transition-opacity hover:opacity-70"
-                  style={{ color: "var(--accent)" }}
-                >
-                  View all →
-                </button>
-              </div>
-            </section>
-          );
-        }
-
-        const fmtMoM = (rawPct: number | null, prevAmt: number): string => {
-          if (prevAmt === 0) return "New this month";
-          if (rawPct === null) return "—";
-          if (Math.abs(rawPct) > 300) return rawPct > 0 ? "↑ New high" : "↓ Major drop";
-          return `${rawPct > 0 ? "↑" : "↓"} ${Math.abs(Math.round(rawPct))}%`;
-        };
-
-        // ── Scenario 1: 2+ prior months — full comparison with percentage ──
         return (
           <section>
-            <h2
-              className="text-xs font-syne font-bold uppercase tracking-widest mb-1"
-              style={{ color: "var(--text-sub)" }}
-            >
-              What Changed?
-            </h2>
-            <p className="text-xs mb-3" style={{ color: "var(--text-muted)" }}>
-              vs {prevLabel}
-            </p>
-            <div className="space-y-0">
-              {changes.map(({ cat, delta, prevAmt, currAmt }) => {
-                const isUp = delta > 0;
-                const isSavingsCat = SAVINGS_CATS.has(cat);
-                const isPositive = isSavingsCat ? isUp : !isUp;
-                const dotColour = isPositive ? "#34d399" : "#f87171";
-                const rawPct = prevAmt > 0 ? Math.round((delta / prevAmt) * 100) : null;
-                const momStr = fmtMoM(rawPct, prevAmt);
-                const label = prevAmt === 0
-                  ? momStr
-                  : `${momStr} (${fmtInr(Math.abs(delta))})`;
-
-                return (
-                  <div key={cat} className="flex items-center gap-3 py-2.5 border-b"
-                       style={{ borderColor: "var(--border-lg)" }}>
-                    <span className="text-lg w-5 flex-shrink-0 text-center"
-                          style={{ color: dotColour }}>
-                      {isUp ? "↑" : "↓"}
-                    </span>
-                    <span className="flex-1 text-sm" style={{ color: "var(--text)" }}>
-                      {cat}
-                    </span>
-                    <div className="text-right">
-                      <span className="text-sm font-syne font-semibold"
-                            style={{ color: dotColour }}>
-                        {label}
-                      </span>
-                      <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-                        {fmtInr(currAmt)} this month
-                      </p>
-                    </div>
-                  </div>
-                );
-              })}
-              <button
-                onClick={() => toast("Full breakdown coming soon.")}
-                className="text-xs mt-2 w-full text-right transition-opacity hover:opacity-70"
-                style={{ color: "var(--accent)" }}
-              >
-                View all →
-              </button>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="section-heading">
+                {scenario === "A" ? "🌱 Getting started"     :
+                 scenario === "B" ? "📊 What changed?"       :
+                 scenario === "C" ? "📅 Spending highlights"  :
+                                    "📋 Tracking summary"}
+              </h2>
+              {scenario === "B" && prev && (
+                <span className="text-xs" style={{ color: "var(--text-muted)" }}>
+                  vs {new Date(prev + "-01").toLocaleString("en-IN", { month: "short" })}
+                </span>
+              )}
             </div>
+
+            {scenario === "A" && <InsightsScenarioA summary={summary} />}
+            {scenario === "B" && prev && (
+              <InsightsScenarioB
+                mom={mom}
+                summary={summary}
+                curr={curr}
+                prev={prev}
+                onViewAll={() => toast("See all transactions in the History tab →")}
+              />
+            )}
+            {scenario === "C" && prev && <InsightsScenarioC summary={summary} prev={prev} />}
+            {scenario === "D" && (
+              <InsightsScenarioD currDays={currDaysTracked} prevDays={prevDaysTracked} />
+            )}
           </section>
         );
       })()}
@@ -1006,7 +889,7 @@ export function OverviewTab({ onTabChange }: { onTabChange?: (path: string) => v
                 <Activity size={13} strokeWidth={2.5} style={{ color: "#34d399" }} />
                 <p
                   className="text-[10px] font-syne font-bold tracking-widest"
-                  style={{ color: "var(--text-sub)" }}
+                  style={{ color: "var(--text-sub)", lineHeight: 1.6 }}
                 >
                   💓 Financial pulse
                 </p>
@@ -1021,7 +904,7 @@ export function OverviewTab({ onTabChange }: { onTabChange?: (path: string) => v
                     <div
                       key={s.name}
                       className={`p-4 ${rightBorder} ${bottomBorder}`}
-                      style={{ borderColor: "var(--border-lg)" }}
+                      style={{ borderColor: "var(--border-lg)", minHeight: 120 }}
                     >
                       <span className="text-xl">{s.icon}</span>
                       <p className="text-sm font-syne font-semibold mt-2" style={{ color: s.colour }}>
@@ -1046,7 +929,7 @@ export function OverviewTab({ onTabChange }: { onTabChange?: (path: string) => v
             className="rounded-2xl p-4 border flex items-center gap-4"
             style={{ background: "var(--card)", borderColor: "var(--border-lg)" }}
           >
-            <span className="text-2xl flex-shrink-0">🏆</span>
+            <span className="text-2xl flex-shrink-0">🌱</span>
             <div>
               <p
                 className="text-[10px] font-syne font-bold tracking-widest mb-1"

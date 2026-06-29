@@ -339,10 +339,13 @@ const isSafeInsight = (text: string, isFirstMonth: boolean): boolean => {
 const isFirstMonth = prevSummary === null;
 ```
 
-**Step 4**: Add card at position 5 (after the Monthly Breakdown ∥ Spend by Category pair, before the Peace of Mind ∥ Spending Signals pair), using the guard:
+**Step 4**: The Insight card already exists in the correct position from sprint 11 Item 9 — inside the Monthly Breakdown column (`flex flex-col gap-3`), below `<BalanceBreakdown />`, with `flex-1` to fill remaining height. Confirm the existing card render uses the updated guard:
 ```tsx
 {monthlyInsight && isSafeInsight(monthlyInsight, isFirstMonth) && (
-  <div className="mx-4 mt-4 rounded-2xl border p-4" style={{ borderColor: "var(--border)", background: "var(--card)" }}>
+  <div
+    className="flex-1 rounded-2xl border p-4"
+    style={{ borderColor: "var(--border)", background: "var(--card)" }}
+  >
     <p className="text-[11px] font-semibold tracking-wide mb-2" style={{ color: "var(--accent)" }}>
       ✨ Insight
     </p>
@@ -352,9 +355,10 @@ const isFirstMonth = prevSummary === null;
   </div>
 )}
 ```
+Do NOT move the card — its position inside the Monthly Breakdown column is correct and final.
 
 **Acceptance criteria**:
-- Standalone "✨ Insight" card appears between Spend by Category and Peace of Mind.
+- "✨ Insight" card sits inside the Monthly Breakdown column, below `<BalanceBreakdown />`, using `flex-1` to fill remaining height.
 - First-month users receive an encouraging, forward-looking sentence with no comparative language.
 - Returning users receive a comparative observation only when prior data is non-zero.
 - If `isSafeInsight` returns false (backend guard failed), card is suppressed silently.

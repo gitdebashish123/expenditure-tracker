@@ -125,7 +125,7 @@ function TodaysMantraCard() {
               </p>
             )}
             {ctx.fixed_unpaid_total > 0 && (
-              <p><span className="font-semibold">Fixed bills pending:</span> {fmtRs(ctx.fixed_unpaid_total)}</p>
+              <p><span className="font-semibold">Fixed commitments pending:</span> {fmtRs(ctx.fixed_unpaid_total)}</p>
             )}
           </div>
         )}

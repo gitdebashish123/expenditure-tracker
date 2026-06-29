@@ -1,3 +1,4 @@
+import { createPortal } from "react-dom";
 import type { ProjectionItem } from "@/types";
 import { fmtInr } from "@/utils/formatInr";
 import { CATEGORY_ICONS } from "@/utils/categories";
@@ -29,7 +30,7 @@ export function SignalCard({ p }: { p: ProjectionItem }) {
   return (
     <div
       className="rounded-2xl p-4"
-      style={{ background: sig.bg, border: `1px solid ${sig.colour}30` }}
+      style={{ background: sig.bg, border: `1px solid ${sig.colour}30`, overflow: 'hidden' }}
     >
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0">
@@ -68,24 +69,24 @@ export function SpendingSignalsModal({
   projections: ProjectionItem[];
 }) {
   if (!open) return null;
-  return (
+  return createPortal(
     <>
-      {/* Backdrop */}
+      {/* Backdrop — cursor:pointer required for iOS Safari onClick */}
       <div
-        style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 50 }}
+        style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 200, cursor: "pointer" }}
         onClick={onClose}
       />
       {/* Sheet */}
       <div
         style={{
-          position:    "fixed",
-          bottom:      0,
-          left:        0,
-          right:       0,
-          maxHeight:   "85vh",
-          overflowY:   "auto",
-          zIndex:      51,
-          background:  "var(--card)",
+          position:     "fixed",
+          bottom:       0,
+          left:         0,
+          right:        0,
+          maxHeight:    "85vh",
+          overflowY:    "auto",
+          zIndex:       201,
+          background:   "var(--card)",
           borderRadius: "1.25rem 1.25rem 0 0",
         }}
       >
@@ -109,6 +110,7 @@ export function SpendingSignalsModal({
           </div>
         </div>
       </div>
-    </>
+    </>,
+    document.body,
   );
 }
