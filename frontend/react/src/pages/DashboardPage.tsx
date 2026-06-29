@@ -1,13 +1,14 @@
 import { useState, useEffect, useCallback } from "react";
 import { useAuth }              from "@/context/AuthContext";
 import { MonthProvider }        from "@/context/MonthContext";
+import { PrivacyProvider }      from "@/context/PrivacyContext";
 import { useMonth }             from "@/context/MonthContext";
 import { Header }               from "@/components/layout/Header";
 import { BottomNav }            from "@/components/layout/BottomNav";
 import { OnboardingWizard }     from "@/components/onboarding/OnboardingWizard";
 import { ErrorBoundary }        from "@/components/shared/ErrorBoundary";
-import { SummaryStrip }         from "@/components/shared/SummaryStrip";
-import { SummaryFlipCard }      from "@/components/shared/SummaryFlipCard";
+import { KpiCarousel }          from "@/components/shared/KpiCarousel";
+import type { KpiCard }         from "@/components/shared/KpiCarousel";
 import { HeroBalanceCard }      from "@/components/shared/HeroBalanceCard";
 import { QuickAddTab }          from "@/components/tabs/QuickAddTab";
 import { FixedTab }             from "@/components/tabs/FixedTab";
@@ -16,6 +17,7 @@ import { HistoryTab }           from "@/components/tabs/HistoryTab";
 import { SettingsTab }          from "@/components/tabs/SettingsTab";
 import { AdminTab }             from "@/components/tabs/AdminTab";
 import { api }                  from "@/api/client";
+import { fmtInr }               from "@/utils/formatInr";
 import type { Summary }         from "@/types";
 
 type Tab = "today" | "fixed" | "overview" | "history" | "settings" | "admin";
@@ -35,12 +37,13 @@ function DashboardShell({ tab, onTabChange, isAdmin }: {
   isAdmin:     boolean;
 }) {
   const { selMonth } = useMonth();
-  const [balance,    setBalance]    = useState<Summary["balance"] | null>(null);
-  const [refreshKey, setRefreshKey] = useState(0);
+  const [balance,       setBalance]       = useState<Summary["balance"] | null>(null);
+  const [fixedProgress, setFixedProgress] = useState<Summary["fixed_progress"] | null>(null);
+  const [refreshKey,    setRefreshKey]    = useState(0);
 
   const fetchSummary = useCallback(() => {
     api.get<Summary>(`/summary/${selMonth}`)
-      .then(r => setBalance(r.data.balance))
+      .then(r => { setBalance(r.data.balance); setFixedProgress(r.data.fixed_progress); })
       .catch(() => {});
   }, [selMonth]);
 
@@ -48,24 +51,32 @@ function DashboardShell({ tab, onTabChange, isAdmin }: {
 
   const bumpRefresh = useCallback(() => setRefreshKey(k => k + 1), []);
 
-  const showSummary = tab === "today" || tab === "fixed" || tab === "overview";
-
-  // Derived flip-card configs for the 3 cards
-  const flipCards = balance ? [
+  const totalCount = fixedProgress?.total ?? 0;
+  const paidCount  = fixedProgress?.paid  ?? 0;
+  const fixedCards: KpiCard[] = balance ? [
     {
-      label:  "Remaining",
-      value:  balance.remaining,
-      colour: balance.remaining >= 0 ? "#34d399" : "#f87171",
+      id: "fx-total",
+      label: "Fixed total",
+      value: fmtInr(balance.fixed_paid_total + balance.fixed_unpaid_total),
+      subtitle: `${totalCount} items this month`,
+      accent: "#fbbf24",
+      gradientClass: "kpi-card-bills",
     },
     {
-      label:  "Income",
-      value:  balance.total_income,
-      colour: "#6366f1",
+      id: "fx-paid",
+      label: "Fixed paid",
+      value: fmtInr(balance.fixed_paid_total),
+      subtitle: `${paidCount} of ${totalCount} items`,
+      accent: "#34d399",
+      gradientClass: "kpi-card-bills",
     },
     {
-      label:  "Fixed Paid",
-      value:  balance.fixed_paid_total,
-      colour: "#f59e0b",
+      id: "fx-left",
+      label: "Fixed left",
+      value: fmtInr(balance.fixed_unpaid_total),
+      subtitle: balance.fixed_unpaid_total === 0 ? "All clear" : `${totalCount - paidCount} pending`,
+      accent: balance.fixed_unpaid_total === 0 ? "#34d399" : "#f59e0b",
+      gradientClass: "kpi-card-bills",
     },
   ] : [];
 
@@ -81,33 +92,16 @@ function DashboardShell({ tab, onTabChange, isAdmin }: {
         </div>
       )}
 
-      {/* Fixed tab: summary strip + flip-cards (Overview has its own KPI tiles) */}
+      {/* Fixed tab: amber KPI carousel */}
       {tab === "fixed" && balance && (
-        <>
-          {/* Mobile: compact count-up strip */}
-          <div
-            className="md:hidden sticky z-20 border-b px-4 py-2"
-            style={{
-              top:             "56px",
-              backgroundColor: "var(--bg)",
-              borderColor:     "var(--border)",
-            }}
-          >
-            <SummaryStrip balance={balance} />
-          </div>
-
-          {/* Desktop: 3 flip cards */}
-          <div className="hidden md:flex gap-3 max-w-2xl mx-auto px-4 pt-4">
-            {flipCards.map(c => (
-              <SummaryFlipCard key={c.label} label={c.label} value={c.value} colour={c.colour} />
-            ))}
-          </div>
-        </>
+        <div className="max-w-2xl mx-auto px-4 pt-4">
+          <KpiCarousel cards={fixedCards} />
+        </div>
       )}
 
       <main className="max-w-2xl mx-auto px-4 py-4">
         {tab === "today"    && <ErrorBoundary><QuickAddTab onExpenseAdded={bumpRefresh} /></ErrorBoundary>}
-        {tab === "fixed"    && <ErrorBoundary><FixedTab    /></ErrorBoundary>}
+        {tab === "fixed"    && <ErrorBoundary><FixedTab onChanged={bumpRefresh} /></ErrorBoundary>}
         {tab === "overview" && <ErrorBoundary><OverviewTab onTabChange={onTabChange} /></ErrorBoundary>}
         {tab === "history"  && <ErrorBoundary><HistoryTab  /></ErrorBoundary>}
         {tab === "settings" && <ErrorBoundary><SettingsTab /></ErrorBoundary>}
@@ -131,12 +125,14 @@ export function DashboardPage() {
   };
 
   return (
-    <MonthProvider>
-      <DashboardShell
-        tab={tab}
-        onTabChange={handleTabChange}
-        isAdmin={user.is_admin}
-      />
-    </MonthProvider>
+    <PrivacyProvider>
+      <MonthProvider>
+        <DashboardShell
+          tab={tab}
+          onTabChange={handleTabChange}
+          isAdmin={user.is_admin}
+        />
+      </MonthProvider>
+    </PrivacyProvider>
   );
 }

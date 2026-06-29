@@ -3,7 +3,7 @@ import { api } from "@/api/client";
 import { CATEGORY_ICONS } from "@/utils/categories";
 import { fmtInr } from "@/utils/formatInr";
 import type { Pool } from "@/types";
-import { Plus, Trash2, ChevronDown, ChevronUp } from "lucide-react";
+import { Plus, Trash2, ChevronDown, ChevronUp, CheckCircle2, AlertCircle } from "lucide-react";
 
 interface Props {
   pool: Pool;
@@ -37,13 +37,6 @@ export function PoolCard({ pool, selMonth, onChanged }: Props) {
   const totalUnpaid = pool.unpaid_total;
   const grandTotal  = totalPaid + totalUnpaid;
 
-  // Status label shown in header
-  const poolStatus =
-    pool.entry_count === 0
-      ? "⚠️ No entries yet"
-      : totalUnpaid === 0
-      ? `✅ ${fmtInr(totalPaid)} paid`
-      : `${fmtInr(totalPaid)} paid · ${fmtInr(totalUnpaid)} unpaid`;
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -85,8 +78,14 @@ export function PoolCard({ pool, selMonth, onChanged }: Props) {
           {icon} {pool.name}
         </span>
         <div className="flex items-center gap-2">
-          <span className="text-xs" style={{ color: 'var(--text-sub)' }}>
-            {poolStatus}
+          <span className="flex items-center gap-1 text-xs" style={{ color: 'var(--text-sub)' }}>
+            {pool.entry_count === 0 ? (
+              <><AlertCircle size={12} className="text-amber-400" /> No entries yet</>
+            ) : totalUnpaid === 0 ? (
+              <><CheckCircle2 size={12} className="text-emerald-400" /> {fmtInr(totalPaid)} paid</>
+            ) : (
+              <>{fmtInr(totalPaid)} paid · {fmtInr(totalUnpaid)} unpaid</>
+            )}
           </span>
           {expanded
             ? <ChevronUp size={14} style={{ color: 'var(--text-muted)' }} />
@@ -120,11 +119,11 @@ export function PoolCard({ pool, selMonth, onChanged }: Props) {
                     {entry.paid && <span className="text-[9px] font-bold">✓</span>}
                   </button>
 
-                  {/* Label + note */}
-                  <span className={`flex-1 text-sm ${
-                    entry.paid ? "line-through" : "text-white"
-                  }`}
-                  style={entry.paid ? { color: 'var(--text-muted)' } : {}}>
+                  {/* Label + note — muted when paid, no strikethrough */}
+                  <span
+                    className="flex-1 text-sm"
+                    style={{ color: entry.paid ? 'var(--text-muted)' : 'white' }}
+                  >
                     {entry.label}
                     {entry.note && (
                       <span className="ml-2 text-xs" style={{ color: 'var(--text-muted)' }}>
@@ -166,14 +165,16 @@ export function PoolCard({ pool, selMonth, onChanged }: Props) {
                          focus:border-accent focus:outline-none"
             />
             <input
-              type="number"
-              min="0"
-              step="1"
+              type="text"
+              inputMode="decimal"
               value={amount || ""}
-              onChange={e => setAmount(Number(e.target.value))}
+              onChange={e => setAmount(parseFloat(e.target.value) || 0)}
               placeholder="₹"
               className="w-24 bg-dark-card2 border border-white/10 rounded-lg
                          px-3 py-2 text-white text-sm
+                         [appearance:textfield]
+                         [&::-webkit-outer-spin-button]:appearance-none
+                         [&::-webkit-inner-spin-button]:appearance-none
                          focus:border-accent focus:outline-none"
             />
             <button

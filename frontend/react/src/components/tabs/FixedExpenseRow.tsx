@@ -67,11 +67,11 @@ export function FixedExpenseRow({ item, onToggle, onAmountChange }: Props) {
         {item.paid && <span className="text-[10px] font-bold">✓</span>}
       </button>
 
-      {/* Vendor name — strikethrough when paid */}
-      <span className={`flex-1 text-sm transition-all duration-200 ${
-        item.paid ? "line-through" : "text-white"
-      }`}
-      style={item.paid ? { color: "var(--text-muted)" } : {}}>
+      {/* Vendor name — muted when paid, no strikethrough */}
+      <span
+        className="flex-1 text-sm transition-all duration-200"
+        style={{ color: item.paid ? "var(--text-muted)" : "white" }}
+      >
         {item.vendor}
         {item.note && item.note !== "Auto-seeded fixed expense" && (
           <span className="ml-2 text-xs" style={{ color: "var(--text-muted)" }}>
@@ -84,16 +84,18 @@ export function FixedExpenseRow({ item, onToggle, onAmountChange }: Props) {
       {editing ? (
         <input
           ref={inputRef}
-          type="number"
-          min="0"
-          step="1"
+          type="text"
+          inputMode="decimal"
           value={amt}
-          onChange={e => setAmt(Number(e.target.value))}
+          onChange={e => setAmt(parseFloat(e.target.value) || 0)}
           onBlur={commitEdit}
           onKeyDown={handleKeyDown}
           disabled={saving}
           className="w-24 bg-dark-bg border border-indigo-400 rounded-lg px-2 py-1
-                     text-white text-sm text-right focus:outline-none"
+                     text-white text-sm text-right focus:outline-none
+                     [appearance:textfield]
+                     [&::-webkit-outer-spin-button]:appearance-none
+                     [&::-webkit-inner-spin-button]:appearance-none"
           aria-label="Edit amount"
         />
       ) : (

@@ -1,10 +1,12 @@
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { Activity, ChevronDown } from "lucide-react";
 import { api } from "@/api/client";
 import { useMonth } from "@/context/MonthContext";
 import { fmtInr } from "@/utils/formatInr";
 import { fmtDate } from "@/utils/formatDate";
 import { CATEGORY_ICONS, FIXED_CATEGORIES } from "@/utils/categories";
+import { KpiCarousel } from "@/components/shared/KpiCarousel";
+import type { KpiCard } from "@/components/shared/KpiCarousel";
 import { BalanceBreakdown } from "@/components/shared/BalanceBreakdown";
 import { SpendDonut } from "@/components/shared/SpendDonut";
 import { SignalCard, SpendingSignalsModal } from "@/components/shared/SpendingSignalsModal";
@@ -199,8 +201,6 @@ export function OverviewTab({ onTabChange }: { onTabChange?: (path: string) => v
   const [donutFilter,       setDonutFilter]       = useState<"variable" | "fixed" | "all">("variable");
   const [showPomBreakdown,  setShowPomBreakdown]  = useState(false);
   const [showSignalsModal,  setShowSignalsModal]  = useState(false);
-  const [activeKpiIndex,    setActiveKpiIndex]    = useState(0);
-  const carouselRef       = useRef<HTMLDivElement>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -240,28 +240,6 @@ export function OverviewTab({ onTabChange }: { onTabChange?: (path: string) => v
 
   useEffect(() => { load(); }, [load]);
 
-  const navigateTo = useCallback((index: number) => {
-    setActiveKpiIndex(Math.max(0, Math.min(2, index)));
-  }, []);
-
-  const handleScroll = useCallback(() => {
-    const el = carouselRef.current;
-    if (!el) return;
-    const slideWidth = el.querySelector('.kpi-slide')?.clientWidth ?? el.clientWidth;
-    const index = Math.round(el.scrollLeft / slideWidth);
-    setActiveKpiIndex(Math.max(0, Math.min(2, index)));
-  }, []);
-
-  const scrollToCard = useCallback((index: number) => {
-    const el = carouselRef.current;
-    if (!el) return;
-    const slide = el.children[index] as HTMLElement | undefined;
-    if (slide) {
-      el.scrollTo({ left: slide.offsetLeft, behavior: 'smooth' });
-    }
-  }, []);
-
-
   if (loading) return <OverviewSkeleton />;
 
   // Empty state — no data for this month
@@ -294,14 +272,16 @@ export function OverviewTab({ onTabChange }: { onTabChange?: (path: string) => v
     return py === expectedPriorYear && pm === expectedPriorMonth;
   };
 
-  const kpiCards = [
+  const kpiCards: KpiCard[] = [
     {
       id: "remaining",
       label: "Remaining",
       icon: "💰",
       value: fmtInr(balance.remaining),
       subtitle: "Left for the month",
-      pending: null as string | null,
+      accent: "#00c96e",
+      gradientClass: "kpi-card-remaining",
+      pending: null,
     },
     {
       id: "income",
@@ -309,7 +289,9 @@ export function OverviewTab({ onTabChange }: { onTabChange?: (path: string) => v
       icon: "💼",
       value: fmtInr(balance.total_income),
       subtitle: "Total this month",
-      pending: null as string | null,
+      accent: "#a78bfa",
+      gradientClass: "kpi-card-income",
+      pending: null,
     },
     {
       id: "bills",
@@ -317,6 +299,8 @@ export function OverviewTab({ onTabChange }: { onTabChange?: (path: string) => v
       icon: "✅",
       value: fmtInr(balance.fixed_paid_total),
       subtitle: `Out of ${fmtInr(balance.fixed_paid_total + balance.fixed_unpaid_total)}`,
+      accent: "#fbbf24",
+      gradientClass: "kpi-card-bills",
       pending: balance.fixed_unpaid_total > 0
         ? `${fmtInr(balance.fixed_unpaid_total)} still pending`
         : null,
@@ -328,66 +312,7 @@ export function OverviewTab({ onTabChange }: { onTabChange?: (path: string) => v
 
       {/* ── Section 0: KPI Carousel ─────────────────────────── */}
       <section>
-        <div className="kpi-carousel-wrapper">
-
-          {/* Mobile: native scroll-snap carousel */}
-          <div
-            ref={carouselRef}
-            className="kpi-scroller md:hidden"
-            onScroll={handleScroll}
-          >
-            {kpiCards.map((card) => (
-              <div key={card.id} className={`kpi-slide kpi-card-${card.id}`}>
-                <div className="kpi-accent" />
-                <span className="kpi-watermark">WM</span>
-                <div className="kpi-slide-header">
-                  <span className="kpi-slide-icon">{card.icon}</span>
-                  <span className="kpi-card-label">{card.label}</span>
-                </div>
-                <p className="kpi-card-value">{card.value}</p>
-                <p className="kpi-card-sub">{card.subtitle}</p>
-                {card.pending && <p className="kpi-card-pending">{card.pending}</p>}
-              </div>
-            ))}
-          </div>
-
-          {/* Dot indicators — mobile only */}
-          <div className="kpi-dots md:hidden">
-            {kpiCards.map((card, i) => (
-              <button
-                key={card.id}
-                className={`kpi-dot ${i === activeKpiIndex ? "active" : ""}`}
-                onClick={() => scrollToCard(i)}
-                aria-label={`View ${card.label}`}
-              />
-            ))}
-          </div>
-
-          {/* Desktop: all 3 cards side by side */}
-          <div className="kpi-desktop-row hidden md:flex">
-            {kpiCards.map((card, i) => (
-              <div
-                key={card.id}
-                className={`kpi-card-shell kpi-card-${card.id} ${i === activeKpiIndex ? "active" : "side"}`}
-                style={{ padding: "14px 20px" }}
-                onClick={() => navigateTo(i)}
-              >
-                <div className="kpi-accent" />
-                <span className="kpi-watermark" style={{ fontSize: 18, top: 10, right: 14 }}>WM</span>
-                <div className="kpi-slide-header" style={{ marginBottom: 10 }}>
-                  <span className="kpi-slide-icon" style={{ fontSize: 14 }}>{card.icon}</span>
-                  <span className="kpi-card-label" style={{ fontSize: 10 }}>{card.label}</span>
-                </div>
-                <p className="kpi-card-value" style={{ fontSize: 24 }}>{card.value}</p>
-                <p className="kpi-card-sub" style={{ fontSize: 10, marginTop: 3 }}>{card.subtitle}</p>
-                {card.pending && (
-                  <p className="kpi-card-pending" style={{ fontSize: 10, marginTop: 2 }}>{card.pending}</p>
-                )}
-              </div>
-            ))}
-          </div>
-
-        </div>
+        <KpiCarousel cards={kpiCards} />
       </section>
 
       {/* ── Section 0b: This Month's Story ───────────────── */}

@@ -6,7 +6,8 @@ import { fmtInr } from "@/utils/formatInr";
 import { FixedExpenseRow } from "./FixedExpenseRow";
 import { PoolCard } from "./PoolCard";
 import type { Expense, Pool, DueReminder } from "@/types";
-import { Bell } from "lucide-react";
+import { Bell, ChevronDown, ChevronUp } from "lucide-react";
+import { usePrivacy } from "@/context/PrivacyContext";
 
 /**
  * FixedTab — monthly bills checklist + essential pools
@@ -38,13 +39,17 @@ function FixedTabSkeleton() {
   );
 }
 
-export function FixedTab() {
+export function FixedTab({ onChanged }: { onChanged?: () => void }) {
   const { selMonth, isCurrent } = useMonth();
 
   const [reminders, setReminders] = useState<DueReminder[]>([]);
   const [fixedExps, setFixedExps] = useState<Expense[]>([]);
   const [pools, setPools]         = useState<Pool[]>([]);
   const [loading, setLoading]     = useState(true);
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+
+  const toggleCategory = (cat: string) =>
+    setCollapsed(prev => ({ ...prev, [cat]: !prev[cat] }));
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -82,6 +87,7 @@ export function FixedTab() {
     );
     try {
       await api.patch(`/fixed/${id}/toggle`);
+      onChanged?.();
     } catch {
       // Revert on failure
       setFixedExps(prev =>
@@ -89,6 +95,8 @@ export function FixedTab() {
       );
     }
   };
+
+  const { valuesHidden } = usePrivacy();
 
   if (loading) return <FixedTabSkeleton />;
 
@@ -139,9 +147,15 @@ export function FixedTab() {
           {/* Summary header */}
           <div className="flex justify-between text-sm mb-2">
             <span style={{ color: 'var(--text-sub)' }}>
-              {paidCount} of {fixedExps.length} paid · {fmtInr(paidTotal)} done
+              {paidCount} of {fixedExps.length} paid · {pct}%
             </span>
-            <span className="text-red-400">{fmtInr(unpaidTotal)} pending</span>
+            {unpaidTotal === 0 ? (
+              <span className="text-emerald-400 font-semibold">All paid ✓</span>
+            ) : (
+              <span className="text-red-400">
+                {valuesHidden ? "••••" : fmtInr(unpaidTotal)} pending
+              </span>
+            )}
           </div>
 
           {/* Progress bar */}
@@ -155,29 +169,61 @@ export function FixedTab() {
             />
           </div>
 
-          {/* Grouped by category */}
+          {/* 100% celebration card */}
+          {pct === 100 && (
+            <div className="flex items-center gap-3 p-4 rounded-2xl mb-4
+                            bg-emerald-500/10 border border-emerald-500/20">
+              <span className="text-2xl">✅</span>
+              <div>
+                <p className="text-sm font-syne font-semibold text-emerald-400">
+                  All fixed expenses paid
+                </p>
+                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                  {fixedExps.length} bills · {valuesHidden ? "••••" : fmtInr(paidTotal)} settled · ₹0 pending
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Grouped by category — collapsible */}
           {Object.entries(byCategory)
             .sort(([a], [b]) => a.localeCompare(b))
-            .map(([cat, items]) => (
-              <div key={cat} className="mb-5">
-                {/* Category group header */}
-                <p className="text-xs font-syne font-bold uppercase tracking-widest mb-2"
-                   style={{ color: 'var(--text-muted)' }}>
-                  {CATEGORY_ICONS[cat] ?? "📦"} {cat} ·{" "}
-                  {fmtInr(items.reduce((s, e) => s + e.amount, 0))}
-                </p>
-                <div className="space-y-0">
-                  {items.map(item => (
-                    <FixedExpenseRow
-                      key={item.id}
-                      item={item}
-                      onToggle={() => togglePaid(item.id)}
-                      onAmountChange={load}
-                    />
-                  ))}
+            .map(([cat, items]) => {
+              const isCollapsed = collapsed[cat] ?? false;
+              const catPaid = items.filter(e => e.paid).length;
+              return (
+                <div key={cat} className="mb-5">
+                  <button
+                    onClick={() => toggleCategory(cat)}
+                    className="w-full flex items-center justify-between mb-2
+                               hover:opacity-80 transition-opacity"
+                  >
+                    <p className="text-xs font-syne font-bold uppercase tracking-widest"
+                       style={{ color: 'var(--text-muted)' }}>
+                      {CATEGORY_ICONS[cat] ?? "📦"} {cat} ·{" "}
+                      {catPaid}/{items.length} paid ·{" "}
+                      {fmtInr(items.reduce((s, e) => s + e.amount, 0))}
+                    </p>
+                    {isCollapsed
+                      ? <ChevronDown size={13} style={{ color: 'var(--text-muted)' }} />
+                      : <ChevronUp   size={13} style={{ color: 'var(--text-muted)' }} />
+                    }
+                  </button>
+                  {!isCollapsed && (
+                    <div className="space-y-0">
+                      {items.map(item => (
+                        <FixedExpenseRow
+                          key={item.id}
+                          item={item}
+                          onToggle={() => togglePaid(item.id)}
+                          onAmountChange={() => { load(); onChanged?.(); }}
+                        />
+                      ))}
+                    </div>
+                  )}
                 </div>
-              </div>
-            ))
+              );
+            })
           }
         </section>
       )}
