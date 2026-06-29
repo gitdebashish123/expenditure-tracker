@@ -262,7 +262,10 @@ export function OverviewTab({ onTabChange }: { onTabChange?: (path: string) => v
   }
 
   const { balance } = summary;
-  const isFirstMonth = prevSummary === null;
+  // The /summary endpoint returns a zero-filled object (never null) for an empty
+  // prior month, so treat "no real prior activity" as first-month too.
+  const isFirstMonth =
+    prevSummary === null || (prevSummary.balance?.variable_total ?? 0) === 0;
 
   const isConsecutiveMonth = (current: string, prior: string): boolean => {
     const [cy, cm] = current.split("-").map(Number);

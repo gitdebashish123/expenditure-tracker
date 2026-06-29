@@ -237,8 +237,8 @@ def generate_monthly_insight(context: dict) -> str:
             f"Prior month variable: {prev_var}\n"
             f"Bills paid: ₹{context['fixed_paid_total']:.0f} of ₹{context['fixed_total']:.0f}\n\n"
             "Respond with a single sentence only. No preamble, no punctuation beyond the sentence itself. "
-            "Do not mention percentage changes unless both the current month and prior month values "
-            "are non-zero and meaningful."
+            "Only state a percentage change if BOTH months' variable totals exceed ₹1,000; "
+            "otherwise describe the trend qualitatively (e.g. 'higher', 'similar') with no number."
         )
     message = client.messages.create(
         model="claude-sonnet-4-5-20250929",

@@ -27,7 +27,7 @@ from backend.ai_parser import parse_expense_input, generate_daily_mantra, genera
 from backend.budget_rules import (
     get_month_key, check_budget_warnings, get_balance_summary,
     seed_fixed_expenses, get_monthly_spent_by_category, get_budget_limits,
-    compute_peace_of_mind,
+    compute_peace_of_mind, has_prior_activity,
 )
 from backend.auth import (
     hash_password, verify_password,
@@ -651,12 +651,16 @@ def edit_expense(expense_id: int, update: ExpenseUpdate, session: Session = Depe
 def bulk_delete_expenses(req: BulkDeleteRequest, session: Session = Depends(get_session),
                          current_user: User = Depends(get_current_user)):
     deleted = []
+    months = set()
     for expense_id in req.ids:
         exp = session.get(Expense, expense_id)
         if exp and not exp.is_fixed and exp.user_id == current_user.id:
+            months.add(exp.month_key)
             session.delete(exp)
             deleted.append(expense_id)
     session.commit()
+    for mk in months:
+        _invalidate_month_caches(current_user.id, mk)
     return {"deleted": deleted, "count": len(deleted)}
 
 
@@ -697,6 +701,7 @@ def toggle_paid(expense_id: int, session: Session = Depends(get_session),
     exp.paid = not exp.paid
     session.add(exp)
     session.commit()
+    _invalidate_month_caches(current_user.id, exp.month_key)
     session.refresh(exp)
     return exp
 
@@ -710,6 +715,7 @@ def update_fixed_amount(expense_id: int, amount: float, session: Session = Depen
     exp.amount = amount
     session.add(exp)
     session.commit()
+    _invalidate_month_caches(current_user.id, exp.month_key)
     session.refresh(exp)
     return exp
 
@@ -907,6 +913,7 @@ def update_template(
         if seeded_rows:
             session.commit()
 
+    _invalidate_all_user_caches(current_user.id)
     return tmpl
 
 
@@ -929,6 +936,7 @@ def delete_template(template_id: int, session: Session = Depends(get_session),
     for row in rows_to_delete:
         session.delete(row)
     session.commit()
+    _invalidate_all_user_caches(current_user.id)
     return {"deleted": template_id, "expense_rows_removed": len(rows_to_delete)}
 
 
@@ -1008,6 +1016,7 @@ def update_budget(update: BudgetUpdate, session: Session = Depends(get_session),
         )
         session.add(bl)
     session.commit()
+    _invalidate_all_user_caches(current_user.id)
     return {"category": update.category, "limit": update.limit_amount}
 
 
@@ -1043,6 +1052,7 @@ def upsert_income(income: IncomeInput, session: Session = Depends(get_session),
         )
         session.add(entry)
     session.commit()
+    _invalidate_month_caches(current_user.id, month_key)
     return {"month_key": month_key, "source": income.source, "amount": income.amount}
 
 
@@ -1070,8 +1080,10 @@ def delete_income(income_id: int, session: Session = Depends(get_session),
     ).first()
     if not entry:
         raise HTTPException(status_code=404, detail="Income entry not found")
+    month_key = entry.month_key
     session.delete(entry)
     session.commit()
+    _invalidate_month_caches(current_user.id, month_key)
     return {"deleted": income_id}
 
 
@@ -1092,6 +1104,7 @@ def update_income(income_id: int, update: IncomeInput,
     entry.note   = update.note
     session.add(entry)
     session.commit()
+    _invalidate_month_caches(current_user.id, entry.month_key)
     return {"id": entry.id, "source": entry.source, "amount": entry.amount, "note": entry.note}
 
 
@@ -1281,8 +1294,18 @@ _insight_cache: dict[tuple[int, str], str] = {}
 
 def _invalidate_month_caches(user_id: int, month_key: str) -> None:
     _story_cache.pop((user_id, month_key), None)
-    _mantra_cache.pop((user_id, month_key), None)
     _insight_cache.pop((user_id, month_key), None)
+    # Mantra is keyed (user_id, month_key, date) — pop every date entry for this month.
+    for k in [k for k in _mantra_cache if k[0] == user_id and len(k) == 3 and k[1] == month_key]:
+        _mantra_cache.pop(k, None)
+
+
+def _invalidate_all_user_caches(user_id: int) -> None:
+    """Clear every cache entry for a user — used when the affected month set is
+    ambiguous or spans many months (budget cap edits, template add/edit/delete)."""
+    for cache in (_story_cache, _insight_cache, _mantra_cache):
+        for k in [k for k in cache if k[0] == user_id]:
+            cache.pop(k, None)
 
 
 @app.get("/insights/mantra/{month_key}")
@@ -1292,7 +1315,7 @@ def daily_mantra(month_key: str, session: Session = Depends(get_session),
     from datetime import date as dt
 
     today = dt.today()
-    cache_key = (current_user.id, today.isoformat())
+    cache_key = (current_user.id, month_key, today.isoformat())
     if cache_key in _mantra_cache:
         return _mantra_cache[cache_key]
 
@@ -1373,8 +1396,11 @@ def daily_mantra(month_key: str, session: Session = Depends(get_session),
 @app.get("/insights/story/{month_key}")
 def monthly_story(month_key: str, session: Session = Depends(get_session),
                   current_user: User = Depends(get_current_user)):
+    from datetime import date as _dt
+    # Past months are immutable → cache forever; the live month always regenerates.
+    is_past_month = month_key < _dt.today().strftime("%Y-%m")
     cache_key = (current_user.id, month_key)
-    if cache_key in _story_cache:
+    if is_past_month and cache_key in _story_cache:
         return {"story": _story_cache[cache_key]}
 
     import calendar
@@ -1417,15 +1443,19 @@ def monthly_story(month_key: str, session: Session = Depends(get_session),
     except Exception:
         raise HTTPException(status_code=502, detail="Story generation failed")
 
-    _story_cache[cache_key] = story
+    if is_past_month:
+        _story_cache[cache_key] = story
     return {"story": story}
 
 
 @app.get("/insights/monthly-insight/{month_key}")
 def monthly_insight(month_key: str, session: Session = Depends(get_session),
                     current_user: User = Depends(get_current_user)):
+    from datetime import date as _dt
+    # Past months are immutable → cache forever; the live month always regenerates.
+    is_past_month = month_key < _dt.today().strftime("%Y-%m")
     cache_key = (current_user.id, month_key)
-    if cache_key in _insight_cache:
+    if is_past_month and cache_key in _insight_cache:
         return {"insight": _insight_cache[cache_key]}
 
     balance      = get_balance_summary(session, month_key, user_id=current_user.id)
@@ -1443,7 +1473,13 @@ def monthly_insight(month_key: str, session: Session = Depends(get_session),
     prev_month_key = f"{prev_year:04d}-{prev_month_num:02d}"
     prev_balance   = get_balance_summary(session, prev_month_key, user_id=current_user.id)
 
-    is_first_month = (prev_balance is None or prev_balance.get("variable_total", 0) == 0)
+    is_first_month = not has_prior_activity(session, month_key, current_user.id)
+
+    # A near-zero / missing prior variable total can never anchor a meaningful
+    # comparison — force the encouraging, non-comparative branch in that case.
+    prev_variable = prev_balance["variable_total"] if prev_balance else None
+    if not prev_variable:
+        is_first_month = True
 
     variable_pct  = (
         round(balance["variable_total"] / balance["total_income"] * 100)
@@ -1464,14 +1500,15 @@ def monthly_insight(month_key: str, session: Session = Depends(get_session),
         "savings_total":          savings_total,
         "savings_pct":            savings_pct,
         "bills_status":           bills_status,
-        "prev_variable_total":    prev_balance["variable_total"] if prev_balance else None,
+        "prev_variable_total":    prev_variable,
         "fixed_paid_total":       balance["fixed_paid_total"],
         "fixed_total":            fixed_total,
     }
 
     try:
         insight = generate_monthly_insight(context)
-        _insight_cache[cache_key] = insight
+        if is_past_month:
+            _insight_cache[cache_key] = insight
         return {"insight": insight}
     except Exception:
         return {"insight": None}
@@ -1793,6 +1830,7 @@ def add_pool_entry(
     )
     session.add(new_entry)
     session.commit()
+    _invalidate_month_caches(current_user.id, month_key)
     session.refresh(new_entry)
     return new_entry
 
@@ -1815,6 +1853,7 @@ def update_pool_entry(
         entry.paid_date = date.today() if update.paid else None
     session.add(entry)
     session.commit()
+    _invalidate_month_caches(current_user.id, entry.month_key)
     session.refresh(entry)
     return entry
 
@@ -1829,6 +1868,7 @@ def toggle_pool_entry_paid(entry_id: int, session: Session = Depends(get_session
     entry.paid_date = date.today() if entry.paid else None
     session.add(entry)
     session.commit()
+    _invalidate_month_caches(current_user.id, entry.month_key)
     session.refresh(entry)
     return entry
 
@@ -1839,8 +1879,10 @@ def delete_pool_entry(entry_id: int, session: Session = Depends(get_session),
     entry = session.get(PoolEntry, entry_id)
     if not entry or entry.user_id != current_user.id:
         raise HTTPException(status_code=404, detail="Pool entry not found")
+    month_key = entry.month_key
     session.delete(entry)
     session.commit()
+    _invalidate_month_caches(current_user.id, month_key)
     return {"deleted": entry_id}
 
 
