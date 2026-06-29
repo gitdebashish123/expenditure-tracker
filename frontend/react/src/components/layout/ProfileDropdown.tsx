@@ -42,6 +42,15 @@ export function ProfileDropdown() {
         {initial}
       </button>
 
+      {/* Scrim */}
+      {open && (
+        <div
+          className="fixed inset-0 z-[49]"
+          style={{ background: "rgba(0,0,0,0.20)" }}
+          onClick={() => setOpen(false)}
+        />
+      )}
+
       {/* Dropdown */}
       {open && (
         <div className="absolute right-0 top-11 w-56 bg-dark-card border border-white/10

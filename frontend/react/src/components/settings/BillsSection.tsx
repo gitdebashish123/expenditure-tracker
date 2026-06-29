@@ -3,6 +3,8 @@ import { api } from "@/api/client";
 import { CATEGORY_ICONS, FIXED_CATEGORIES } from "@/utils/categories";
 import type { FixedExpenseTemplate } from "@/types";
 import { ChevronDown, ChevronUp, Trash2, Save, Plus, Check } from "lucide-react";
+import { CurrencyInput } from "@/components/shared/CurrencyInput";
+import { fmtInr } from "@/utils/formatInr";
 
 /**
  * BillsSection — fixed template management + add new bill form
@@ -29,10 +31,11 @@ function TemplateEditRow({
   onDelete:  () => void;
   onSaved:   () => void;
 }) {
-  const [name,   setName]   = useState(t.name);
-  const [amt,    setAmt]    = useState(t.amount);
-  const [dueDay, setDueDay] = useState(t.due_day ?? 0);
-  const [saving, setSaving] = useState(false);
+  const [name,       setName]       = useState(t.name);
+  const [amt,        setAmt]        = useState(t.amount);
+  const [dueDay,     setDueDay]     = useState(t.due_day ?? 0);
+  const [saving,     setSaving]     = useState(false);
+  const [confirmDel, setConfirmDel] = useState(false);
 
   const handleSave = async () => {
     setSaving(true);
@@ -66,12 +69,9 @@ function TemplateEditRow({
         className={`col-span-2 sm:flex-1 min-w-0 ${inputCls}`}
       />
       {/* Amount — col 1 on mobile */}
-      <input
-        type="number"
-        min="0"
-        step="1"
+      <CurrencyInput
         value={amt}
-        onChange={e => setAmt(Number(e.target.value))}
+        onChange={v => setAmt(v)}
         className={`${inputCls}`}
       />
       {/* Due-day — col 2 on mobile (full width in its cell), w-28 on desktop */}
@@ -86,23 +86,40 @@ function TemplateEditRow({
         ))}
       </select>
       {/* Action icons — right-aligned below on mobile, inline on desktop */}
-      <div className="flex gap-2 items-center justify-end col-start-2 sm:contents">
+      <div className="flex gap-1 items-center justify-end col-start-2 sm:contents">
         <button
           onClick={handleSave}
           disabled={saving}
-          className="text-indigo-400 hover:text-indigo-200 disabled:opacity-40 transition-colors"
+          className="w-10 h-10 flex items-center justify-center rounded-lg
+                     text-indigo-400 hover:text-indigo-200 disabled:opacity-40 transition-colors"
           aria-label="Save"
         >
-          {saving ? <Check size={13} /> : <Save size={13} />}
+          {saving ? <Check size={14} /> : <Save size={14} />}
         </button>
-        <button
-          onClick={onDelete}
-          className="hover:text-red-400 transition-colors"
-          style={{ color: "var(--text-muted)" }}
-          aria-label="Delete"
-        >
-          <Trash2 size={13} />
-        </button>
+        {confirmDel ? (
+          <div className="flex items-center gap-1.5 text-xs">
+            <span style={{ color: "var(--text-sub)" }}>Remove?</span>
+            <button
+              onClick={() => { setConfirmDel(false); onDelete(); }}
+              className="text-red-400 hover:text-red-300 font-semibold transition-colors"
+            >Yes</button>
+            <button
+              onClick={() => setConfirmDel(false)}
+              className="transition-colors"
+              style={{ color: "var(--text-muted)" }}
+            >No</button>
+          </div>
+        ) : (
+          <button
+            onClick={() => setConfirmDel(true)}
+            className="w-10 h-10 flex items-center justify-center rounded-lg
+                       hover:text-red-400 hover:bg-red-500/10 transition-colors"
+            style={{ color: "var(--text-muted)" }}
+            aria-label="Delete"
+          >
+            <Trash2 size={14} />
+          </button>
+        )}
       </div>
     </div>
   );
@@ -123,6 +140,7 @@ function FixedTemplateCategoryGroup({
 }) {
   const [expanded, setExpanded] = useState(false);
   const icon = CATEGORY_ICONS[category] ?? "📦";
+  const groupTotal = items.reduce((s, t) => s + t.amount, 0);
 
   return (
     <div className="border border-white/10 rounded-xl overflow-hidden">
@@ -133,7 +151,10 @@ function FixedTemplateCategoryGroup({
       >
         <span style={{ color: "var(--text-sub)" }}>
           {icon} {category}{" "}
-          <span style={{ color: "var(--text-muted)" }}>({items.length} bills)</span>
+          <span style={{ color: "var(--text-muted)" }}>({items.length} item{items.length === 1 ? '' : 's'})</span>
+          <span className="ml-2 text-xs" style={{ color: "var(--text-sub)" }}>
+            · {fmtInr(groupTotal)}/mo
+          </span>
         </span>
         {expanded
           ? <ChevronUp size={13} style={{ color: "var(--text-muted)" }} />
@@ -160,8 +181,9 @@ function FixedTemplateCategoryGroup({
 // ── BillsSection — main exported component ───────────────────────────────────
 
 export function BillsSection() {
-  const [templates, setTemplates] = useState<FixedExpenseTemplate[]>([]);
-  const [addOpen,   setAddOpen]   = useState(false);
+  const [templates,     setTemplates]     = useState<FixedExpenseTemplate[]>([]);
+  const [addOpen,       setAddOpen]       = useState(false);
+  const [confirmPoolId, setConfirmPoolId] = useState<number | null>(null);
 
   // Add bill form state
   const [newName,  setNewName]  = useState("");
@@ -181,6 +203,7 @@ export function BillsSection() {
 
   const activeFixed = templates.filter(t => t.is_active && t.template_type === "fixed");
   const activePools = templates.filter(t => t.is_active && t.template_type === "pool");
+  const fixedTotal  = activeFixed.reduce((s, t) => s + t.amount, 0);
 
   // Group fixed templates by category
   const byCat = activeFixed.reduce<Record<string, FixedExpenseTemplate[]>>((acc, t) => {
@@ -225,16 +248,40 @@ export function BillsSection() {
     <section>
       {/* Section header */}
       <div className="mb-4">
-        <h2 className="font-syne font-bold text-white">📋 Monthly Bills</h2>
-        <p className="text-sm mt-0.5" style={{ color: "var(--text-sub)" }}>
-          Fixed = same every month. Variable = amount changes (like electric bill).
-        </p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="font-syne font-bold text-white">📋 Monthly commitments</h2>
+            <p className="text-sm mt-0.5" style={{ color: "var(--text-sub)" }}>
+              Fixed = same every month. Variable = amount changes (like electric bill).
+            </p>
+          </div>
+          <button
+            onClick={() => setAddOpen(o => !o)}
+            className="flex-shrink-0 text-xs font-semibold px-3 py-1.5 rounded-lg
+                       border border-accent/40 text-indigo-300 hover:bg-accent/10
+                       transition-colors"
+          >
+            + Add Bill
+          </button>
+        </div>
         <div className="border-b border-white/10 mt-3" />
       </div>
 
       {/* Fixed templates by category */}
       {Object.keys(byCat).length > 0 && (
         <div className="mb-4">
+          {fixedTotal > 0 && (
+            <div className="flex justify-between items-center px-4 py-2 mb-3
+                            bg-indigo-500/5 border border-indigo-500/15 rounded-xl">
+              <span className="text-xs font-semibold uppercase tracking-widest"
+                    style={{ color: "var(--text-sub)" }}>
+                Fixed total
+              </span>
+              <span className="font-syne font-bold text-indigo-300 text-sm">
+                {fmtInr(fixedTotal)}/mo
+              </span>
+            </div>
+          )}
           <p className="text-xs font-semibold uppercase tracking-widest mb-3"
              style={{ color: "var(--text-muted)" }}>
             Same amount every month
@@ -277,42 +324,42 @@ export function BillsSection() {
                     {t.category} · Add payments in Fixed tab
                   </span>
                 </div>
-                <button
-                  onClick={() => handleDelete(t.id)}
-                  className="hover:text-red-400 transition-colors"
-                  style={{ color: "var(--text-muted)" }}
-                  aria-label="Remove"
-                >
-                  <Trash2 size={14} />
-                </button>
+                {confirmPoolId === t.id ? (
+                  <div className="flex items-center gap-1.5 text-xs">
+                    <span style={{ color: "var(--text-sub)" }}>Remove?</span>
+                    <button
+                      onClick={() => { handleDelete(t.id); setConfirmPoolId(null); }}
+                      className="text-red-400 hover:text-red-300 font-semibold transition-colors"
+                    >Yes</button>
+                    <button
+                      onClick={() => setConfirmPoolId(null)}
+                      className="transition-colors"
+                      style={{ color: "var(--text-muted)" }}
+                    >No</button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setConfirmPoolId(t.id)}
+                    className="w-10 h-10 flex items-center justify-center rounded-lg
+                               hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                    style={{ color: "var(--text-muted)" }}
+                    aria-label="Remove"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                )}
               </div>
             ))}
           </div>
         </div>
       )}
 
-      {/* Add new bill accordion */}
-      <div className="border border-white/10 rounded-2xl overflow-hidden">
-        <button
-          onClick={() => setAddOpen(o => !o)}
-          className="w-full flex items-center justify-between px-4 py-3 text-sm
-                     hover:bg-white/5 transition-colors"
-          style={{ color: "var(--text-sub)" }}
+      {/* Add commitment form (revealed by "+ Add Bill" in header) */}
+      {addOpen && (
+        <form
+          onSubmit={handleAddBill}
+          className="mb-4 p-4 border border-white/10 rounded-2xl space-y-3"
         >
-          <span className="flex items-center gap-2">
-            <Plus size={14} /> Add a new bill
-          </span>
-          {addOpen
-            ? <ChevronUp size={14} style={{ color: "var(--text-muted)" }} />
-            : <ChevronDown size={14} style={{ color: "var(--text-muted)" }} />
-          }
-        </button>
-
-        {addOpen && (
-          <form
-            onSubmit={handleAddBill}
-            className="px-4 pb-4 space-y-3 border-t border-white/10"
-          >
             <div className="grid grid-cols-2 gap-3 pt-3">
               <input
                 value={newName}
@@ -329,12 +376,9 @@ export function BillsSection() {
                   <option key={c} value={c}>{CATEGORY_ICONS[c]} {c}</option>
                 ))}
               </select>
-              <input
-                type="number"
-                min="0"
-                step="1"
-                value={newAmt || ""}
-                onChange={e => setNewAmt(Number(e.target.value))}
+              <CurrencyInput
+                value={newAmt}
+                onChange={v => setNewAmt(v)}
                 placeholder={
                   newKind === "fixed" ? "Monthly amount (₹)" : "Typical amount (₹)"
                 }
@@ -381,11 +425,10 @@ export function BillsSection() {
                          font-semibold py-2.5 rounded-xl text-sm disabled:opacity-50
                          transition-opacity"
             >
-              {adding ? "Adding…" : "＋ Add Bill"}
+              {adding ? "Adding…" : "＋ Add commitment"}
             </button>
           </form>
-        )}
-      </div>
+      )}
     </section>
   );
 }

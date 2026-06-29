@@ -2,7 +2,8 @@ import { useEffect, useState, useCallback } from "react";
 import { api } from "@/api/client";
 import { useMonth } from "@/context/MonthContext";
 import { fmtInr } from "@/utils/formatInr";
-import { Save, Trash2, Plus } from "lucide-react";
+import { Save, Trash2 } from "lucide-react";
+import { CurrencyInput } from "@/components/shared/CurrencyInput";
 
 interface IncomeRow {
   id: number;
@@ -32,6 +33,7 @@ export function IncomeSection() {
 
   const [entries,      setEntries]      = useState<IncomeRow[]>([]);
   const [loading,      setLoading]      = useState(true);
+  const [confirmId,    setConfirmId]    = useState<number | null>(null);
 
   // Add-new-source form
   const [showAddForm,  setShowAddForm]  = useState(false);
@@ -105,10 +107,23 @@ export function IncomeSection() {
   return (
     <section>
       <div className="mb-4">
-        <h2 className="font-syne font-bold text-white">💰 My Take-home</h2>
-        <p className="text-sm mt-0.5" style={{ color: "var(--text-sub)" }}>
-          All income credited this month. Add salary, dividends, bonuses, etc.
-        </p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="font-syne font-bold text-white">💰 My Take-home</h2>
+            <p className="text-sm mt-0.5" style={{ color: "var(--text-sub)" }}>
+              All income credited this month. Add salary, dividends, bonuses, etc.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowAddForm(o => !o)}
+            className="flex-shrink-0 text-xs font-semibold px-3 py-1.5 rounded-lg
+                       border border-accent/40 text-indigo-300 hover:bg-accent/10
+                       transition-colors"
+          >
+            + Add Income
+          </button>
+        </div>
         <div className="border-b border-white/10 mt-3" />
       </div>
 
@@ -133,15 +148,30 @@ export function IncomeSection() {
                 <span className="font-syne font-semibold text-sm text-emerald-400">
                   +{fmtInr(entry.amount)}
                 </span>
-                <button
-                  onClick={() => handleDelete(entry.id)}
-                  className="w-7 h-7 flex items-center justify-center rounded-lg
-                             hover:text-red-400 hover:bg-red-500/10 transition-colors"
-                  style={{ color: "var(--text-muted)" }}
-                  aria-label={`Remove ${entry.source}`}
-                >
-                  <Trash2 size={12} />
-                </button>
+                {confirmId === entry.id ? (
+                  <div className="flex items-center gap-1.5 text-xs">
+                    <span style={{ color: "var(--text-sub)" }}>Remove?</span>
+                    <button
+                      onClick={() => { handleDelete(entry.id); setConfirmId(null); }}
+                      className="text-red-400 hover:text-red-300 font-semibold transition-colors"
+                    >Yes</button>
+                    <button
+                      onClick={() => setConfirmId(null)}
+                      className="transition-colors"
+                      style={{ color: "var(--text-muted)" }}
+                    >No</button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setConfirmId(entry.id)}
+                    className="w-10 h-10 flex items-center justify-center rounded-lg
+                               hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                    style={{ color: "var(--text-muted)" }}
+                    aria-label={`Remove ${entry.source}`}
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                )}
               </div>
             </div>
           ))}
@@ -152,6 +182,10 @@ export function IncomeSection() {
             <span className="text-xs font-semibold uppercase tracking-widest"
                   style={{ color: "var(--text-sub)" }}>
               Total Income
+              <span className="normal-case tracking-normal font-normal ml-1.5"
+                    style={{ color: "var(--text-muted)" }}>
+                · {entries.length} source{entries.length !== 1 ? "s" : ""}
+              </span>
             </span>
             <span className="font-syne font-bold text-emerald-400">
               {fmtInr(totalIncome)}
@@ -167,17 +201,8 @@ export function IncomeSection() {
         </p>
       )}
 
-      {/* Add income source */}
-      {!showAddForm ? (
-        <button
-          type="button"
-          onClick={() => setShowAddForm(true)}
-          className="flex items-center gap-2 text-sm text-indigo-400 hover:text-indigo-300
-                     transition-colors py-1"
-        >
-          <Plus size={14} /> Add income source
-        </button>
-      ) : (
+      {/* Add income form */}
+      {showAddForm && (
         <form onSubmit={handleSave} className="space-y-3 mt-2">
           <div className="grid grid-cols-2 gap-3">
             <select
@@ -189,12 +214,9 @@ export function IncomeSection() {
                 <option key={s} value={s}>{s}</option>
               ))}
             </select>
-            <input
-              type="number"
-              min="0"
-              step="1"
-              value={amount || ""}
-              onChange={e => setAmount(Number(e.target.value))}
+            <CurrencyInput
+              value={amount}
+              onChange={v => setAmount(v)}
               placeholder="Amount (₹)"
               className={inputCls}
               autoFocus

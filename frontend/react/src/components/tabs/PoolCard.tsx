@@ -4,6 +4,7 @@ import { CATEGORY_ICONS } from "@/utils/categories";
 import { fmtInr } from "@/utils/formatInr";
 import type { Pool } from "@/types";
 import { Plus, Trash2, ChevronDown, ChevronUp, CheckCircle2, AlertCircle } from "lucide-react";
+import { CurrencyInput } from "@/components/shared/CurrencyInput";
 
 interface Props {
   pool: Pool;
@@ -164,18 +165,12 @@ export function PoolCard({ pool, selMonth, onChanged }: Props) {
                          px-3 py-2 text-white text-sm placeholder-white/30
                          focus:border-accent focus:outline-none"
             />
-            <input
-              type="text"
-              inputMode="decimal"
-              value={amount || ""}
-              onChange={e => setAmount(parseFloat(e.target.value) || 0)}
+            <CurrencyInput
+              value={amount}
+              onChange={v => setAmount(v)}
               placeholder="₹"
               className="w-24 bg-dark-card2 border border-white/10 rounded-lg
-                         px-3 py-2 text-white text-sm
-                         [appearance:textfield]
-                         [&::-webkit-outer-spin-button]:appearance-none
-                         [&::-webkit-inner-spin-button]:appearance-none
-                         focus:border-accent focus:outline-none"
+                         px-3 py-2 text-white text-sm focus:border-accent focus:outline-none"
             />
             <button
               type="submit"

@@ -56,7 +56,7 @@ const RANK_COLOURS = ["#f59e0b", "#94a3b8", "#b45309", "#6366f1", "#6366f1"];
 
 const DONUT_FILTERS = [
   { value: "variable" as const, label: "Variable"    },
-  { value: "fixed"    as const, label: "Fixed Bills"  },
+  { value: "fixed"    as const, label: "Commitments"  },
   { value: "all"      as const, label: "All"          },
 ];
 
@@ -295,7 +295,7 @@ export function OverviewTab({ onTabChange }: { onTabChange?: (path: string) => v
     },
     {
       id: "bills",
-      label: "Bills Paid",
+      label: "Commitments Paid",
       icon: "✅",
       value: fmtInr(balance.fixed_paid_total),
       subtitle: `Out of ${fmtInr(balance.fixed_paid_total + balance.fixed_unpaid_total)}`,
@@ -660,7 +660,7 @@ export function OverviewTab({ onTabChange }: { onTabChange?: (path: string) => v
           <div className="p-4">
             {dueReminders.length === 0 ? (
               <p className="text-sm font-medium" style={{ color: "#34d399" }}>
-                🎉 All bills paid this month
+                🎉 All commitments paid this month
               </p>
             ) : (
               (() => {

@@ -4,6 +4,7 @@ import { useAuth } from "@/context/AuthContext";
 import { FIXED_CATEGORIES, VAR_CATEGORIES, CATEGORY_ICONS } from "@/utils/categories";
 import { suggestCategory } from "@/utils/categoryKeywords";
 import { fmtInr } from "@/utils/formatInr";
+import { CurrencyInput } from "@/components/shared/CurrencyInput";
 
 /**
  * OnboardingWizard — 3-step first-time setup overlay
@@ -194,12 +195,9 @@ export function OnboardingWizard() {
                 </p>
               </div>
 
-              <input
-                type="number"
-                min="0"
-                step="1"
-                value={incomeAmt || ""}
-                onChange={(e) => setIncomeAmt(Number(e.target.value))}
+              <CurrencyInput
+                value={incomeAmt}
+                onChange={v => setIncomeAmt(v)}
                 placeholder="Amount (₹)"
                 className={inputCls}
               />
@@ -226,7 +224,7 @@ export function OnboardingWizard() {
             <div className="space-y-4">
               <div>
                 <h3 className="font-syne font-semibold text-white mb-1">
-                  📋 Step 2 of 3 — Your Monthly Bills
+                  📋 Step 2 of 3 — Your Monthly commitments
                 </h3>
                 <p className="text-white/50 text-sm">
                   Add rent, EMI, subscriptions. You can add more later in Settings.
@@ -237,7 +235,7 @@ export function OnboardingWizard() {
               {addedBills.length > 0 && (
                 <div className="bg-dark-card2 rounded-xl p-3 border border-white/10 space-y-2">
                   <p className="text-white/40 text-xs font-medium">
-                    {addedBills.length} bill(s) added
+                    {addedBills.length} commitment{addedBills.length === 1 ? '' : 's'} added
                   </p>
                   {addedBills.map((b, i) => (
                     <div key={i} className="flex justify-between items-center text-sm">
@@ -303,12 +301,9 @@ export function OnboardingWizard() {
                       ))}
                     </select>
                   </div>
-                  <input
-                    type="number"
-                    min="0"
-                    step="1"
-                    value={billAmt || ""}
-                    onChange={(e) => setBillAmt(Number(e.target.value))}
+                  <CurrencyInput
+                    value={billAmt}
+                    onChange={v => setBillAmt(v)}
                     placeholder={
                       billKind === "fixed" ? "Amount (₹)" : "Typical amount (optional)"
                     }
@@ -358,7 +353,7 @@ export function OnboardingWizard() {
                   className="flex-1 bg-dark-card2 border border-white/10 text-white
                              py-3 rounded-xl text-sm font-medium hover:bg-white/5 transition-colors"
                 >
-                  ＋ Add Bill
+                  ＋ Add commitment
                 </button>
                 <button
                   onClick={() => setStep(3)}
@@ -397,12 +392,16 @@ export function OnboardingWizard() {
                     </label>
                     <div style={{ position: 'relative' }}>
                       <input
-                        type="number"
-                        min="0"
-                        step="1"
+                        type="text"
+                        inputMode="numeric"
                         value={val}
                         onFocus={(e) => e.target.select()}
-                        onChange={(e) => setCaps((prev) => ({ ...prev, [cat]: e.target.value }))}
+                        onChange={(e) =>
+                          setCaps((prev) => ({
+                            ...prev,
+                            [cat]: e.target.value.replace(/\D/g, ""),
+                          }))
+                        }
                         placeholder="Set cap limit"
                         className="w-full bg-dark-card2 border border-white/10 rounded-xl
                                    px-3 py-2 pr-8 text-white text-sm placeholder-white/30

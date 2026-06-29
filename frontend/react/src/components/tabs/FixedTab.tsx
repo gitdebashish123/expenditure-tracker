@@ -179,7 +179,7 @@ export function FixedTab({ onChanged }: { onChanged?: () => void }) {
                   All fixed expenses paid
                 </p>
                 <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                  {fixedExps.length} bills · {valuesHidden ? "••••" : fmtInr(paidTotal)} settled · ₹0 pending
+                  {fixedExps.length} item{fixedExps.length === 1 ? '' : 's'} · {valuesHidden ? "••••" : fmtInr(paidTotal)} settled · ₹0 pending
                 </p>
               </div>
             </div>
@@ -236,7 +236,7 @@ export function FixedTab({ onChanged }: { onChanged?: () => void }) {
             Essential Pools
           </h2>
           <p className="text-xs mb-4" style={{ color: 'var(--text-muted)' }}>
-            Bills with variable amount — add each payment as it happens.
+            Commitments with variable amount — add each payment as it happens.
           </p>
           <div className="space-y-3">
             {pools.map(pool => (
@@ -256,11 +256,11 @@ export function FixedTab({ onChanged }: { onChanged?: () => void }) {
         <div className="text-center py-16">
           <div className="text-4xl mb-3">📋</div>
           <p className="text-sm mb-1" style={{ color: 'var(--text-muted)' }}>
-            No bills set up yet.
+            No commitments set up yet.
           </p>
           <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
             Go to{" "}
-            <span className="text-indigo-400">Settings → Monthly Bills</span>
+            <span className="text-indigo-400">Settings → Monthly commitments</span>
             {" "}to add your rent, EMI, and subscriptions.
           </p>
         </div>

@@ -2,6 +2,7 @@ import { Sun, Moon } from "lucide-react";
 import { useTheme } from "@/context/ThemeContext";
 import { MonthSelector } from "@/components/shared/MonthSelector";
 import { ProfileDropdown } from "./ProfileDropdown";
+import { NotificationBell } from "./NotificationBell";
 
 /**
  * Header — sticky top bar
@@ -46,6 +47,7 @@ export function Header() {
             >
               {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
             </button>
+            <NotificationBell />
             <ProfileDropdown />
           </div>
         </div>
