@@ -89,45 +89,77 @@ export function LoginPage() {
     "transition-colors text-sm";
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4 relative overflow-hidden"
-         style={{ backgroundColor: 'var(--bg)' }}>
+    <div className="login-split">
 
-      {/* Background video — muted product glimpse loop */}
-      <div className="login-video-bg" aria-hidden="true">
-        <video autoPlay loop muted playsInline preload="auto">
-          <source src="/wallet-mantra-glimpse.mp4" type="video/mp4" />
-        </video>
+      {/* Left visual panel — desktop/tablet only (hidden < 900px) */}
+      <div className="login-visual">
+
+        {/* Top half — brand mark + rotating money-saving quotes */}
+        <div className="login-visual-top">
+          <div className="text-center login-fadein d1">
+            <img
+              src="/wallet-mantra-logo.png"
+              alt="Wallet Mantra"
+              className="login-logo-mark mx-auto mb-3"
+            />
+            <h1 className="font-syne text-xl font-bold text-white tracking-tight">
+              Wallet Mantra
+            </h1>
+          </div>
+          <div className="login-quote-zone" aria-live="polite">
+            <p className="login-quote">
+              "A budget is telling your money where to go, instead of wondering where it went."
+            </p>
+            <p className="login-quote">
+              "Small daily savings build into your biggest financial wins."
+            </p>
+            <p className="login-quote">
+              "Track it once, and watch every rupee start working for you."
+            </p>
+          </div>
+        </div>
+
+        {/* Bottom half — product preview video, contained to this half only */}
+        <div className="login-visual-bottom">
+          <video autoPlay loop muted playsInline preload="auto" aria-hidden="true">
+            <source src="/wallet-mantra-glimpse.mp4" type="video/mp4" />
+          </video>
+          <span className="login-preview-pill">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <polygon points="6 4 20 12 6 20" />
+            </svg>
+            Product preview
+          </span>
+        </div>
       </div>
-      <div className="login-scrim" aria-hidden="true" />
-      <span className="login-muted-pill">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-          <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
-          <line x1="23" y1="9" x2="17" y2="15" />
-          <line x1="17" y1="9" x2="23" y2="15" />
-        </svg>
-        Muted
-      </span>
 
-      <div className="w-full max-w-sm relative" style={{ zIndex: 2 }}>
+      {/* Right panel — sign in / register form */}
+      <div className="login-form-panel">
+      <div className="w-full max-w-sm relative">
 
-        {/* Logo */}
+        {/* Logo — mobile only (left panel is hidden < 900px) */}
         <div className="text-center mb-8 login-fadein d1">
           <img
             src="/wallet-mantra-logo.png"
             alt="Wallet Mantra"
-            className="login-logo-mark mx-auto mb-3"
+            className="login-logo-mark-sm mx-auto mb-3 md:hidden"
           />
-          <h1 className="font-syne text-2xl font-bold text-white tracking-tight"
-              style={{ textShadow: '0 2px 12px rgba(0,0,0,0.6)' }}>
+          <h1 className="font-syne text-2xl font-bold tracking-tight md:hidden" style={{ color: 'var(--text)' }}>
             Wallet Mantra
           </h1>
-          <p className="text-sm text-white/40 mt-1">
+          <p className="text-sm mt-1 md:hidden" style={{ color: 'var(--text-muted)' }}>
             Beyond expense tracking
+          </p>
+          <h2 className="font-syne text-2xl font-bold tracking-tight hidden md:block" style={{ color: 'var(--text)' }}>
+            Welcome back
+          </h2>
+          <p className="text-sm mt-1 hidden md:block" style={{ color: 'var(--text-muted)' }}>
+            Sign in to Wallet Mantra
           </p>
         </div>
 
-        {/* Feedback banners + forms — glass card over the video */}
-        <div className="login-fadein d2 login-glass-card">
+        {/* Feedback banners + forms */}
+        <div className="login-fadein d2">
 
         {error && (
           <div className="mb-4 p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-300 text-sm">
@@ -278,6 +310,7 @@ export function LoginPage() {
           </a>
         </p>
 
+      </div>
       </div>
     </div>
   );
