@@ -35,7 +35,7 @@ interface Props {
   onExpenseAdded?: () => void;
 }
 
-function TodaysMantraCard() {
+function TodaysMantraCard({ refreshKey }: { refreshKey: number }) {
   const { selMonth } = useMonth();
   const { toast } = useToast();
   const [data, setData] = useState<DailyMantra | null>(null);
@@ -45,7 +45,7 @@ function TodaysMantraCard() {
     api.get<DailyMantra>(`/insights/mantra/${selMonth}`)
       .then(r => setData(r.data))
       .catch(() => {}); // fail silently — card simply doesn't render
-  }, [selMonth]);
+  }, [selMonth, refreshKey]);
 
   if (!data) return null;
 
@@ -148,6 +148,9 @@ export function QuickAddTab({ onExpenseAdded }: Props = {}) {
   const [favourites, setFavourites]   = useState<ExpenseTemplate[]>([]);
   const [loadingFav, setLoadingFav]   = useState<number | null>(null);
 
+  // ── Mantra refresh signal ───────────────────────────────────────────────
+  const [mantraRefresh, setMantraRefresh] = useState(0);
+
   // ── Today's entries state ───────────────────────────────────────────────
   const [todayExpenses, setTodayExpenses] = useState<Expense[]>([]);
 
@@ -198,6 +201,7 @@ export function QuickAddTab({ onExpenseAdded }: Props = {}) {
       refreshToday();       // update today's entries list
       if (data.saved.length > 0) {
         onExpenseAdded?.();
+        setMantraRefresh(k => k + 1);
         toast(
           `${data.saved.length} expense${data.saved.length > 1 ? "s" : ""} saved`,
           { icon: "⚡" }
@@ -216,6 +220,7 @@ export function QuickAddTab({ onExpenseAdded }: Props = {}) {
       await api.post(`/expense-templates/${id}/log`);
       refreshToday();
       onExpenseAdded?.();
+      setMantraRefresh(k => k + 1);
       toast("Logged!", { icon: "⚡" });
     } catch {
       toast("Failed to log shortcut.", { type: "error" });
@@ -239,7 +244,7 @@ export function QuickAddTab({ onExpenseAdded }: Props = {}) {
   return (
     <div className="space-y-6">
 
-      <TodaysMantraCard />
+      <TodaysMantraCard refreshKey={mantraRefresh} />
 
       {/* ── Section 1: NL Input Form ───────────────────── */}
       <section>

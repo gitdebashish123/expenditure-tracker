@@ -1,8 +1,9 @@
 # Spec 26 — Insight/Story/Mantra Staleness + First-Month Comparison Fix
 **Date**: 2026-06-29
-**Status**: ✅ Complete (implemented 2026-06-29)
+**Status**: ✅ Complete (implemented 2026-06-29) — ⚠️ **Item 1 only partially applied; see follow-up**
 **Branch**: `feature/sprint06261-ui-enhancement` *(confirm active branch before starting)*
 **Follows**: `25_settings-tab-redesign.md`
+**Follow-up**: `27_insight-staleness-followup-invalidation-gaps.md` (June-30 verification found `toggle_paid`, `update_fixed_amount`, `log_from_template`, `bulk_delete_expenses` still missing the Item 1 invalidation call)
 **Source**: live self-feedback, June 28 2026 (WhatsApp screenshot, 5:21 PM) — the AI-generated
 "month in one sentence", "Insight", and "Today's mantra" are out of sync with the live balance.
 
