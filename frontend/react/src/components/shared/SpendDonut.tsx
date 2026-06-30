@@ -36,7 +36,7 @@ export function SpendDonut({ categories, sidebar = false }: Props) {
     return (
       <div className="flex gap-3 items-center">
         {/* Donut — compact */}
-        <div className="w-28 flex-shrink-0">
+        <div role="img" aria-label="Category spending breakdown chart" className="w-28 flex-shrink-0">
           <ResponsiveContainer width="100%" height={120}>
             <PieChart>
               <Pie
@@ -87,6 +87,7 @@ export function SpendDonut({ categories, sidebar = false }: Props) {
 
   return (
     <div className="bg-dark-card border border-white/10 rounded-2xl p-4">
+      <div role="img" aria-label="Category spending breakdown chart">
       <ResponsiveContainer width="100%" height={180}>
         <PieChart>
           <Pie
@@ -112,6 +113,7 @@ export function SpendDonut({ categories, sidebar = false }: Props) {
           />
         </PieChart>
       </ResponsiveContainer>
+      </div>
 
       {/* Legend grid */}
       <div className="grid grid-cols-2 gap-x-4 gap-y-2 mt-2">

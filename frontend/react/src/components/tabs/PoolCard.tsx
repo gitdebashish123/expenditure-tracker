@@ -72,6 +72,8 @@ export function PoolCard({ pool, selMonth, onChanged }: Props) {
       {/* Pool header — tap to expand / collapse */}
       <button
         onClick={() => setExpanded(e => !e)}
+        aria-label={`${pool.name} — ${expanded ? "collapse" : "expand"}`}
+        aria-expanded={expanded}
         className="w-full flex items-center justify-between px-4 py-3
                    hover:bg-white/5 transition-colors"
       >
@@ -109,7 +111,7 @@ export function PoolCard({ pool, selMonth, onChanged }: Props) {
                   {/* Paid tick */}
                   <button
                     onClick={() => handleToggle(entry.id)}
-                    className={`w-5 h-5 rounded-full border-2 flex items-center justify-center
+                    className={`tap-target rounded-full border-2 flex items-center justify-center
                                 flex-shrink-0 transition-all ${
                       entry.paid
                         ? "bg-emerald-500 border-emerald-500 text-white"
@@ -144,7 +146,7 @@ export function PoolCard({ pool, selMonth, onChanged }: Props) {
                   {/* Delete */}
                   <button
                     onClick={() => handleDelete(entry.id)}
-                    className="hover:text-red-400 transition-colors flex-shrink-0"
+                    className="tap-target hover:text-red-400 transition-colors flex-shrink-0"
                     style={{ color: 'var(--text-muted)' }}
                     aria-label="Remove entry"
                   >
