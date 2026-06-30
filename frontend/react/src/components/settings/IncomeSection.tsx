@@ -331,7 +331,7 @@ export function IncomeSection() {
                     {/* Edit button */}
                     <button
                       onClick={() => { setEditId(entry.id); setConfirmId(null); }}
-                      className="w-9 h-9 flex items-center justify-center rounded-lg
+                      className="tap-target flex items-center justify-center rounded-lg
                                  hover:text-indigo-300 hover:bg-indigo-500/10 transition-colors"
                       style={{ color: "var(--text-muted)" }}
                       aria-label={`Edit ${entry.source}`}
@@ -356,7 +356,7 @@ export function IncomeSection() {
                     ) : (
                       <button
                         onClick={() => setConfirmId(entry.id)}
-                        className="w-9 h-9 flex items-center justify-center rounded-lg
+                        className="tap-target flex items-center justify-center rounded-lg
                                    hover:text-red-400 hover:bg-red-500/10 transition-colors"
                         style={{ color: "var(--text-muted)" }}
                         aria-label={`Remove ${entry.source}`}
