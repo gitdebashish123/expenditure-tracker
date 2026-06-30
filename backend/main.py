@@ -793,6 +793,7 @@ def log_from_template(tmpl_id: int, expense_date: Optional[str] = None,
     tmpl.use_count += 1
     session.add(tmpl)
     session.commit()
+    _invalidate_month_caches(current_user.id, month_key)
     session.refresh(exp)
     warnings = check_budget_warnings(session, month_key, user_id=current_user.id)
     balance  = get_balance_summary(session, month_key, user_id=current_user.id)
