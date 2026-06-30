@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { Mail, Lock } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { PasswordStrengthBar } from "@/components/shared/PasswordStrengthBar";
 
@@ -88,14 +89,36 @@ export function LoginPage() {
     "transition-colors text-sm";
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4"
+    <div className="min-h-screen flex items-center justify-center px-4 relative overflow-hidden"
          style={{ backgroundColor: 'var(--bg)' }}>
-      <div className="w-full max-w-sm">
 
-        {/* Logo — matches Streamlit app header */}
-        <div className="text-center mb-8">
-          <div className="text-5xl mb-3">💸</div>
-          <h1 className="font-syne text-2xl font-bold text-white tracking-tight">
+      {/* Background video — muted product glimpse loop */}
+      <div className="login-video-bg" aria-hidden="true">
+        <video autoPlay loop muted playsInline preload="auto">
+          <source src="/wallet-mantra-glimpse.mp4" type="video/mp4" />
+        </video>
+      </div>
+      <div className="login-scrim" aria-hidden="true" />
+      <span className="login-muted-pill">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+          <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+          <line x1="23" y1="9" x2="17" y2="15" />
+          <line x1="17" y1="9" x2="23" y2="15" />
+        </svg>
+        Muted
+      </span>
+
+      <div className="w-full max-w-sm relative" style={{ zIndex: 2 }}>
+
+        {/* Logo */}
+        <div className="text-center mb-8 login-fadein d1">
+          <img
+            src="/wallet-mantra-logo.png"
+            alt="Wallet Mantra"
+            className="login-logo-mark mx-auto mb-3"
+          />
+          <h1 className="font-syne text-2xl font-bold text-white tracking-tight"
+              style={{ textShadow: '0 2px 12px rgba(0,0,0,0.6)' }}>
             Wallet Mantra
           </h1>
           <p className="text-sm text-white/40 mt-1">
@@ -103,7 +126,9 @@ export function LoginPage() {
           </p>
         </div>
 
-        {/* Feedback banners */}
+        {/* Feedback banners + forms — glass card over the video */}
+        <div className="login-fadein d2 login-glass-card">
+
         {error && (
           <div className="mb-4 p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-300 text-sm">
             {error}
@@ -118,23 +143,29 @@ export function LoginPage() {
         {/* Login form */}
         {mode === "login" && (
           <form onSubmit={handleLogin} className="space-y-3">
-            <input
-              type="email"
-              placeholder="your@email.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className={inputCls}
-              autoComplete="email"
-              autoFocus
-            />
-            <input
-              type="password"
-              placeholder="Password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className={inputCls}
-              autoComplete="current-password"
-            />
+            <div className="login-field">
+              <Mail size={16} />
+              <input
+                type="email"
+                placeholder="your@email.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className={inputCls}
+                autoComplete="email"
+                autoFocus
+              />
+            </div>
+            <div className="login-field">
+              <Lock size={16} />
+              <input
+                type="password"
+                placeholder="Password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className={inputCls}
+                autoComplete="current-password"
+              />
+            </div>
             <button
               type="submit"
               disabled={loading}
@@ -186,6 +217,9 @@ export function LoginPage() {
             </button>
           </form>
         )}
+
+        </div>
+        {/* end glass card */}
 
         {/* Forgot password — login mode only */}
         {mode === "login" && (
