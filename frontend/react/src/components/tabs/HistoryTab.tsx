@@ -95,7 +95,7 @@ function ExpenseHistoryRow({
         <div className="flex items-center gap-1 flex-shrink-0">
           <button
             onClick={onEdit}
-            className="w-7 h-7 flex items-center justify-center rounded-lg
+            className="tap-target rounded-lg
                        hover:text-indigo-400 hover:bg-indigo-500/10 transition-colors"
             style={{ color: "var(--text-muted)" }}
             aria-label={`Edit ${expense.vendor}`}
@@ -104,7 +104,7 @@ function ExpenseHistoryRow({
           </button>
           <button
             onClick={onDelete}
-            className="w-7 h-7 flex items-center justify-center rounded-lg
+            className="tap-target rounded-lg
                        hover:text-red-400 hover:bg-red-500/10 transition-colors"
             style={{ color: "var(--text-muted)" }}
             aria-label={`Delete ${expense.vendor}`}

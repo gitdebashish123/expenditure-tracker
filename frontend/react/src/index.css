@@ -17,8 +17,8 @@
 
   /* Text */
   --text:      #ffffff;
-  --text-sub:  rgba(255, 255, 255, 0.55);
-  --text-muted:rgba(255, 255, 255, 0.30);
+  --text-sub:  rgba(255, 255, 255, 0.65);
+  --text-muted:rgba(255, 255, 255, 0.45);
 
   /* Borders */
   --border:    rgba(255, 255, 255, 0.08);
@@ -48,8 +48,8 @@ html.light {
 
   /* Text — deep navy, not pure black */
   --text:      #1a1a2e;
-  --text-sub:  rgba(26, 26, 46, 0.55);
-  --text-muted:rgba(26, 26, 46, 0.35);
+  --text-sub:  rgba(26, 26, 46, 0.65);
+  --text-muted:rgba(26, 26, 46, 0.55);
 
   /* Borders — subtle grey */
   --border:    rgba(26, 26, 46, 0.10);
@@ -67,6 +67,12 @@ html.light {
    ═══════════════════════════════════════════════════════════════ */
 
 *, *::before, *::after { box-sizing: border-box; }
+
+/* Keyboard focus ring — visible for keyboard nav, suppressed for mouse/touch */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
 
 html { transition: background-color 0.2s ease; }
 
@@ -239,6 +245,15 @@ html.light .kpi-card-bills     { background: linear-gradient(135deg, #7a3800 0%,
 .kpi-card-income    .kpi-accent { background: #a78bfa; }
 .kpi-card-bills     .kpi-accent { background: #fbbf24; }
 
+/* ── Touch target utility — 44×44px minimum hit area ─────────── */
+.tap-target {
+  min-width:  44px;
+  min-height: 44px;
+  display:    inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 /* ── Mobile carousel wrapper ─────────────────────────────────── */
 .kpi-carousel-wrapper {
   position: relative;
@@ -307,7 +322,8 @@ html.light .kpi-card-bills     { background: linear-gradient(135deg, #7a3800 0%,
   transition: width 250ms ease, background 250ms ease;
   cursor: pointer;
   border: none;
-  padding: 0;
+  padding: 10px;
+  box-sizing: content-box;
   width: 6px;
 }
 .kpi-dot.active {
@@ -348,4 +364,189 @@ html.light .kpi-card-bills     { background: linear-gradient(135deg, #7a3800 0%,
   .kpi-desktop-row .kpi-card-shell.side {
     opacity: 0.78;
   }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   REDUCED MOTION
+   Respects prefers-reduced-motion: reduce — instant transitions,
+   no smooth-scroll, no count-up animations.
+   ═══════════════════════════════════════════════════════════════ */
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  .kpi-scroller {
+    scroll-behavior: auto;
+  }
+
+  .kpi-dot {
+    transition: none;
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════
+   LOGIN PAGE — split layout: left visual panel, right form panel
+   ══════════════════════════════════════════════════════════════ */
+
+.login-split {
+  min-height: 100vh;
+  display: flex;
+}
+
+/* ── Left visual panel — desktop/tablet only ───────────────────
+   Hidden below 900px: on phones the form is the whole screen,
+   the video doesn't compete for scarce vertical space, and we
+   avoid forcing an autoplay video onto cellular connections.   */
+.login-visual {
+  display: none;
+}
+@media (min-width: 900px) {
+  .login-visual {
+    display: flex;
+    flex-direction: column;
+    width: 50%;
+  }
+  .login-form-panel {
+    width: 50%;
+  }
+}
+.login-form-panel {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 24px;
+  background-color: var(--bg);
+  position: relative;
+}
+
+/* ── Top half: logo + rotating money quote ──────────────────── */
+.login-visual-top {
+  flex: 1;
+  background: #08080d;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.login-quote-zone {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 30%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 36px;
+}
+.login-quote {
+  position: absolute;
+  font-style: italic;
+  font-size: 14px;
+  line-height: 1.6;
+  text-align: center;
+  color: var(--text-sub);
+  opacity: 0;
+  animation: loginQuoteRotate 12s infinite;
+}
+.login-quote:nth-child(1) { animation-delay: 0s; }
+.login-quote:nth-child(2) { animation-delay: 4s; }
+.login-quote:nth-child(3) { animation-delay: 8s; }
+@keyframes loginQuoteRotate {
+  0%, 4%   { opacity: 0; transform: translateY(6px); }
+  10%, 26% { opacity: 1; transform: translateY(0); }
+  32%, 100% { opacity: 0; transform: translateY(-6px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .login-quote { animation: none; opacity: 0; }
+  .login-quote:first-child { opacity: 1; }
+}
+
+/* ── Bottom half: product preview video, contained — never
+   full-bleed, so it never competes with the form for height. ── */
+.login-visual-bottom {
+  flex: 1;
+  position: relative;
+  background: #000;
+  overflow: hidden;
+}
+.login-visual-bottom video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.login-preview-pill {
+  position: absolute;
+  bottom: 14px;
+  left: 14px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(10,10,14,0.6);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+  border: 0.5px solid var(--border-lg);
+  border-radius: 20px;
+  padding: 5px 11px;
+  font-size: 10.5px;
+  white-space: nowrap;
+  color: var(--text-sub);
+}
+
+@keyframes loginLogoFloat {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-8px); }
+}
+@keyframes loginLogoGlow {
+  0%, 100% { filter: drop-shadow(0 0 14px rgba(99,102,241,0.40)) drop-shadow(0 0 22px rgba(240,169,42,0.28)); }
+  50%      { filter: drop-shadow(0 0 22px rgba(99,102,241,0.60)) drop-shadow(0 0 34px rgba(240,169,42,0.45)); }
+}
+.login-logo-mark {
+  width: 88px;
+  height: 88px;
+  animation: loginLogoFloat 4.5s ease-in-out infinite, loginLogoGlow 3.5s ease-in-out infinite;
+}
+.login-logo-mark-sm {
+  width: 64px;
+  height: 64px;
+}
+
+@keyframes loginFadeUp {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.login-fadein {
+  opacity: 0;
+  animation: loginFadeUp 0.7s ease forwards;
+}
+.login-fadein.d1 { animation-delay: 0.05s; }
+.login-fadein.d2 { animation-delay: 0.2s; }
+.login-fadein.d3 { animation-delay: 0.35s; }
+.login-fadein.d4 { animation-delay: 0.5s; }
+
+.login-field {
+  position: relative;
+}
+.login-field input {
+  padding-left: 44px !important;
+}
+.login-field svg {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-muted);
+  pointer-events: none;
+  transition: color 0.15s;
+}
+.login-field:focus-within svg {
+  color: var(--accent);
 }

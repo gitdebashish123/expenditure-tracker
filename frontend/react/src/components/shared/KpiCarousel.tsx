@@ -31,7 +31,8 @@ export function KpiCarousel({ cards }: { cards: KpiCard[] }) {
     const el = carouselRef.current;
     if (!el) return;
     const slide = el.children[index] as HTMLElement | undefined;
-    if (slide) el.scrollTo({ left: slide.offsetLeft, behavior: 'smooth' });
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (slide) el.scrollTo({ left: slide.offsetLeft, behavior: reducedMotion ? 'auto' : 'smooth' });
   }, []);
 
   return (

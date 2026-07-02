@@ -195,6 +195,8 @@ export function FixedTab({ onChanged }: { onChanged?: () => void }) {
                 <div key={cat} className="mb-5">
                   <button
                     onClick={() => toggleCategory(cat)}
+                    aria-label={`${cat} — ${isCollapsed ? "expand" : "collapse"} category`}
+                    aria-expanded={!isCollapsed}
                     className="w-full flex items-center justify-between mb-2
                                hover:opacity-80 transition-opacity"
                   >

@@ -111,7 +111,7 @@ export function FixedExpenseRow({ item, onToggle, onAmountChange }: Props) {
       {!editing && (
         <button
           onClick={startEdit}
-          className="flex-shrink-0 transition-colors hover:text-indigo-400"
+          className="tap-target flex-shrink-0 transition-colors hover:text-indigo-400"
           style={{ color: "var(--text-muted)" }}
           aria-label="Edit amount for this month"
         >

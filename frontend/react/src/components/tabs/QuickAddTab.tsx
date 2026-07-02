@@ -35,6 +35,119 @@ interface Props {
   onExpenseAdded?: () => void;
 }
 
+// ── Manual entry fallback — shown when /expenses/parse fails for any reason ──
+
+interface ManualEntryFallbackProps {
+  date:      string;
+  onSaved:   (exp: Expense) => void;
+  onDismiss: () => void;
+}
+
+function ManualEntryFallback({ date, onSaved, onDismiss }: ManualEntryFallbackProps) {
+  const [vendor,   setVendor]   = useState("");
+  const [amount,   setAmount]   = useState("");
+  const [category, setCategory] = useState("Food");
+  const [note,     setNote]     = useState("");
+  const [saving,   setSaving]   = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const amt = parseFloat(amount);
+    if (!vendor.trim() || !amt || amt <= 0) return;
+    setSaving(true);
+    try {
+      const { data } = await api.post<{ expense: Expense }>("/expenses/manual", {
+        vendor:       vendor.trim(),
+        amount:       amt,
+        category,
+        note:         note.trim() || undefined,
+        expense_date: date,
+      });
+      onSaved(data.expense);
+    } catch {
+      // leave form open so user can retry
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const inputCls =
+    "w-full bg-dark-card2 border border-white/10 rounded-xl px-3 py-2 " +
+    "text-white text-sm focus:border-accent focus:outline-none transition-colors";
+
+  return (
+    <div
+      className="mt-4 p-4 rounded-2xl border-l-4"
+      style={{ background: 'var(--card)', borderColor: 'var(--warning)' }}
+    >
+      <p className="text-xs font-syne font-bold uppercase tracking-widest mb-1"
+         style={{ color: 'var(--warning)' }}>
+        AI parser unavailable
+      </p>
+      <p className="text-xs mb-3" style={{ color: 'var(--text-sub)' }}>
+        Enter the expense manually below.
+      </p>
+      <form onSubmit={handleSubmit} className="space-y-2">
+        <input
+          value={vendor}
+          onChange={e => setVendor(e.target.value)}
+          placeholder="Vendor / description"
+          className={inputCls}
+          aria-label="Vendor"
+        />
+        <div className="flex gap-2">
+          <input
+            type="number"
+            min="0"
+            step="any"
+            value={amount}
+            onChange={e => setAmount(e.target.value)}
+            placeholder="Amount (₹)"
+            className={`${inputCls} flex-1`}
+            aria-label="Amount"
+          />
+          <select
+            value={category}
+            onChange={e => setCategory(e.target.value)}
+            className={`${inputCls} flex-1`}
+            aria-label="Category"
+          >
+            {Object.keys(CATEGORY_ICONS).map(c => (
+              <option key={c} value={c}>{CATEGORY_ICONS[c]} {c}</option>
+            ))}
+          </select>
+        </div>
+        <input
+          value={note}
+          onChange={e => setNote(e.target.value)}
+          placeholder="Note (optional)"
+          className={inputCls}
+          aria-label="Note"
+        />
+        <div className="flex gap-2 pt-1">
+          <button
+            type="submit"
+            disabled={saving || !vendor.trim() || !amount}
+            className="flex-1 py-2.5 rounded-xl text-sm font-syne font-semibold
+                       disabled:opacity-50 transition-opacity"
+            style={{ background: 'var(--warning)', color: '#000' }}
+          >
+            {saving ? "Saving…" : "Save Manually"}
+          </button>
+          <button
+            type="button"
+            onClick={onDismiss}
+            className="px-4 py-2.5 rounded-xl text-sm transition-colors"
+            style={{ background: 'var(--card2)', color: 'var(--text-sub)' }}
+          >
+            Dismiss
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
 function TodaysMantraCard({ refreshKey }: { refreshKey: number }) {
   const { selMonth } = useMonth();
   const { toast } = useToast();
@@ -143,6 +256,7 @@ export function QuickAddTab({ onExpenseAdded }: Props = {}) {
   const [date, setDate]         = useState(today);
   const [parsing, setParsing]   = useState(false);
   const [lastResult, setLastResult] = useState<ParseResult | null>(null);
+  const [parseError, setParseError] = useState(false);
 
   // ── Favourites state ────────────────────────────────────────────────────
   const [favourites, setFavourites]   = useState<ExpenseTemplate[]>([]);
@@ -191,6 +305,7 @@ export function QuickAddTab({ onExpenseAdded }: Props = {}) {
     if (!text.trim()) return;
     setParsing(true);
     setLastResult(null);
+    setParseError(false);
     try {
       const { data } = await api.post<ParseResult>("/expenses/parse", {
         text: text.trim(),
@@ -208,7 +323,7 @@ export function QuickAddTab({ onExpenseAdded }: Props = {}) {
         );
       }
     } catch {
-      toast("Failed to parse expenses. Try again.", { type: "error" });
+      setParseError(true);
     } finally {
       setParsing(false);
     }
@@ -354,6 +469,21 @@ export function QuickAddTab({ onExpenseAdded }: Props = {}) {
               </div>
             )}
           </div>
+        )}
+
+        {/* Parser fallback — shown when /expenses/parse fails for any reason */}
+        {parseError && (
+          <ManualEntryFallback
+            date={date}
+            onSaved={() => {
+              setParseError(false);
+              refreshToday();
+              onExpenseAdded?.();
+              setMantraRefresh(k => k + 1);
+              toast("Expense saved manually", { icon: "✅" });
+            }}
+            onDismiss={() => setParseError(false)}
+          />
         )}
       </section>
 
