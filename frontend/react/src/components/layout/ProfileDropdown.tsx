@@ -73,14 +73,14 @@ export function ProfileDropdown() {
 
           {/* Privacy Notice */}
           <a
-            href="https://github.com/gitdebashish123/expenditure-tracker/blob/main/PRIVACY.md"
+            href="/privacy.html"
             target="_blank"
             rel="noopener noreferrer"
             onClick={() => setOpen(false)}
             className="flex items-center gap-2 px-3 py-2 rounded-xl text-white/70
                        hover:text-white hover:bg-white/5 text-sm transition-colors"
           >
-            <Lock size={14} /> Privacy Notice
+            <Lock size={14} /> Privacy notice
           </a>
 
           <hr className="border-white/10 my-1" />

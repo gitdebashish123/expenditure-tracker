@@ -76,7 +76,7 @@ Generate a SHORT, friendly 1-sentence warning or tip (max 15 words). Be helpful,
     return message.content[0].text.strip()
 
 
-def generate_daily_mantra(context: dict, preferred_angle: str = "forecast") -> str:
+def generate_daily_mantra(context: dict, preferred_angle: str = "forecast", day_of_month: int | None = None) -> str:
     """
     Generate a single warm, personal daily insight from precomputed
     balance/spending numbers. Distinct from get_budget_insight, which is
@@ -92,6 +92,37 @@ def generate_daily_mantra(context: dict, preferred_angle: str = "forecast") -> s
         top_category_prev_month_spent: float | None  # None = no prior-month data; omit from prompt
         fixed_unpaid_total: float # sum of fixed expenses not yet marked paid
     """
+    if day_of_month == 1:
+        prompt = f"""It's the very first day of a new month. The user has:
+- Income this month: ₹{context['total_income']:.0f}
+- Fixed commitments to track: ₹{context.get('fixed_unpaid_total', 0):.0f}
+- Days in the month ahead: {context['days_left']}
+
+Write ONE warm, forward-looking sentence (max 25 words) welcoming the fresh start.
+Do NOT reference last month, prior spending, or percentage changes.
+Use ₹ symbol. Return ONLY the sentence, no preamble."""
+        message = client.messages.create(
+            model="claude-sonnet-4-5-20250929",
+            max_tokens=100,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        return message.content[0].text.strip()
+
+    user_type = context.get("user_type", "consistent")
+
+    user_type_hint = ""
+    if user_type == "new":
+        user_type_hint = (
+            "This is the user's first tracked month. Focus on encouragement and what "
+            "they can look forward to. No comparisons to prior months.\n"
+        )
+    elif user_type == "inconsistent":
+        user_type_hint = (
+            "The user tracks inconsistently. Be warm and encouraging rather than "
+            "analytical. Avoid percentage comparisons unless the numbers are clearly "
+            "meaningful (both months > ₹1,000).\n"
+        )
+
     angle_hint = {
         "forecast":    "Today, lean toward a forecast/pacing angle (daily budget, days left).",
         "comparison":  "Today, lean toward comparing this month to last month for the top category.",
@@ -101,12 +132,12 @@ def generate_daily_mantra(context: dict, preferred_angle: str = "forecast") -> s
     # Only include the comparison line when real prior-month data exists.
     # Sending None or 0 would mislead the model into thinking ₹0 was spent last month.
     comparison_line = ""
-    if context.get("top_category_prev_month_spent") is not None:
+    if user_type != "inconsistent" and context.get("top_category_prev_month_spent") is not None:
         comparison_line = (
             f"- Same category last month: ₹{context['top_category_prev_month_spent']:.0f}\n"
         )
 
-    prompt = f"""A user's financial snapshot for the rest of this month:
+    prompt = user_type_hint + f"""A user's financial snapshot for the rest of this month:
 - Remaining balance: ₹{context['remaining']:.0f}
 - Days left in month: {context['days_left']}
 - Daily budget if spread evenly: ₹{context['daily_budget']:.0f}/day
@@ -152,6 +183,12 @@ def generate_monthly_story(context: dict) -> str:
         variable_total: float
         days_left: int
     """
+    user_type_note = {
+        "new":          "This is the user's first month. Do not reference prior months.",
+        "inconsistent": "The user tracks inconsistently. Focus on this month's data only.",
+        "consistent":   "",
+    }.get(context.get("user_type", "consistent"), "")
+
     prompt = f"""Generate a single sentence summary of this month's finances.
 
 STRICT RULES — violating any rule makes the output wrong:
@@ -177,6 +214,9 @@ Financial data for {context['month_label']}:
 - Remaining balance: ₹{context['remaining']:,.0f}
 - Days remaining: {context['days_left']}"""
 
+    if user_type_note:
+        prompt = user_type_note + "\n\n" + prompt
+
     message = client.messages.create(
         model="claude-sonnet-4-5-20250929",
         max_tokens=80,
@@ -190,7 +230,7 @@ def generate_monthly_insight(context: dict) -> str:
     Generate one concise behavioural observation sentence (max 20 words).
 
     Required context keys (all cases):
-        is_first_month: bool
+        user_type: str  # "new" | "inconsistent" | "consistent"
         top_category: str | None
         top_category_spent: float
 
@@ -207,9 +247,13 @@ def generate_monthly_insight(context: dict) -> str:
         fixed_paid_total: float
         fixed_total: float
     """
-    if context.get("is_first_month"):
+    if context.get("user_type") in ("new", "inconsistent"):
+        tracking_phrase = (
+            "first tracked month" if context.get("user_type") == "new"
+            else "a month where tracking was lighter than usual"
+        )
         prompt = (
-            "This is the user's first tracked month in Wallet Mantra. Generate exactly ONE short, "
+            f"This is the user's {tracking_phrase} in Wallet Mantra. Generate exactly ONE short, "
             "encouraging, forward-looking observation (maximum 20 words). Do not reference any "
             "comparison to prior months, percentages, or changes. Focus only on what is notable "
             "or positive about this month's actual data.\n\n"
@@ -227,6 +271,13 @@ def generate_monthly_insight(context: dict) -> str:
             if context.get("prev_variable_total") is not None
             else "N/A"
         )
+        misc_note = ""
+        if context.get("top_category") == "Miscellaneous":
+            misc_note = (
+                "\nNote: the top category is Miscellaneous, which may indicate "
+                "uncategorized expenses. If relevant, gently suggest the user review "
+                "and recategorize."
+            )
         prompt = (
             "You are a financial assistant. Generate exactly ONE concise observation sentence "
             "(maximum 20 words) about this user's financial behaviour this month. "
@@ -235,7 +286,8 @@ def generate_monthly_insight(context: dict) -> str:
             f"Variable spending: ₹{context['variable_total']:.0f} ({context['variable_pct_of_income']}% of income)\n"
             f"Top category: {context.get('top_category') or 'N/A'} at ₹{context.get('top_category_spent', 0):.0f}\n"
             f"Prior month variable: {prev_var}\n"
-            f"Bills paid: ₹{context['fixed_paid_total']:.0f} of ₹{context['fixed_total']:.0f}\n\n"
+            f"Bills paid: ₹{context['fixed_paid_total']:.0f} of ₹{context['fixed_total']:.0f}\n"
+            f"{misc_note}\n\n"
             "Respond with a single sentence only. No preamble, no punctuation beyond the sentence itself. "
             "Only state a percentage change if BOTH months' variable totals exceed ₹1,000; "
             "otherwise describe the trend qualitatively (e.g. 'higher', 'similar') with no number."

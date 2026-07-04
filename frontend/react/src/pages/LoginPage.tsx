@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Mail, Lock } from "lucide-react";
+import { Mail, Lock, Sparkles, CheckCircle, XCircle, Eye, EyeOff, Shield, UserCheck } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { PasswordStrengthBar } from "@/components/shared/PasswordStrengthBar";
 
@@ -27,6 +27,7 @@ export function LoginPage() {
   const [success, setSuccess] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [showForgotMsg, setShowForgotMsg] = useState(false);
+  const [showPw, setShowPw] = useState(false);
 
   const emailValid = /^[^@]+@[^@]+\.[^@]+$/.test(email);
 
@@ -105,6 +106,17 @@ export function LoginPage() {
             <h1 className="font-syne text-xl font-bold text-white tracking-tight">
               Wallet Mantra
             </h1>
+            <span className="inline-flex items-center gap-1 text-xs text-indigo-300
+                             bg-indigo-500/15 border border-indigo-500/30 rounded-full px-3 py-1 mt-3">
+              <Sparkles size={11} /> Your AI money companion
+            </span>
+            <div className="text-left mt-4 space-y-0.5">
+              <p className="text-sm text-white/70">Build awareness.</p>
+              <p className="text-sm text-white/70">Reduce impulse spending.</p>
+              <p className="text-sm text-white/70">
+                Save <span className="text-emerald-400 font-medium">consistently.</span>
+              </p>
+            </div>
           </div>
           <div className="login-quote-zone" aria-live="polite">
             <p className="login-quote">
@@ -175,28 +187,54 @@ export function LoginPage() {
         {/* Login form */}
         {mode === "login" && (
           <form onSubmit={handleLogin} className="space-y-3">
-            <div className="login-field">
-              <Mail size={16} />
-              <input
-                type="email"
-                placeholder="your@email.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className={inputCls}
-                autoComplete="email"
-                autoFocus
-              />
+            <div>
+              <label htmlFor="login-email" className="block text-xs text-white/50 mb-1">
+                Email
+              </label>
+              <div className="login-field">
+                <Mail size={16} />
+                <input
+                  id="login-email"
+                  type="email"
+                  placeholder="your@email.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className={inputCls}
+                  autoComplete="email"
+                  autoFocus
+                />
+                {email.length > 0 && (
+                  emailValid
+                    ? <CheckCircle size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-emerald-400 pointer-events-none" />
+                    : <XCircle   size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-red-400   pointer-events-none" />
+                )}
+              </div>
             </div>
-            <div className="login-field">
-              <Lock size={16} />
-              <input
-                type="password"
-                placeholder="Password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className={inputCls}
-                autoComplete="current-password"
-              />
+            <div>
+              <label htmlFor="login-pw" className="block text-xs text-white/50 mb-1">
+                Password
+              </label>
+              <div className="login-field">
+                <Lock size={16} />
+                <input
+                  id="login-pw"
+                  type={showPw ? "text" : "password"}
+                  placeholder="Password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className={inputCls}
+                  autoComplete="current-password"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPw(v => !v)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-white/30
+                             hover:text-white/60 transition-colors"
+                  aria-label={showPw ? "Hide password" : "Show password"}
+                >
+                  {showPw ? <EyeOff size={14} /> : <Eye size={14} />}
+                </button>
+              </div>
             </div>
             <button
               type="submit"
@@ -205,6 +243,17 @@ export function LoginPage() {
             >
               {loading ? "Signing in…" : "Sign In"}
             </button>
+
+            {/* Forgot password — right-aligned, below Sign In */}
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={() => setShowForgotMsg(v => !v)}
+                className="text-xs text-indigo-400/70 hover:text-indigo-300 transition-colors py-1"
+              >
+                Forgot password?
+              </button>
+            </div>
           </form>
         )}
 
@@ -253,31 +302,20 @@ export function LoginPage() {
         </div>
         {/* end glass card */}
 
-        {/* Forgot password — login mode only */}
-        {mode === "login" && (
-          <>
+        {/* Forgot-password dismissible message — outside the form, mode-gated */}
+        {mode === "login" && showForgotMsg && (
+          <div className="mt-1 p-3 rounded-xl bg-indigo-500/10 border border-indigo-500/30
+                          text-indigo-300 text-sm flex items-start justify-between gap-2">
+            <span>To reset your password, please contact your administrator.</span>
             <button
               type="button"
-              onClick={() => setShowForgotMsg(v => !v)}
-              className="mt-2 w-full text-sm text-indigo-400/70 hover:text-indigo-300 transition-colors py-1"
+              onClick={() => setShowForgotMsg(false)}
+              className="text-indigo-400/60 hover:text-indigo-300 flex-shrink-0 leading-none"
+              aria-label="Dismiss"
             >
-              Forgot password?
+              ×
             </button>
-            {showForgotMsg && (
-              <div className="mt-1 p-3 rounded-xl bg-indigo-500/10 border border-indigo-500/30
-                              text-indigo-300 text-sm flex items-start justify-between gap-2">
-                <span>To reset your password, please contact your administrator.</span>
-                <button
-                  type="button"
-                  onClick={() => setShowForgotMsg(false)}
-                  className="text-indigo-400/60 hover:text-indigo-300 flex-shrink-0 leading-none"
-                  aria-label="Dismiss"
-                >
-                  ×
-                </button>
-              </div>
-            )}
-          </>
+          </div>
         )}
 
         {/* Mode toggle */}
@@ -297,16 +335,29 @@ export function LoginPage() {
           )}
         </button>
 
+        {/* Trust footer strip */}
+        <div className="flex justify-center gap-4 mt-4 pt-3 border-t border-white/10">
+          {[
+            { icon: <Lock size={11} />,      label: "Passwords encrypted" },
+            { icon: <Shield size={11} />,    label: "Data stays private"  },
+            { icon: <UserCheck size={11} />, label: "You're in control"   },
+          ].map(({ icon, label }) => (
+            <span key={label} className="flex items-center gap-1 text-[10px] text-white/25">
+              {icon} {label}
+            </span>
+          ))}
+        </div>
+
         {/* Privacy notice — matches Streamlit footer */}
         <p className="text-center text-xs text-white/20 mt-6">
           By signing in you acknowledge our{" "}
           <a
-            href="https://github.com/gitdebashish123/expenditure-tracker/blob/main/PRIVACY.md"
+            href="/privacy.html"
             target="_blank"
             rel="noopener noreferrer"
             className="text-indigo-400 hover:text-indigo-300"
           >
-            Privacy Notice
+            Privacy notice
           </a>
         </p>
 

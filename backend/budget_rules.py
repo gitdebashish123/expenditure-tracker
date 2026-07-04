@@ -1,4 +1,4 @@
-from sqlmodel import Session, select
+from sqlmodel import Session, select, func
 from backend.models import Expense, BudgetLimit, IncomeEntry, FixedExpenseTemplate, PoolEntry
 from datetime import date
 from dotenv import load_dotenv
@@ -158,6 +158,35 @@ def has_prior_activity(session: Session, month_key: str, user_id: int) -> bool:
         ).limit(1)
     ).first()
     return inc is not None
+
+
+def classify_user_type(session: Session, user_id: int, current_month_key: str) -> str:
+    """
+    Returns one of: "new", "inconsistent", "consistent".
+    "day_one" is handled upstream in the endpoint before this is called
+    (Spec 29's day_of_month / DAY1_GRACE guards in backend/main.py).
+    """
+    prior_months = session.exec(
+        select(Expense.month_key, func.count(Expense.id).label("n"))
+        .where(
+            Expense.user_id == user_id,
+            Expense.is_fixed == False,
+            Expense.month_key < current_month_key,
+        )
+        .group_by(Expense.month_key)
+        .order_by(Expense.month_key.desc())
+        .limit(4)
+    ).all()
+
+    if not prior_months:
+        return "new"
+
+    active_months = [m for m in prior_months if m.n >= 5]
+
+    if len(active_months) >= 3:
+        return "consistent"
+
+    return "inconsistent"
 
 
 def compute_peace_of_mind(balance: dict) -> dict:

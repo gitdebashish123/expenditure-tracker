@@ -1,4 +1,5 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
+import type { CSSProperties } from "react";
 import { api } from "@/api/client";
 import { useMonth } from "@/context/MonthContext";
 import { CATEGORY_ICONS } from "@/utils/categories";
@@ -24,6 +25,18 @@ import { usePrivacy } from "@/context/PrivacyContext";
  *   Streamlit did full page rerun on every PATCH /fixed/{id}/toggle (visible flicker).
  */
 
+// Pre-computed positions (28 pieces radiating from center)
+const CEL_POSITIONS = Array.from({ length: 28 }, (_, i) => {
+  const angle = (i / 28) * 2 * Math.PI;
+  const dist = 80 + (i % 4) * 20;   // 80–140px radius
+  return {
+    dx: Math.cos(angle) * dist,
+    dy: Math.sin(angle) * dist,
+    delay: (i % 4) * 0.06,
+    size: 18 + (i % 3) * 8,          // 18, 26, or 34px
+  };
+});
+
 function FixedTabSkeleton() {
   return (
     <div className="space-y-4 animate-pulse">
@@ -47,6 +60,8 @@ export function FixedTab({ onChanged }: { onChanged?: () => void }) {
   const [pools, setPools]         = useState<Pool[]>([]);
   const [loading, setLoading]     = useState(true);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  const [celebrating, setCelebrating] = useState(false);
+  const prevPctRef = useRef<number | null>(null);
 
   const toggleCategory = (cat: string) =>
     setCollapsed(prev => ({ ...prev, [cat]: !prev[cat] }));
@@ -78,6 +93,27 @@ export function FixedTab({ onChanged }: { onChanged?: () => void }) {
     window.addEventListener("fixedTemplateUpdated", handler);
     return () => window.removeEventListener("fixedTemplateUpdated", handler);
   }, [load]);
+
+  // Celebration edge-trigger — fires once per 99%→100% transition, never on
+  // initial load (guarded by `loading`) so reloading an already-100% month
+  // doesn't replay the animation.
+  useEffect(() => {
+    if (loading) return;
+    const paid   = fixedExps.reduce((s, e) => s + (e.paid ? e.amount : 0), 0);
+    const total  = fixedExps.reduce((s, e) => s + e.amount, 0);
+    const paidN  = fixedExps.filter(e => e.paid).length;
+    const curPct = total > 0 ? Math.round(paid / total * 100) : 0;
+
+    if (prevPctRef.current !== null &&
+        prevPctRef.current < 100 &&
+        curPct === 100 &&
+        paidN > 0) {
+      setCelebrating(true);
+      const t = setTimeout(() => setCelebrating(false), 5200); // 5s + fade
+      return () => clearTimeout(t);
+    }
+    prevPctRef.current = curPct;
+  }, [fixedExps, loading]);
 
   // Optimistic toggle — UI updates immediately, backend syncs in background
   // Streamlit: PATCH + full st.rerun() = visible flicker on every tick
@@ -117,6 +153,25 @@ export function FixedTab({ onChanged }: { onChanged?: () => void }) {
 
   return (
     <div className="space-y-6">
+
+      {celebrating && (
+        <div className="fixed-cel-overlay" aria-live="assertive" role="status">
+          <div className="fixed-cel-center">🎉</div>
+          {CEL_POSITIONS.map((pos, i) => (
+            <span
+              key={i}
+              className="fixed-cel-piece"
+              style={{
+                '--dx': `${pos.dx}px`,
+                '--dy': `${pos.dy}px`,
+                '--delay': `${pos.delay}s`,
+                '--size': `${pos.size}px`,
+              } as CSSProperties}
+              aria-hidden="true"
+            >🎉</span>
+          ))}
+        </div>
+      )}
 
       {/* ── Section 1: Due Reminders ────────────────────── */}
       {reminders.length > 0 && (

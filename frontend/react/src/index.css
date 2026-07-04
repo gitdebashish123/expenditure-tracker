@@ -286,16 +286,20 @@ html.light .kpi-card-bills     { background: linear-gradient(135deg, #7a3800 0%,
   padding: 18px 20px;
 }
 
-/* Watermark */
-.kpi-watermark {
+/* Watermark — logo PNG now has its background chroma-keyed out (see
+   public/wallet-mantra-logo.png), so plain opacity reads as a clean
+   watermark; mix-blend-mode: overlay produced a muddy sticker-like
+   square when the source still had an opaque dark background. */
+.kpi-watermark-img {
   position: absolute;
-  right: 16px;
-  top: 12px;
-  font-size: 20px;
-  font-weight: 900;
-  font-style: italic;
-  color: rgba(255, 255, 255, 0.07);
+  right: 10px;
+  top: 8px;
+  width: 54px;
+  height: 54px;
+  object-fit: contain;
+  opacity: 0.6;
   pointer-events: none;
+  user-select: none;
 }
 
 /* Slide header (icon + label row) */
@@ -538,7 +542,7 @@ html.light .kpi-card-bills     { background: linear-gradient(135deg, #7a3800 0%,
 .login-field input {
   padding-left: 44px !important;
 }
-.login-field svg {
+.login-field > svg:first-child {
   position: absolute;
   left: 14px;
   top: 50%;
@@ -547,6 +551,78 @@ html.light .kpi-card-bills     { background: linear-gradient(135deg, #7a3800 0%,
   pointer-events: none;
   transition: color 0.15s;
 }
-.login-field:focus-within svg {
+.login-field:focus-within > svg:first-child {
   color: var(--accent);
+}
+
+/* ── Fixed tab 100% celebration overlay ─────────────────────── */
+
+.fixed-cel-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.fixed-cel-center {
+  font-size: 64px;
+  animation: celCenterPop 0.3s ease-out forwards,
+             celFadeOut 0.8s ease-in 4.2s forwards;
+  z-index: 51;
+}
+
+.fixed-cel-piece {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  font-size: var(--size, 22px);
+  opacity: 0;
+  animation: celPieceBurst 1.6s ease-out var(--delay, 0s) forwards,
+             celFadeOut 0.5s ease-in 4.5s forwards;
+  transform-origin: center center;
+}
+
+@keyframes celCenterPop {
+  0%   { opacity: 0; transform: scale(0.4); }
+  60%  { opacity: 1; transform: scale(1.2); }
+  100% { opacity: 1; transform: scale(1.0); }
+}
+
+@keyframes celPieceBurst {
+  0%  {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.3);
+  }
+  15% {
+    opacity: 1;
+    transform: translate(calc(-50% + var(--dx) * 0.4),
+                         calc(-50% + var(--dy) * 0.4)) scale(1.15);
+  }
+  70% {
+    opacity: 1;
+    transform: translate(calc(-50% + var(--dx)),
+                         calc(-50% + var(--dy))) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(calc(-50% + var(--dx) * 1.3),
+                         calc(-50% + var(--dy) * 1.3)) scale(0.8);
+  }
+}
+
+@keyframes celFadeOut {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+
+/* Respect reduced motion — skip burst, just flash the center emoji */
+@media (prefers-reduced-motion: reduce) {
+  .fixed-cel-piece { display: none; }
+  .fixed-cel-center {
+    animation: celFadeOut 0.5s ease-in 4.5s forwards;
+    opacity: 1;
+  }
 }

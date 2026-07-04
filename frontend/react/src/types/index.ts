@@ -148,7 +148,7 @@ export interface MonthlyStory {
 }
 
 export interface TinyWin {
-  win: string;
+  win: string | null;
 }
 
 export interface AdminStats {

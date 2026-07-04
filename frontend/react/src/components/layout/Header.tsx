@@ -27,8 +27,15 @@ export function Header() {
 
           {/* Logo */}
           <div className="flex-shrink-0">
-            <h1 className="font-syne font-bold text-white text-lg leading-none tracking-tight">
-              💸 Wallet Mantra
+            <h1 className="font-syne font-bold text-white text-lg leading-none tracking-tight
+                           flex items-center gap-2">
+              <img
+                src="/wallet-mantra-logo.png"
+                alt=""
+                aria-hidden="true"
+                className="h-8 w-8 flex-shrink-0 object-contain"
+              />
+              Wallet Mantra
             </h1>
           </div>
 

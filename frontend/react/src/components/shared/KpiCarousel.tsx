@@ -43,7 +43,12 @@ export function KpiCarousel({ cards }: { cards: KpiCard[] }) {
         {cards.map((card) => (
           <div key={card.id} className={`kpi-slide ${card.gradientClass}`}>
             <div className="kpi-accent" style={{ background: card.accent }} />
-            <span className="kpi-watermark">WM</span>
+            <img
+              src="/wallet-mantra-logo.png"
+              alt=""
+              aria-hidden="true"
+              className="kpi-watermark-img"
+            />
             <div className="kpi-slide-header">
               {card.icon && <span className="kpi-slide-icon">{card.icon}</span>}
               <span className="kpi-card-label">{card.label}</span>
@@ -77,7 +82,12 @@ export function KpiCarousel({ cards }: { cards: KpiCard[] }) {
             onClick={() => navigateTo(i)}
           >
             <div className="kpi-accent" style={{ background: card.accent }} />
-            <span className="kpi-watermark" style={{ fontSize: 18, top: 10, right: 14 }}>WM</span>
+            <img
+              src="/wallet-mantra-logo.png"
+              alt=""
+              aria-hidden="true"
+              className="kpi-watermark-img"
+            />
             <div className="kpi-slide-header" style={{ marginBottom: 10 }}>
               {card.icon && <span className="kpi-slide-icon" style={{ fontSize: 14 }}>{card.icon}</span>}
               <span className="kpi-card-label" style={{ fontSize: 10 }}>{card.label}</span>
