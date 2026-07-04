@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Mail, Lock, Sparkles, CheckCircle, XCircle, Eye, EyeOff, Shield, UserCheck } from "lucide-react";
+import { Mail, Lock, Sparkles, CheckCircle, XCircle, Eye, EyeOff } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { PasswordStrengthBar } from "@/components/shared/PasswordStrengthBar";
 
@@ -86,8 +86,7 @@ export function LoginPage() {
 
   const inputCls =
     "w-full bg-dark-card2 border border-white/10 rounded-xl px-4 py-3 text-white " +
-    "placeholder-white/30 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent " +
-    "transition-colors text-sm";
+    "placeholder-white/30 focus:outline-none transition-colors text-sm";
 
   return (
     <div className="login-split">
@@ -95,44 +94,37 @@ export function LoginPage() {
       {/* Left visual panel — desktop/tablet only (hidden < 900px) */}
       <div className="login-visual">
 
-        {/* Top half — brand mark + rotating money-saving quotes */}
-        <div className="login-visual-top">
-          <div className="text-center login-fadein d1">
-            <img
-              src="/wallet-mantra-logo.png"
-              alt="Wallet Mantra"
-              className="login-logo-mark mx-auto mb-3"
-            />
+        <div className="login-brand-row login-fadein d1">
+          <img
+            src="/wallet-mantra-logo.png"
+            alt="Wallet Mantra"
+            className="login-logo-mark"
+            style={{ width: 56, height: 56 }}
+          />
+          <div>
             <h1 className="font-syne text-xl font-bold text-white tracking-tight">
               Wallet Mantra
             </h1>
-            <span className="inline-flex items-center gap-1 text-xs text-indigo-300
-                             bg-indigo-500/15 border border-indigo-500/30 rounded-full px-3 py-1 mt-3">
-              <Sparkles size={11} /> Your AI money companion
-            </span>
-            <div className="text-left mt-4 space-y-0.5">
-              <p className="text-sm text-white/70">Build awareness.</p>
-              <p className="text-sm text-white/70">Reduce impulse spending.</p>
-              <p className="text-sm text-white/70">
-                Save <span className="text-emerald-400 font-medium">consistently.</span>
-              </p>
-            </div>
-          </div>
-          <div className="login-quote-zone" aria-live="polite">
-            <p className="login-quote">
-              "A budget is telling your money where to go, instead of wondering where it went."
-            </p>
-            <p className="login-quote">
-              "Small daily savings build into your biggest financial wins."
-            </p>
-            <p className="login-quote">
-              "Track it once, and watch every rupee start working for you."
-            </p>
+            <p className="text-xs text-white/50 mt-0.5">Beyond expense tracking</p>
           </div>
         </div>
 
-        {/* Bottom half — product preview video, contained to this half only */}
-        <div className="login-visual-bottom">
+        <span className="inline-flex items-center gap-1 text-xs text-indigo-300
+                         bg-indigo-500/15 border border-indigo-500/30 rounded-full px-3 py-1 login-fadein d1"
+              style={{ alignSelf: "flex-start" }}>
+          <Sparkles size={11} /> Your AI money companion
+        </span>
+
+        <div className="text-left space-y-0.5 login-fadein d1">
+          <p className="text-sm text-white/70">Build awareness.</p>
+          <p className="text-sm text-white/70">Reduce impulse spending.</p>
+          <p className="text-sm text-white/70">
+            Save <span className="text-emerald-400 font-medium">consistently.</span>
+          </p>
+        </div>
+
+        {/* Framed preview card — fixed 16:10 aspect ratio, never full-bleed */}
+        <div className="login-preview-card login-fadein d2">
           <video autoPlay loop muted playsInline preload="auto" aria-hidden="true">
             <source src="/wallet-mantra-glimpse.mp4" type="video/mp4" />
           </video>
@@ -143,11 +135,24 @@ export function LoginPage() {
             Product preview
           </span>
         </div>
+
+        {/* Rotating quote — in-flow at the bottom of the column */}
+        <div className="login-quote-flow" aria-live="polite">
+          <p className="login-quote">
+            "A budget is telling your money where to go, instead of wondering where it went."
+          </p>
+          <p className="login-quote">
+            "Small daily savings build into your biggest financial wins."
+          </p>
+          <p className="login-quote">
+            "Track it once, and watch every rupee start working for you."
+          </p>
+        </div>
       </div>
 
       {/* Right panel — sign in / register form */}
       <div className="login-form-panel">
-      <div className="w-full max-w-sm relative">
+      <div className="w-full max-w-sm relative login-form-card">
 
         {/* Logo — mobile only (left panel is hidden < 900px) */}
         <div className="text-center mb-8 login-fadein d1">
@@ -239,7 +244,7 @@ export function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-gradient-to-r from-accent to-accent2 text-white font-syne font-semibold py-3 rounded-xl disabled:opacity-50 transition-opacity"
+              className="login-cta-gold w-full font-syne font-semibold py-3 rounded-xl disabled:opacity-50 transition-colors"
             >
               {loading ? "Signing in…" : "Sign In"}
             </button>
@@ -292,7 +297,7 @@ export function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-gradient-to-r from-accent to-accent2 text-white font-syne font-semibold py-3 rounded-xl disabled:opacity-50 transition-opacity"
+              className="login-cta-gold w-full font-syne font-semibold py-3 rounded-xl disabled:opacity-50 transition-colors"
             >
               {loading ? "Creating…" : "Create Account"}
             </button>
@@ -336,16 +341,11 @@ export function LoginPage() {
         </button>
 
         {/* Trust footer strip */}
-        <div className="flex justify-center gap-4 mt-4 pt-3 border-t border-white/10">
-          {[
-            { icon: <Lock size={11} />,      label: "Passwords encrypted" },
-            { icon: <Shield size={11} />,    label: "Data stays private"  },
-            { icon: <UserCheck size={11} />, label: "You're in control"   },
-          ].map(({ icon, label }) => (
-            <span key={label} className="flex items-center gap-1 text-[10px] text-white/25">
-              {icon} {label}
-            </span>
-          ))}
+        <div className="flex justify-center gap-2 mt-4 pt-3 border-t border-white/10">
+          <span className="flex items-center gap-1.5 text-[11px] text-white/55">
+            <Lock size={11} style={{ color: "var(--gold)" }} />
+            Your data stays private and encrypted
+          </span>
         </div>
 
         {/* Privacy notice — matches Streamlit footer */}

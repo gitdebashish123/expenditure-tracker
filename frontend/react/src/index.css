@@ -29,6 +29,13 @@
   --accent2:   #8b5cf6;
   --accent-bg: rgba(99, 102, 241, 0.15);
 
+  /* Brand — gold (from logo mark). Introduced Spec 33. Used sparingly:
+     login CTA/accents now; reserved for future milestone/celebration surfaces. */
+  --gold:        #facc15;
+  --gold-border: #4a3a12;
+  --gold-bg:     rgba(250, 204, 21, 0.10);
+  --gold-navy:   #1e1b4b;
+
   /* Status */
   --success:   #34d399;
   --danger:    #ef4444;
@@ -60,6 +67,12 @@ html.light {
   --danger-bg: rgba(239, 68,  68,  0.12);
   --warning-bg:rgba(245, 158, 11,  0.12);
   --accent-bg: rgba(99, 102, 241, 0.12);
+
+  /* Gold — darker for contrast on light surfaces */
+  --gold:        #b8860b;
+  --gold-border: rgba(184, 134, 11, 0.30);
+  --gold-bg:     rgba(184, 134, 11, 0.10);
+  --gold-navy:   #ede9fe;
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -201,6 +214,15 @@ hr { border-color: var(--border) !important; }
 html.light .kpi-card-remaining { background: linear-gradient(135deg, #0d6b3f 0%, #1a9e58 40%, #00c96e 75%, #34d399 100%); }
 html.light .kpi-card-income    { background: linear-gradient(135deg, #2e1080 0%, #5a28c8 40%, #7c55ff 75%, #a78bfa 100%); }
 html.light .kpi-card-bills     { background: linear-gradient(135deg, #7a3800 0%, #c86000 40%, #f0920a 75%, #fbbf24 100%); }
+
+/* Fixed-tab "Left / pending" card — neutral lit surface (Spec 33 D2).
+   Deliberately NOT a gradient: a flat lit slate reads as its own state and
+   sits clearly above the #0a0a0f page bg. Stays dark in BOTH themes so the
+   forced-white card text (.kpi-card-value etc.) remains legible. */
+.kpi-card-fixed-left {
+  background: #2a2a3d;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+}
 
 /* Text inside cards — always white regardless of theme */
 .kpi-card-value   { color: #ffffff; }
@@ -412,11 +434,49 @@ html.light .kpi-card-bills     { background: linear-gradient(135deg, #7a3800 0%,
   .login-visual {
     display: flex;
     flex-direction: column;
-    width: 50%;
+    width: 52%;
+    gap: 20px;
+    padding: 32px 30px;
+    background: #08080d;
+    justify-content: flex-start;
   }
   .login-form-panel {
-    width: 50%;
+    width: 48%;
   }
+}
+
+/* Brand block — logo + wordmark inline */
+.login-brand-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+/* Framed preview card — fixed aspect ratio, NOT full-bleed.
+   Replaces the old full-height .login-visual-bottom video half. */
+.login-preview-card {
+  background: #000;
+  border: 1px solid var(--gold-border);
+  border-radius: 12px;
+  overflow: hidden;
+  position: relative;
+  aspect-ratio: 16 / 10;
+}
+.login-preview-card video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Rotating quote sits at the bottom of the column, in-flow — not
+   absolutely positioned over the video anymore. */
+.login-quote-flow {
+  margin-top: auto;
+  text-align: center;
+  padding-top: 4px;
 }
 .login-form-panel {
   width: 100%;
@@ -428,26 +488,17 @@ html.light .kpi-card-bills     { background: linear-gradient(135deg, #7a3800 0%,
   position: relative;
 }
 
-/* ── Top half: logo + rotating money quote ──────────────────── */
-.login-visual-top {
-  flex: 1;
-  background: #08080d;
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+/* Form card — desktop only (gated by the same 900px breakpoint used above).
+   Mobile stays borderless/transparent — the form is already the whole screen. */
+@media (min-width: 900px) {
+  .login-form-card {
+    background: var(--card);
+    border: 1px solid var(--gold-border);
+    border-radius: 16px;
+    padding: 26px;
+  }
 }
-.login-quote-zone {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 30%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0 36px;
-}
+
 .login-quote {
   position: absolute;
   font-style: italic;
@@ -471,21 +522,6 @@ html.light .kpi-card-bills     { background: linear-gradient(135deg, #7a3800 0%,
   .login-quote:first-child { opacity: 1; }
 }
 
-/* ── Bottom half: product preview video, contained — never
-   full-bleed, so it never competes with the form for height. ── */
-.login-visual-bottom {
-  flex: 1;
-  position: relative;
-  background: #000;
-  overflow: hidden;
-}
-.login-visual-bottom video {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
 .login-preview-pill {
   position: absolute;
   bottom: 14px;
@@ -547,12 +583,35 @@ html.light .kpi-card-bills     { background: linear-gradient(135deg, #7a3800 0%,
   left: 14px;
   top: 50%;
   transform: translateY(-50%);
-  color: var(--text-muted);
+  color: var(--gold);
   pointer-events: none;
   transition: color 0.15s;
 }
 .login-field:focus-within > svg:first-child {
-  color: var(--accent);
+  color: var(--gold);
+}
+
+/* Field border — gold at rest, brighter gold on focus.
+   Prefixed with .login-split to reach specificity (0,2,1), matching the
+   global `input:not(...):not(...) { border-color: var(--border-lg) !important }`
+   rule (index.css ~line 149) so this actually wins the cascade instead of
+   being silently overridden. */
+.login-split .login-field input {
+  border-color: var(--gold-border) !important;
+}
+.login-split .login-field:focus-within input {
+  border-color: var(--gold) !important;
+}
+
+/* ── Login CTA — navy fill / gold border / gold text (Spec 33 D3) ── */
+.login-cta-gold {
+  background: var(--gold-navy);
+  border: 1px solid var(--gold);
+  color: var(--gold);
+  transition: background-color 0.15s, box-shadow 0.15s;
+}
+.login-cta-gold:hover:not(:disabled) {
+  box-shadow: 0 0 0 1px var(--gold), 0 0 16px rgba(250, 204, 21, 0.25);
 }
 
 /* ── Fixed tab 100% celebration overlay ─────────────────────── */

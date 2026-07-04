@@ -55,12 +55,12 @@ function DashboardShell({ tab, onTabChange, isAdmin }: {
   const paidCount  = fixedProgress?.paid  ?? 0;
   const fixedCards: KpiCard[] = balance ? [
     {
-      id: "fx-total",
-      label: "Fixed total",
-      value: fmtInr(balance.fixed_paid_total + balance.fixed_unpaid_total),
-      subtitle: `${totalCount} items this month`,
-      accent: "#fbbf24",
-      gradientClass: "kpi-card-bills",
+      id: "fx-left",
+      label: "Fixed left",
+      value: fmtInr(balance.fixed_unpaid_total),
+      subtitle: balance.fixed_unpaid_total === 0 ? "All clear" : `${totalCount - paidCount} pending`,
+      accent: "#94a3b8",
+      gradientClass: "kpi-card-fixed-left",
     },
     {
       id: "fx-paid",
@@ -68,14 +68,14 @@ function DashboardShell({ tab, onTabChange, isAdmin }: {
       value: fmtInr(balance.fixed_paid_total),
       subtitle: `${paidCount} of ${totalCount} items`,
       accent: "#34d399",
-      gradientClass: "kpi-card-bills",
+      gradientClass: "kpi-card-remaining",
     },
     {
-      id: "fx-left",
-      label: "Fixed left",
-      value: fmtInr(balance.fixed_unpaid_total),
-      subtitle: balance.fixed_unpaid_total === 0 ? "All clear" : `${totalCount - paidCount} pending`,
-      accent: balance.fixed_unpaid_total === 0 ? "#34d399" : "#f59e0b",
+      id: "fx-total",
+      label: "Fixed total",
+      value: fmtInr(balance.fixed_paid_total + balance.fixed_unpaid_total),
+      subtitle: `${totalCount} items this month`,
+      accent: "#fbbf24",
       gradientClass: "kpi-card-bills",
     },
   ] : [];
