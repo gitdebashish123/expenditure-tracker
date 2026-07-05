@@ -308,16 +308,17 @@ html.light .kpi-card-bills     { background: linear-gradient(135deg, #7a3800 0%,
   padding: 18px 20px;
 }
 
-/* Watermark — logo PNG now has its background chroma-keyed out (see
-   public/wallet-mantra-logo.png), so plain opacity reads as a clean
-   watermark; mix-blend-mode: overlay produced a muddy sticker-like
-   square when the source still had an opaque dark background. */
+/* Watermark — sized to match the 32px header mark so it reads as a quiet
+   watermark, not a competing icon (Spec 34 D4). NOTE: the asset itself
+   (public/wallet-mantra-logo.png) is still the pre-Spec-34 raster — the
+   flood-keyed/outlined rework (Spec 34 Item 3) is blocked pending the
+   source artwork; see .claude/blocked/34-followups-for-reevaluation.md. */
 .kpi-watermark-img {
   position: absolute;
   right: 10px;
   top: 8px;
-  width: 54px;
-  height: 54px;
+  width: 32px;    /* was 54px — Spec 34 D4: match the 32px header mark */
+  height: 32px;
   object-fit: contain;
   opacity: 0.6;
   pointer-events: none;
@@ -423,6 +424,30 @@ html.light .kpi-card-bills     { background: linear-gradient(135deg, #7a3800 0%,
   display: flex;
 }
 
+/* ── Login is ALWAYS dark — Option A (Spec 34) ─────────────────────
+   The rest of the app honors html.light; the login route opts out.
+   Re-declaring the dark token values on .login-split means html.light's
+   overrides never cascade in — the .text-white* remaps, input bg override,
+   form-panel var(--bg), and gold accents all resolve dark downstream with
+   no element-level overrides needed. */
+.login-split {
+  --bg:        #0a0a0f;
+  --card:      #111118;
+  --card2:     #1a1a28;
+  --card3:     #22223a;
+
+  --text:      #ffffff;
+  --text-sub:  rgba(255, 255, 255, 0.65);
+  --text-muted:rgba(255, 255, 255, 0.45);
+
+  --border:    rgba(255, 255, 255, 0.08);
+  --border-lg: rgba(255, 255, 255, 0.12);
+
+  --gold:        #facc15;
+  --gold-border: #4a3a12;
+  --gold-navy:   #1e1b4b;
+}
+
 /* ── Left visual panel — desktop/tablet only ───────────────────
    Hidden below 900px: on phones the form is the whole screen,
    the video doesn't compete for scarce vertical space, and we
@@ -438,7 +463,7 @@ html.light .kpi-card-bills     { background: linear-gradient(135deg, #7a3800 0%,
     gap: 20px;
     padding: 32px 30px;
     background: #08080d;
-    justify-content: flex-start;
+    justify-content: center;
   }
   .login-form-panel {
     width: 48%;
@@ -471,10 +496,12 @@ html.light .kpi-card-bills     { background: linear-gradient(135deg, #7a3800 0%,
   object-fit: cover;
 }
 
-/* Rotating quote sits at the bottom of the column, in-flow — not
-   absolutely positioned over the video anymore. */
+/* Rotating quote sits in-flow after the preview card, not absolutely
+   positioned over the video. The column is vertically centered as a whole
+   (.login-visual justify-content: center) rather than pinning this to the
+   bottom, so left/right panels share the same vertical midpoint and tall
+   viewports don't open a single large gap above the quote. */
 .login-quote-flow {
-  margin-top: auto;
   text-align: center;
   padding-top: 4px;
 }
@@ -493,7 +520,7 @@ html.light .kpi-card-bills     { background: linear-gradient(135deg, #7a3800 0%,
 @media (min-width: 900px) {
   .login-form-card {
     background: var(--card);
-    border: 1px solid var(--gold-border);
+    border: 1px solid #6b5620;   /* was var(--gold-border) #4a3a12 — lifted so the card boundary reads */
     border-radius: 16px;
     padding: 26px;
   }

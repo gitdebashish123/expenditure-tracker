@@ -152,7 +152,7 @@ export function LoginPage() {
 
       {/* Right panel — sign in / register form */}
       <div className="login-form-panel">
-      <div className="w-full max-w-sm relative login-form-card">
+      <div className="w-full max-w-md relative login-form-card">
 
         {/* Logo — mobile only (left panel is hidden < 900px) */}
         <div className="text-center mb-8 login-fadein d1">
@@ -216,9 +216,18 @@ export function LoginPage() {
               </div>
             </div>
             <div>
-              <label htmlFor="login-pw" className="block text-xs text-white/50 mb-1">
-                Password
-              </label>
+              <div className="flex items-center justify-between mb-1">
+                <label htmlFor="login-pw" className="block text-xs text-white/50">
+                  Password
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setShowForgotMsg(v => !v)}
+                  className="text-xs text-indigo-400/70 hover:text-indigo-300 transition-colors"
+                >
+                  Forgot password?
+                </button>
+              </div>
               <div className="login-field">
                 <Lock size={16} />
                 <input
@@ -248,17 +257,6 @@ export function LoginPage() {
             >
               {loading ? "Signing in…" : "Sign In"}
             </button>
-
-            {/* Forgot password — right-aligned, below Sign In */}
-            <div className="flex justify-end">
-              <button
-                type="button"
-                onClick={() => setShowForgotMsg(v => !v)}
-                className="text-xs text-indigo-400/70 hover:text-indigo-300 transition-colors py-1"
-              >
-                Forgot password?
-              </button>
-            </div>
           </form>
         )}
 
