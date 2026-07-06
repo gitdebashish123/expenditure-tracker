@@ -3,75 +3,140 @@
 **Origin**: `.claude/specs/34_login-always-dark.md`
 **Plan**: `.claude/plans/34-login-always-dark.md`
 **Status**: Login block (plan Items 1–3 / spec Items 1, 2a, 2b) implemented and
-verified live in a real browser (Playwright/Chromium against the Vite dev server),
-both themes, both breakpoints. Watermark resize (plan Item 6 / spec Item 5)
-implemented. Logo asset generation (plan Item 4 / spec Item 3) and the header
-theme-swap that consumes it (plan Item 5 / spec Item 4) are **BLOCKED** — not
-implemented this session.
-**Date noted**: 2026-07-05
+verified live, both themes, both breakpoints. Watermark resize (plan Item 6 /
+spec Item 5) implemented. **Logo assets (plan Item 4 / spec Item 3) — BLOCKED
+AGAIN as of 2026-07-06/07, superseding the 2026-07-05 "RESOLVED" note below** —
+the drop-in PNGs failed inspection (see §1 update) and the actual master source
+(now in the repo) turns out to be unusable by automated color-based keying (see
+§1b). **Header theme-swap (plan Item 5 / spec Item 4) — still blocked**, depends
+on Item 3. Pre-existing lint gap (§4) still open.
+**Date noted**: 2026-07-05, corrected 2026-07-07.
 
 ---
 
-## 1. BLOCKED — Logo source artwork and pre-generated assets do not exist
+## 1. RESOLVED (2026-07-05) — Logo assets placed via drop-in path
 
-**What the spec assumes**: Spec Item 3 states the source raster
-(`walletmantralogo.png`, 1456×840, opaque white background) and a
-`scripts/process-logo.py` generator, plus the two pre-generated 256×256 output
-assets, "were produced during review and can be dropped in directly."
+**Resolution**: The two cleaned marks were generated during the design-review
+(in that review's workspace, from the opaque white-background master
+`walletmantralogo.png`, 1456×840 — the same raster the spec references), delivered
+as downloadable files, and the **user has now placed both directly into
+`frontend/react/public/`**:
+- `wallet-mantra-logo.png` — **dark-surface mark** (variant B: background
+  flood-keyed to true transparency + subtle light outline so it separates on
+  dark). Overwrites the old muddy file.
+- `wallet-mantra-logo-light.png` — **light-header mark** (variant A: clean
+  transparent, untouched true navy).
 
-**What was actually found this session**: none of the following exist anywhere in
-the repo or on the filesystem (searched the full repo tree, `frontend/react/`,
-`frontend/react/public/`, and did an unrestricted filesystem `find` for the
-filenames):
-- `walletmantralogo.png` (the claimed source) — not found.
-- `scripts/process-logo.py` — not found (`scripts/` only contains `uat_test.py`).
-- `frontend/react/brand/` directory — does not exist.
-- `frontend/react/public/wallet-mantra-logo-light.png` — does not exist.
-- Any pre-generated 256×256 output PNGs matching the spec's description — not found.
+This satisfies spec Item 3 through the spec's **drop-in alternative** ("pre-generated
+assets can be dropped in directly"), rather than the reproducible script path.
 
-The only logo asset actually in the repo is the current
-`frontend/react/public/wallet-mantra-logo.png` (882×773, RGBA). Pixel-checked it
-this session: the four corners are alpha-0 (transparent), but the background
-*within* the bounding box is a near-opaque dark gradient fading to transparent at
-the edges — visually this is the "muddy blob with a ragged edge" the spec
-describes, not a clean flood-keyed mark. So the spec's diagnosis of the *problem*
-is accurate; it's the claim that the *fix assets already exist* that doesn't hold.
+**Why the earlier "source doesn't exist" conclusion happened (for the record, not a
+re-litigation)**: a repo-only search correctly found no `walletmantralogo.png`,
+`scripts/process-logo.py`, `brand/` dir, or pre-generated PNGs — because those lived
+in the *design-review workspace*, outside the repo, not because no master existed.
+The master and both outputs did exist there; placing the outputs in `public/`
+closes the gap.
 
-**Why this blocks Items 3 and 4 (spec numbering)**:
-- Item 3 (asset generation) needs the white-background source to key against —
-  without it, there is nothing to run `process-logo.py`-equivalent logic on.
-  Fabricating a flood-key/outline treatment from the *already-muddy* current PNG
-  would bake in the existing edge artifacts rather than fix them, and inventing
-  new brand artwork from scratch is a design decision, not an engineering one —
-  not attempted.
-- Item 4 (header theme-swap) directly consumes
-  `wallet-mantra-logo-light.png`, produced by Item 3. Wiring the conditional
-  `src={theme === "dark" ? ... : "/wallet-mantra-logo-light.png"}` without that
-  file existing would just point the light-mode header at a 404.
+**Update 2026-07-07**: both now exist in the repo — `scripts/process-logo.py`
+(written this session, pure PIL + numpy, no scipy) and
+`frontend/react/brand/wallet-mantra-source.png` (the actual master, provided by
+the user). Running the script against the real master does **not** produce a
+clean result — see §1b for the full investigation and why.
 
-**Action needed**: whoever ran the mockup review that produced the "approved
-mockups" referenced in the spec header (logo variants on dark/light swatches) needs
-to supply the actual source artwork and/or the two pre-generated PNGs — check
-wherever that review's outputs were saved (design tool export, chat attachment,
-another machine/session) and add them to this repo (e.g.
-`frontend/react/brand/wallet-mantra-source.png`) before Items 3–4 can be
-implemented. Once the source exists, `scripts/process-logo.py` can be written per
-the spec's documented algorithm (border flood-fill → alpha 0, feather ~1.2px,
-crop+pad square, variant B gets a dilated light outline, export both at 256×256).
+### 1a. NOT applied — header theme-swap deliberately held back (spec Item 4)
+
+The `Header.tsx` two-line conditional-`src` change (below) was drafted but
+**intentionally not applied**, because wiring it would have shipped a visibly
+broken light-mode header — see §1b for why. Do not apply this until a genuinely
+clean `wallet-mantra-logo-light.png` exists:
+
+```tsx
+<img
+  src={theme === "dark" ? "/wallet-mantra-logo.png" : "/wallet-mantra-logo-light.png"}
+  alt=""
+  aria-hidden="true"
+  className="h-8 w-8 flex-shrink-0 object-contain"
+/>
+```
+
+### 1b. Root cause — the drop-in assets and even the real master aren't cleanly keyable
+
+**What was checked**: the two PNGs placed in `public/` on 2026-07-05 (the ones
+§1's original note called "resolved") were inspected pixel-by-pixel this
+session, not just eyeballed:
+- Composited both at their actual render size (32px, matching header `h-8 w-8`
+  and the post-Item-5 watermark) against solid white and solid dark backgrounds.
+  Both show a visible grey/dark halo — on white it reads as a dirty smudge ring,
+  failing the spec's own "reads clearly on a white header" bar for variant A.
+- Extracted the alpha channel of `wallet-mantra-logo-light.png` directly: it is
+  **not a silhouette cutout of the mark at all** — it's the full square canvas
+  with only the four corners rounded off (a "squircle"), plus one small
+  deliberate notch. Every gap *between* the letterforms, between the wallet
+  icon and the arrow, etc. is still fully opaque. So the background was never
+  actually removed from around the mark — only the canvas corners were.
+
+**Once the actual master (`walletmantralogo.png`, via the user, 1456×840,
+confirmed genuinely opaque/white-cornered) was obtained and placed at
+`frontend/react/brand/wallet-mantra-source.png`**: viewing it directly showed
+the reason nothing can key cleanly — **the master itself has a soft dark
+glow/vignette baked into the pixels around the mark**, fading gradually into
+the white canvas over a wide radius. This is real gradient image content, not
+a keying artifact, and it has no hard edge for any threshold to find.
+
+**Three separate automated keying approaches were tried against the real
+master and all three failed for related reasons** (don't re-attempt these
+without a different master):
+1. **Border-seeded luminance flood-fill** (`scripts/process-logo.py`'s
+   documented approach, threshold 235) — only removes the pure-white area far
+   from the mark; the entire glow blob is darker than the threshold, so it
+   stays opaque. Re-ran the actual script against the real master and
+   confirmed via the output alpha channel: same squircle-blob shape as the
+   drop-in assets.
+2. **HSV saturation threshold** — hypothesis was that the achromatic glow
+   (low saturation) could be separated from the colored blue/gold mark (higher
+   saturation). Disproven: HSV saturation is numerically unstable for
+   near-black pixels (`S = (max-min)/max` blows up toward 1.0 as `max→0` even
+   for visually-grey pixels), so the dark glow reads as *higher* saturation
+   than parts of the mark — the mask came out inverted from what was needed.
+3. **Raw chroma** (`max(R,G,B) - min(R,G,B)`, avoids the near-black division
+   instability) — better than saturation but still fundamentally the same
+   problem: the glow-to-mark transition is gradual and the metallic
+   shading *inside* the mark itself dips to low-chroma (near-grey highlight/
+   shadow areas from the brushed-metal render style), so no chroma threshold
+   cleanly separates "glow" from "mark" — result was still a rough blob with
+   a couple of interior gaps punched out, not a clean silhouette.
+4. **ML-based background removal (`rembg`)** — the correct tool for exactly
+   this "soft/glowing subject" case, but couldn't get it installed in this
+   environment: `rembg → pymatting → numba → llvmlite` fails to build from
+   source for Python 3.13 on this machine (`uv run --with rembg`, `uv pip
+   install` into `.venv`, and system-Python `pip install --user` were all
+   tried; `llvmlite` 0.48.0 has no prebuilt wheel for this Python/platform
+   combo and the source build fails). Not resolved — a machine/Python version
+   with a working numba/llvmlite (or a hosted rembg API) would be needed to
+   actually test this path.
+
+**What would actually fix this**: either (a) get a re-export of the master
+*without* the glow/vignette effect — a genuinely flat white background behind
+just the mark, which is what the spec originally assumed existed, or (b)
+manual/semi-automated masking in an image editor (Photoshop/GIMP/Figma) by a
+human tracing the silhouette, since automated color-space thresholding is not
+viable on this specific source no matter how it's tuned.
+
+**Do not re-attempt** border-flood-fill / saturation / chroma threshold tuning
+on this same master expecting a different result — all three were tested
+directly against it this session and the failure mode is structural (a
+continuous gradient with no separable edge), not a parameter-tuning problem.
 
 ---
 
-## 2. Partial implementation note — watermark resize shipped ahead of asset rework
+## 2. Watermark resize — still just a size change, asset itself still unfixed
 
-Plan Item 6 / spec Item 5 (`.kpi-watermark-img` 54px → 32px) was implemented as
-planned since it's a pure CSS size change, independent of which PNG is loaded.
-The accompanying code comment in `index.css` was corrected to **not** claim the
-asset itself is now flood-keyed/outlined (the original plan's suggested comment
-text asserted this) — it explicitly notes the rework is pending Item 1 above.
-Visual effect right now: the *existing* muddy asset renders at 32px instead of
-54px — smaller, but not yet clean. Re-verify this watermark visually once Item 3
-above unblocks and the real asset lands (it should look meaningfully better, not
-just smaller).
+Plan Item 6 / spec Item 5 (`.kpi-watermark-img` 54px → 32px) shipped as a pure CSS
+change, independent of which PNG loads. Per §1b, the underlying asset is still
+not a clean cutout, so this renders the same not-actually-fixed mark at 32px
+instead of 54px — smaller, not cleaner. The `.kpi-watermark-img` comment in
+`index.css` correctly says the rework is still blocked and points here — leave
+it as-is; it is not stale.
 
 ---
 
