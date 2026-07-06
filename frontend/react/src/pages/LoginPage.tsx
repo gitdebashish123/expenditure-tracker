@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Mail, Lock, Sparkles, CheckCircle, XCircle, Eye, EyeOff } from "lucide-react";
+import { Mail, Lock, Sparkles, CheckCircle, XCircle, Eye, EyeOff, Sun, Bookmark, HeartHandshake } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { PasswordStrengthBar } from "@/components/shared/PasswordStrengthBar";
 
@@ -109,11 +109,9 @@ export function LoginPage() {
           </div>
         </div>
 
-        <span className="inline-flex items-center gap-1 text-xs text-indigo-300
-                         bg-indigo-500/15 border border-indigo-500/30 rounded-full px-3 py-1 login-fadein d1"
-              style={{ alignSelf: "flex-start" }}>
-          <Sparkles size={11} /> Your AI money companion
-        </span>
+        <h2 className="login-hero-headline login-fadein d1">
+          Your <span className="text-indigo-400">AI</span> money companion
+        </h2>
 
         <div className="text-left space-y-0.5 login-fadein d1">
           <p className="text-sm text-white/70">Build awareness.</p>
@@ -121,6 +119,41 @@ export function LoginPage() {
           <p className="text-sm text-white/70">
             Save <span className="text-emerald-400 font-medium">consistently.</span>
           </p>
+        </div>
+
+        {/* Feature list — five rows, gold-outline icon chips (Spec 35 Item 2) */}
+        <div className="login-feature-list login-fadein d1">
+          {[
+            { Icon: Sparkles, label: "Tara, your AI money companion" },
+            { Icon: Sun, label: "Daily mantra & monthly story" },
+            { Icon: Bookmark, label: "Fixed commitments & reminders" },
+            { Icon: HeartHandshake, label: "Insights & peace-of-mind score" },
+            { Icon: Lock, label: "Private & secure" },
+          ].map(({ Icon, label }) => (
+            <div key={label} className="login-feature">
+              <span className="login-feature-chip"><Icon size={16} style={{ color: "var(--gold)" }} /></span>
+              <span className="text-sm text-white/70">{label}</span>
+            </div>
+          ))}
+        </div>
+
+        {/* Insight strip — illustrative sample data only (D2/D4) */}
+        <div className="login-fadein d2">
+          <div className="login-insight-strip">
+            <div className="login-insight-card">
+              <span className="text-xs text-white/50">Saved this month</span>
+              <span className="text-emerald-400 font-semibold">+₹8,450</span>
+            </div>
+            <div className="login-insight-card">
+              <span className="text-xs text-white/50">Peace of mind</span>
+              <span className="text-indigo-400 font-semibold">Excellent</span>
+            </div>
+            <div className="login-insight-card">
+              <span className="text-xs text-white/50">Insight</span>
+              <span style={{ color: "var(--gold)" }} className="font-semibold">−18% on Food</span>
+            </div>
+          </div>
+          <p className="text-center text-[10px] text-white/30 mt-1">Illustrative preview data</p>
         </div>
 
         {/* Framed preview card — fixed 16:10 aspect ratio, never full-bleed */}

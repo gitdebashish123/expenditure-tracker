@@ -448,6 +448,15 @@ html.light .kpi-card-bills     { background: linear-gradient(135deg, #7a3800 0%,
   --gold-navy:   #1e1b4b;
 }
 
+/* Subtle premium depth cue (Spec 35 Item 4) — restrained, no particles/animation.
+   Layered under the flat #0a0a0f base so it reads as depth, not a competing glow. */
+.login-split {
+  background:
+    radial-gradient(ellipse 800px 600px at 0% 0%, rgba(30,27,75,0.35), transparent 60%),
+    radial-gradient(ellipse 700px 500px at 100% 0%, rgba(250,204,21,0.06), transparent 55%),
+    #0a0a0f;
+}
+
 /* ── Left visual panel — desktop/tablet only ───────────────────
    Hidden below 900px: on phones the form is the whole screen,
    the video doesn't compete for scarce vertical space, and we
@@ -456,17 +465,53 @@ html.light .kpi-card-bills     { background: linear-gradient(135deg, #7a3800 0%,
   display: none;
 }
 @media (min-width: 900px) {
+  /* Fixed (not min-) height on desktop only — the sign-in card must always
+     render in full. If the hero's content still doesn't fit at very short
+     viewports even after the tightened rhythm below, the hero scrolls
+     internally (.login-visual's overflow-y) rather than growing the page
+     and clipping/pushing the card. Mobile keeps min-height so it can still
+     grow naturally with on-screen keyboards / text zoom. */
+  .login-split {
+    height: 100vh;
+  }
   .login-visual {
     display: flex;
     flex-direction: column;
-    width: 52%;
-    gap: 20px;
-    padding: 32px 30px;
+    width: 55%;
+    gap: 14px;
+    padding: 32px 30px;         /* equal top anchor vs. .login-form-panel */
     background: #08080d;
-    justify-content: center;
+    justify-content: space-between;
+    overflow-y: auto;
+    min-height: 0;
   }
   .login-form-panel {
-    width: 48%;
+    width: 45%;
+    padding: 32px 56px 32px 24px;   /* top matches .login-visual; right/left/bottom from Item 3 */
+  }
+}
+
+/* Short-viewport fallback — the dense 7-block hero (Spec 35 Item 2) plus a
+   full-size 16:10 preview overflowed common laptop heights (measured at
+   1366×768: preview + quote pushed below the fold). Shrink the preview and
+   tighten rhythm only below this height; top padding stays identical to the
+   rule above so the brand-row/card top-alignment invariant still holds. */
+@media (min-width: 900px) and (max-height: 820px) {
+  .login-visual {
+    gap: 6px;
+    padding: 24px 30px;
+  }
+  .login-form-panel {
+    padding-top: 24px;
+  }
+  .login-feature-list {
+    gap: 6px;
+  }
+  .login-preview-card {
+    width: min(200px, 100%);
+  }
+  .login-quote-flow {
+    min-height: 22px;
   }
 }
 
@@ -478,6 +523,49 @@ html.light .kpi-card-bills     { background: linear-gradient(135deg, #7a3800 0%,
   margin-bottom: 14px;
 }
 
+/* Left-hero content blocks (Spec 35 Item 2) */
+.login-hero-headline {
+  font-family: 'Syne', sans-serif;
+  font-weight: 700;
+  font-size: 27px;
+  color: var(--text);
+  line-height: 1.25;
+}
+.login-feature-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.login-feature {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.login-feature-chip {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  border: 1px solid rgba(224,184,74,0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.login-insight-strip {
+  display: flex;
+  gap: 10px;
+}
+.login-insight-card {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--card2);
+  border: 1px solid var(--border);
+}
+
 /* Framed preview card — fixed aspect ratio, NOT full-bleed.
    Replaces the old full-height .login-visual-bottom video half. */
 .login-preview-card {
@@ -487,6 +575,12 @@ html.light .kpi-card-bills     { background: linear-gradient(135deg, #7a3800 0%,
   overflow: hidden;
   position: relative;
   aspect-ratio: 16 / 10;
+  /* Capped so it can't scale to full column width and dominate the vertical
+     rhythm — with the feature list + insight strip added (Spec 35 Item 2),
+     a full-width 16:10 preview forced the quote off-screen at common laptop
+     heights (measured at 1366×768). */
+  width: min(360px, 100%);
+  align-self: center;
 }
 .login-preview-card video {
   position: absolute;
@@ -504,13 +598,19 @@ html.light .kpi-card-bills     { background: linear-gradient(135deg, #7a3800 0%,
 .login-quote-flow {
   text-align: center;
   padding-top: 4px;
+  /* .login-quote children are position:absolute, so without an explicit
+     min-height this wrapper collapses to ~4px and space-between doesn't
+     reserve real room for it — measured at 1366×768 this caused a 36px
+     document overflow that clipped the quote entirely. */
+  min-height: 32px;
+  position: relative;
 }
 .login-form-panel {
   width: 100%;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 32px 24px;
+  align-items: stretch;
+  justify-content: flex-end;
+  padding: 32px 56px 32px 24px;   /* 56px right gap per Spec 35 Item 3 */
   background-color: var(--bg);
   position: relative;
 }
@@ -519,10 +619,14 @@ html.light .kpi-card-bills     { background: linear-gradient(135deg, #7a3800 0%,
    Mobile stays borderless/transparent — the form is already the whole screen. */
 @media (min-width: 900px) {
   .login-form-card {
-    background: var(--card);
-    border: 1px solid #6b5620;   /* was var(--gold-border) #4a3a12 — lifted so the card boundary reads */
-    border-radius: 16px;
-    padding: 26px;
+    background: #12121a;
+    border: 1px solid rgba(224,184,74,0.45);   /* Spec 35 Item 3 — more legible than the prior #6b5620 */
+    border-radius: 22px;
+    padding: 32px;
+    align-self: stretch;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
   }
 }
 
