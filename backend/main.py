@@ -27,7 +27,7 @@ from backend.ai_parser import parse_expense_input, generate_daily_mantra, genera
 from backend.budget_rules import (
     get_month_key, check_budget_warnings, get_balance_summary,
     seed_fixed_expenses, get_monthly_spent_by_category, get_budget_limits,
-    compute_peace_of_mind, has_prior_activity,
+    compute_peace_of_mind, classify_user_type,
 )
 from backend.auth import (
     hash_password, verify_password,
@@ -816,6 +816,8 @@ def check_income_set(month_key: str, session: Session = Depends(get_session),
 
 # ── Fixed Due Reminders ───────────────────────────────────────────────────────
 
+DUE_REMINDER_WINDOW = 5  # days before due date to start showing a reminder
+
 @app.get("/fixed/due-reminders/{month_key}")
 def get_due_reminders(month_key: str, session: Session = Depends(get_session),
                       current_user: User = Depends(get_current_user)):
@@ -846,6 +848,7 @@ def get_due_reminders(month_key: str, session: Session = Depends(get_session),
             "due_day":    due_day,
             "days_overdue": days_overdue,
         })
+    reminders = [r for r in reminders if r["days_overdue"] >= -DUE_REMINDER_WINDOW]
     return sorted(reminders, key=lambda x: x["days_overdue"], reverse=True)
 
 
@@ -1292,6 +1295,8 @@ _story_cache: dict[tuple[int, str], str] = {}
 # Per-month insight cache — same lifecycle as _story_cache.
 _insight_cache: dict[tuple[int, str], str] = {}
 
+DAY1_GRACE = 3  # suppress comparisons/wins for first N days of the live current month
+
 
 def _invalidate_month_caches(user_id: int, month_key: str) -> None:
     _story_cache.pop((user_id, month_key), None)
@@ -1323,6 +1328,7 @@ def daily_mantra(month_key: str, session: Session = Depends(get_session),
     year, month = map(int, month_key.split("-"))
     days_in_month = calendar.monthrange(year, month)[1]
     days_left = max(days_in_month - today.day, 0) if month_key == today.strftime("%Y-%m") else 0
+    day_of_month = today.day if month_key == today.strftime("%Y-%m") else None
 
     balance = get_balance_summary(session, month_key, user_id=current_user.id)
     spent_by_cat = get_monthly_spent_by_category(session, month_key, user_id=current_user.id)
@@ -1352,6 +1358,8 @@ def daily_mantra(month_key: str, session: Session = Depends(get_session),
     remaining = balance["remaining"]
     daily_budget = remaining / days_left if days_left > 0 else remaining
 
+    user_type = classify_user_type(session, current_user.id, month_key)
+
     available_angles = ["forecast"]  # always available
     if top_category_prev_month_spent is not None:
         available_angles.append("comparison")
@@ -1371,10 +1379,11 @@ def daily_mantra(month_key: str, session: Session = Depends(get_session),
         "top_category_spent": top_category_spent,
         "top_category_prev_month_spent": top_category_prev_month_spent,
         "fixed_unpaid_total": balance["fixed_unpaid_total"],
+        "user_type": user_type,
     }
 
     try:
-        mantra = generate_daily_mantra(context, preferred_angle=chosen_angle)
+        mantra = generate_daily_mantra(context, preferred_angle=chosen_angle, day_of_month=day_of_month)
     except Exception:
         raise HTTPException(status_code=502, detail="Mantra generation failed")
 
@@ -1422,11 +1431,16 @@ def monthly_story(month_key: str, session: Session = Depends(get_session),
     days_left      = max(days_in_month - today.day, 0) \
                      if month_key == today.strftime("%Y-%m") else 0
 
+    if month_key == today.strftime("%Y-%m") and today.day == 1:
+        story = f"Your month is just starting — ₹{balance['remaining']:,.0f} ready to allocate across {days_left} days."
+        return {"story": story}
+
     fixed_total          = balance["fixed_paid_total"] + balance["fixed_unpaid_total"]
     fixed_completion_pct = (balance["fixed_paid_total"] / fixed_total * 100) \
                            if fixed_total > 0 else 100.0
 
     month_label = f"{calendar.month_name[month]} {year}"
+    user_type   = classify_user_type(session, current_user.id, month_key)
 
     context = {
         "month_label":         month_label,
@@ -1437,6 +1451,7 @@ def monthly_story(month_key: str, session: Session = Depends(get_session),
         "variable_total":      balance["variable_total"],
         "savings_total":       balance["savings_total"],
         "days_left":           days_left,
+        "user_type":           user_type,
     }
 
     try:
@@ -1453,11 +1468,15 @@ def monthly_story(month_key: str, session: Session = Depends(get_session),
 def monthly_insight(month_key: str, session: Session = Depends(get_session),
                     current_user: User = Depends(get_current_user)):
     from datetime import date as _dt
+    today = _dt.today()
     # Past months are immutable → cache forever; the live month always regenerates.
-    is_past_month = month_key < _dt.today().strftime("%Y-%m")
+    is_past_month = month_key < today.strftime("%Y-%m")
     cache_key = (current_user.id, month_key)
     if is_past_month and cache_key in _insight_cache:
         return {"insight": _insight_cache[cache_key]}
+
+    if month_key == today.strftime("%Y-%m") and today.day <= DAY1_GRACE:
+        return {"insight": "Your month is just starting — insights will appear once you log your first expenses."}
 
     balance      = get_balance_summary(session, month_key, user_id=current_user.id)
     spent_by_cat = get_monthly_spent_by_category(session, month_key, user_id=current_user.id)
@@ -1474,13 +1493,9 @@ def monthly_insight(month_key: str, session: Session = Depends(get_session),
     prev_month_key = f"{prev_year:04d}-{prev_month_num:02d}"
     prev_balance   = get_balance_summary(session, prev_month_key, user_id=current_user.id)
 
-    is_first_month = not has_prior_activity(session, month_key, current_user.id)
+    user_type = classify_user_type(session, current_user.id, month_key)
 
-    # A near-zero / missing prior variable total can never anchor a meaningful
-    # comparison — force the encouraging, non-comparative branch in that case.
     prev_variable = prev_balance["variable_total"] if prev_balance else None
-    if not prev_variable:
-        is_first_month = True
 
     variable_pct  = (
         round(balance["variable_total"] / balance["total_income"] * 100)
@@ -1492,7 +1507,7 @@ def monthly_insight(month_key: str, session: Session = Depends(get_session),
     bills_status  = "all" if balance["fixed_unpaid_total"] == 0 else "unpaid bills remain"
 
     context = {
-        "is_first_month":         is_first_month,
+        "user_type":              user_type,
         "month_key":              month_key,
         "variable_total":         balance["variable_total"],
         "variable_pct_of_income": variable_pct,
@@ -1529,6 +1544,10 @@ def tiny_win(month_key: str, session: Session = Depends(get_session),
     today         = dt.today()
     days_left     = max(days_in_month - today.day, 0) \
                     if month_key == today.strftime("%Y-%m") else 0
+
+    day_of_month = today.day if month_key == today.strftime("%Y-%m") else None
+    if (day_of_month is not None and day_of_month <= DAY1_GRACE) or balance["variable_total"] == 0:
+        return {"win": None, "message": "Start logging to unlock your first Tiny Win."}
 
     # Condition 1: all bills cleared with days to spare
     if balance["fixed_unpaid_total"] == 0 and days_left > 5:
